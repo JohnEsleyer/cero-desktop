@@ -1,0 +1,35 @@
+# Wails build output
+build/bin/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/tmp/
+
+# Go module files
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
