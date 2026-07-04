@@ -517,7 +517,7 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 				PageID string `json:"page_id"`
 				Cards  []Card `json:"cards"`
 			}
-			if err := json.Unmarshal(envelope.Data, &payload); err == nil {
+			if err := json.Unmarshal(message, &payload); err == nil {
 				a.cardCacheMutex.Lock()
 				a.cardCache[payload.PageID] = payload.Cards
 				a.cardCacheMutex.Unlock()

@@ -73,7 +73,8 @@
     });
     EventsOn('workspace-status', (data) => { activeWorkspace = data.activeWorkspace; workspaces = data.availableWorkspaces || []; });
     EventsOn('cards-update', (data) => {
-      if (selectedPage && data.pageId === selectedPage.id) {
+      const pid = data.pageId || data.page_id;
+      if (selectedPage && pid === selectedPage.id) {
         pageCards = data.cards || [];
         if (selectedCardId && !pageCards.find(c => c.id === selectedCardId)) selectedCardId = null;
       }
