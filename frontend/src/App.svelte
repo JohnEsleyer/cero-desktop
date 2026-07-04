@@ -353,6 +353,13 @@
         </div>
       </div>
 
+      <div class="title-bar">
+        <input class="emoji-input" type="text" bind:value={editorEmoji}
+               on:input={savePageDebounced} maxlength="4" placeholder="..." />
+        <input id="editor-title-input" class="title-input" type="text" bind:value={editorTitle}
+               on:input={savePageDebounced} placeholder="Untitled" />
+      </div>
+
       <div class="card-column">
         {#each pageCards as card, index (card.id)}
           <div class="card-slot" draggable="true"
@@ -577,6 +584,24 @@
   .bc-root { color: #8e8e8e; }
   .bc-current { color: #818cf8; font-weight: 600; }
   .header-actions { display: flex; gap: 8px; }
+
+  .title-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 24px 0; flex-shrink: 0;
+  }
+  .emoji-input {
+    width: 36px; height: 36px; text-align: center; font-size: 20px;
+    background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 8px;
+    color: #e2e8f0; cursor: pointer; flex-shrink: 0;
+  }
+  .emoji-input:hover { border-color: #818cf8; }
+  .title-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 22px; font-weight: 700; color: #e2e8f0;
+    padding: 6px 0; border-bottom: 2px solid transparent;
+  }
+  .title-input:focus { border-bottom-color: #818cf8; }
+  .title-input::placeholder { color: #4a4a4a; }
 
   .card-column { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 10px; }
 
