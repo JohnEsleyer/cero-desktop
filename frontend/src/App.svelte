@@ -93,853 +93,140 @@
   // Reactive Fullscreen Markdown Parser
   $: interactivePreviewMarkdown = marked.parse(fullscreenEditContent || "");
 
+  // Immersive Markdown Helpers
+  let markdownTextarea;
+  $: markdownCharCount = fullscreenEditContent ? fullscreenEditContent.length : 0;
+  $: markdownWordCount = fullscreenEditContent ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length : 0;
+
+  function insertMarkdownSymbol(prefix, suffix = "") {
+    if (!markdownTextarea) return;
+    const start = markdownTextarea.selectionStart;
+    const end = markdownTextarea.selectionEnd;
+    const text = fullscreenEditContent;
+    const selected = text.substring(start, end);
+
+    fullscreenEditContent = text.substring(0, start) + prefix + selected + suffix + text.substring(end);
+
+    setTimeout(() => {
+      markdownTextarea.focus();
+      const newPos = start + prefix.length + selected.length;
+      markdownTextarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  }
+
+  // Immersive Code Editor Real-time Sync & Highlighting
+  let lineNumbersElement = null;
+  let preElement = null;
+
+  function handleEditorScroll(e) {
+    const { scrollTop, scrollLeft } = e.target;
+    if (preElement) {
+      preElement.scrollTop = scrollTop;
+      preElement.scrollLeft = scrollLeft;
+    }
+    if (lineNumbersElement) {
+      lineNumbersElement.scrollTop = scrollTop;
+    }
+  }
+
+  // Custom regex syntax highlighter supporting JS, Go, Python, HTML/CSS, Dart, etc.
+  function highlightCode(code, lang) {
+    if (!code) return '<span style="color: #4b5563; font-style: italic;">// Start writing your code here...</span>';
+
+    let escaped = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const keywords = [
+      "function", "return", "if", "else", "for", "while", "const", "let", "var",
+      "import", "export", "class", "void", "final", "def", "package", "func", "interface",
+      "from", "default", "as", "new", "this", "extends", "super", "try", "catch", "finally",
+      "async", "await", "break", "continue", "switch", "case", "throw", "true", "false", "null"
+    ];
+    const builtins = ["console", "window", "document", "process", "Object", "Array", "String", "Number", "Boolean", "Math", "JSON"];
+
+    const stringRegex = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g;
+    const commentRegex = /(\/\/[^\n]*|#[^\n]*)/g;
+    const multiLineCommentRegex = /(\/\*[\s\S]*?\*\/)/g;
+
+    const tokens = [];
+    let counter = 0;
+    function saveToken(text, className) {
+      const placeholder = `___TOK_PLCHLDR_${counter++}___`;
+      tokens.push({ placeholder, html: `<span class="${className}">${text}</span>` });
+      return placeholder;
+    }
+
+    // 1. Multi-line comments
+    escaped = escaped.replace(multiLineCommentRegex, (m) => saveToken(m, "tok-comment"));
+    // 2. Single-line comments
+    escaped = escaped.replace(commentRegex, (m) => saveToken(m, "tok-comment"));
+    // 3. Strings
+    escaped = escaped.replace(stringRegex, (m) => saveToken(m, "tok-string"));
+    // 4. Numbers
+    escaped = escaped.replace(/\b(\d+(?:\.\d+)?)\b/g, (m) => saveToken(m, "tok-number"));
+    // 5. Keywords
+    const keywordsRegex = new RegExp(`\\b(${keywords.join("|")})\\b`, "g");
+    escaped = escaped.replace(keywordsRegex, (m) => saveToken(m, "tok-keyword"));
+    // 6. Built-ins
+    const builtinsRegex = new RegExp(`\\b(${builtins.join("|")})\\b`, "g");
+    escaped = escaped.replace(builtinsRegex, (m) => saveToken(m, "tok-builtin"));
+    // 7. Functions
+    escaped = escaped.replace(/\b(\w+)(?=\s*\()/g, (m) => saveToken(m, "tok-function"));
+
+    // Restore placeholder tokens
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      escaped = escaped.replace(tokens[i].placeholder, tokens[i].html);
+    }
+
+    if (escaped.endsWith('\n') || escaped === '') {
+      escaped += ' ';
+    }
+
+    return escaped;
+  }
+
+  $: lineNumbers = (fullscreenCodeContent.match(/\n/g) || []).length + 1;
+  $: highlightedCodeHtml = highlightCode(fullscreenCodeContent, fullscreenCodeLang);
+
   // Rich Keyboard-Matching Emojis Catalog grouped by category
   const emojiCategories = [
     {
       id: "smileys",
       label: "😀 Smileys & People",
       emojis: [
-        "😀",
-        "😃",
-        "😄",
-        "😁",
-        "😆",
-        "😅",
-        "😂",
-        "🤣",
-        "😊",
-        "😇",
-        "🙂",
-        "🙃",
-        "😉",
-        "😌",
-        "😍",
-        "🥰",
-        "😘",
-        "😗",
-        "😙",
-        "😚",
-        "😋",
-        "😛",
-        "😝",
-        "😜",
-        "🤪",
-        "🤨",
-        "🧐",
-        "🤓",
-        "😎",
-        "🥸",
-        "🤩",
-        "🥳",
-        "😏",
-        "😒",
-        "😞",
-        "😔",
-        "😟",
-        "😕",
-        "🙁",
-        "☹️",
-        "😣",
-        "😖",
-        "😫",
-        "😩",
-        "🥺",
-        "😢",
-        "😭",
-        "😤",
-        "😠",
-        "😡",
-        "🤬",
-        "🤯",
-        "😳",
-        "🥵",
-        "🥶",
-        "😱",
-        "😨",
-        "😰",
-        "😥",
-        "😓",
-        "🤔",
-        "🫣",
-        "🤭",
-        "🫢",
-        "🫡",
-        "🤫",
-        "🫠",
-        "🤥",
-        "😶",
-        "😐",
-        "😑",
-        "😬",
-        "🫨",
-        "😴",
-        "🤤",
-        "😪",
-        "😵",
-        "😵💫",
-        "🤐",
-        "🥴",
-        "🤢",
-        "🤮",
-        "🤧",
-        "😷",
-        "🤒",
-        "🤕",
-        "😈",
-        "👿",
-        "👹",
-        "👺",
-        "💀",
-        "☠️",
-        "👻",
-        "👽",
-        "👾",
-        "🤖",
-        "🎃",
-        "😺",
-        "😸",
-        "😹",
-        "😻",
-        "😼",
-        "😽",
-        "😾",
-        "😿",
-        "🙀",
-        "👋",
-        "🤚",
-        "🖐️",
-        "✋",
-        "🖖",
-        "👌",
-        "🤌",
-        "🤏",
-        "✌️",
-        "🤞",
-        "🫰",
-        "🤟",
-        "🤘",
-        "🤙",
-        "👈",
-        "👉",
-        "👆",
-        "🖕",
-        "👇",
-        "☝️",
-        "👍",
-        "👎",
-        "✊",
-        "👊",
-        "🤛",
-        "🤜",
-        "👏",
-        "🙌",
-        "🫶",
-        "👐",
-        "🤲",
-        "🤝",
-        "🙏",
-        "✍️",
-        "💅",
-        "🤳",
-        "💪",
-        "🦾",
-        "🦿",
-        "🦵",
-        "🦶",
-        "👂",
-        "🦻",
-        "👃",
-        "🧠",
-        "🫀",
-        "🫁",
-        "🦷",
-        "🦴",
-        "👀",
-        "👁️",
-        "👅",
-        "👄",
-        "💋",
-        "🩸",
-        "👤",
-        "👥",
-        "🫂",
-      ],
+        "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🥸", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤔", "🫣", "🤭", "🫢", "🫡", "🤫", "🫠", "🤥", "😶", "😐", "😑", "😬", "🫨", "😴", "🤤", "😪", "😵", "😵💫", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "😈", "👿", "👹", "👺", "💀", "☠️", "👻", "👽", "👾", "🤖", "🎃", "😺", "😸", "😹", "😻", "😼", "😽", "😾", "😿", "🙀", "👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞", "🫰", "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝️", "👍", "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "🫶", "👐", "🤲", "🤝", "🙏", "✍️", "💅", "🤳", "💪", "🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃", "🧠", "🫀", "🫁", "🦷", "🦴", "👀", "👁️", "👅", "👄", "💋", "🩸", "👤", "👥", "🫂"
+      ]
     },
     {
       id: "animals",
       label: "🐱 Animals & Nature",
       emojis: [
-        "🐶",
-        "🐱",
-        "🐭",
-        "🐹",
-        "🐰",
-        "🦊",
-        "🐻",
-        "🐼",
-        "🐨",
-        "🐯",
-        "🦁",
-        "🐮",
-        "🐷",
-        "🐽",
-        "🐸",
-        "🐵",
-        "🙈",
-        "🙉",
-        "🙊",
-        "🐒",
-        "🐔",
-        "🐧",
-        "🐦",
-        "🐤",
-        "🐣",
-        "🐥",
-        "🦆",
-        "🦅",
-        "🦉",
-        "🪱",
-        "🐛",
-        "🦋",
-        "🐌",
-        "🐞",
-        "🐜",
-        "🪰",
-        "🪲",
-        "🪳",
-        "🦗",
-        "🕷️",
-        "🕸️",
-        "🐢",
-        "🐍",
-        "🦎",
-        "🐙",
-        "🦑",
-        "🦞",
-        "🦀",
-        "🐡",
-        "🐠",
-        "🐟",
-        "🐬",
-        "🐳",
-        "🐋",
-        "🦈",
-        "🐊",
-        "🐅",
-        "🐆",
-        "🦓",
-        "🦍",
-        "🦧",
-        "🦣",
-        "🐘",
-        "🦛",
-        "🦏",
-        "🐪",
-        "🐫",
-        "🦒",
-        "🦘",
-        "🦬",
-        "🐃",
-        "🐂",
-        "🐄",
-        "🐎",
-        "🐖",
-        "🐏",
-        "🐑",
-        "🦙",
-        "🐐",
-        "🦌",
-        "🐕",
-        "🐩",
-        "🦮",
-        "🐈",
-        "🐓",
-        "🦃",
-        "🦚",
-        "🦜",
-        "🕊️",
-        "🐇",
-        "🦝",
-        "🦨",
-        "🦡",
-        "🦦",
-        "🦥",
-        "🐿️",
-        "🦔",
-        "🐾",
-        "🐉",
-        "🐲",
-        "🌵",
-        "🎄",
-        "🌲",
-        "🌳",
-        "🌴",
-        "🪵",
-        "🌱",
-        "🌿",
-        "☘️",
-        "🍀",
-        "🍁",
-        "🍂",
-        "🍃",
-        "🍄",
-        "🐚",
-        "🪸",
-        "🪨",
-        "🌾",
-        "💐",
-        "🌷",
-        "🌹",
-        "🥀",
-        "🌺",
-        "🌸",
-        "🌼",
-        "🌻",
-        "🌞",
-        "🌝",
-        "🌛",
-        "🌜",
-        "🌚",
-        "🌕",
-        "🌖",
-        "🌗",
-        "🌘",
-        "🌑",
-        "🌒",
-        "🌓",
-        "🌔",
-        "🌙",
-        "🌎",
-        "🌍",
-        "🌏",
-        "🪐",
-        "💫",
-        "⭐️",
-        "🌟",
-        "✨",
-        "⚡️",
-        "☄️",
-        "💥",
-        "🔥",
-        "🌪️",
-        "🌈",
-        "☀️",
-        "🌤️",
-        "⛅️",
-        "🌥️",
-        "🌦️",
-        "☁️",
-        "🌧️",
-        "⛈️",
-        "🌩️",
-        "🌨️",
-        "❄️",
-        "☃️",
-        "⛄️",
-        "🌬️",
-        "💨",
-        "💧",
-        "💦",
-        "🫧",
-        "☔️",
-        "🌊",
-        "🌫️",
-      ],
+        "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐽", "🐸", "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥", "🦆", "🦅", "🦉", "🪱", "🐛", "🦋", "🐌", "🐞", "🐜", "🪰", "🪲", "🪳", "🦗", "🕷️", "🕸️", "🐢", "🐍", "🦎", "🐙", "🦑", "🦞", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🦧", "🦣", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🦬", "🐃", "🐂", "🐄", "🐎", "🐖", "🐏", "🐑", "🦙", "🐐", "🦌", "🐕", "🐩", "🦮", "🐈", "🐓", "🦃", "🦚", "🦜", "🕊️", "🐇", "🦝", "🦨", "🦡", "🦦", "🦥", "🐿️", "🦔", "🐾", "🐉", "🐲", "🌵", "🎄", "🌲", "🌳", "🌴", "🪵", "🌱", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🍄", "🐚", "🪸", "🪨", "🌾", "💐", "🌷", "🌹", "🥀", "🌺", "🌸", "🌼", "🌻", "🌞", "🌝", "🌛", "🌜", "🌚", "🌕", "🌖", "🌗", "🌘", "🌑", "🌒", "🌓", "🌔", "🌙", "🌎", "🌍", "🌏", "🪐", "💫", "⭐️", "🌟", "✨", "⚡️", "☄️", "💥", "🔥", "🌪️", "🌈", "☀️", "🌤️", "⛅️", "🌥️", "🌦️", "☁️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "☃️", "⛄️", "🌬️", "💨", "💧", "💦", "🫧", "☔️", "🌊", "🌫️"
+      ]
     },
     {
       id: "food",
       label: "🍏 Food & Drink",
       emojis: [
-        "🍏",
-        "🍎",
-        "🍐",
-        "🍊",
-        "🍋",
-        "🍌",
-        "🍉",
-        "🍇",
-        "🍓",
-        "🫐",
-        "🍈",
-        "🍒",
-        "🍑",
-        "🥭",
-        "🍍",
-        "🥥",
-        "🥝",
-        "🍅",
-        "🍆",
-        "🥑",
-        "🥦",
-        "🥬",
-        "🥒",
-        "🌶️",
-        "🫑",
-        "🌽",
-        "🥕",
-        "🫒",
-        "🧄",
-        "🧅",
-        "🥔",
-        "🍠",
-        "🥐",
-        "🍞",
-        "🥖",
-        "🥨",
-        "🧀",
-        "🍳",
-        "🥞",
-        "🥓",
-        "🥩",
-        "🍗",
-        "🍖",
-        "🌭",
-        "🍔",
-        "🍟",
-        "🍕",
-        "🥪",
-        "🥙",
-        "🫓",
-        "🌮",
-        "🌯",
-        "🫔",
-        "🥗",
-        "🥘",
-        "🍲",
-        "🫕",
-        "🥫",
-        "🍝",
-        "🍜",
-        "🍛",
-        "🍣",
-        "🍱",
-        "🥟",
-        "🍤",
-        "🍙",
-        "🍘",
-        "🍥",
-        "🥠",
-        "🥮",
-        "🍢",
-        "🍡",
-        "🍧",
-        "🍨",
-        "🍦",
-        "🥧",
-        "🍰",
-        "🎂",
-        "🧁",
-        "🍮",
-        "🍭",
-        "🍬",
-        "🍫",
-        "🍿",
-        "🍩",
-        "🍪",
-        "🌰",
-        "🥜",
-        "🫘",
-        "🍯",
-        "🥛",
-        "🍼",
-        "☕️",
-        "🍵",
-        "🧃",
-        "🥤",
-        "🧋",
-        "🍶",
-        "🍺",
-        "🍻",
-        "🥂",
-        "🍷",
-        "🥃",
-        "🍸",
-        "🍹",
-        "🧉",
-        "🍾",
-        "🧊",
-        "🥢",
-        "🍽️",
-        "🍴",
-        "🥄",
-      ],
+        "🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🥬", "🥒", "🌶️", "🫑", "🌽", "🥕", "🫒", "🧄", "🧅", "🥔", "🍠", "🥐", "🍞", "🥖", "🥨", "🧀", "🍳", "🥞", "🥓", "🥩", "🍗", "🍖", "🌭", "🍔", "🍟", "🍕", "🥪", "🥙", "🫓", "🌮", "🌯", "🫔", "🥗", "🥘", "🍲", "🫕", "🥫", "🍝", "🍜", "🍛", "🍣", "🍱", "🥟", "🍤", "🍙", "🍘", "🍥", "🥠", "🥮", "🍢", "🍡", "🍧", "🍨", "🍦", "🥧", "🍰", "🎂", "🧁", "🍮", "🍭", "🍬", "🍫", "🍿", "🍩", "🍪", "🌰", "🥜", "🫘", "🍯", "🥛", "🍼", "☕️", "🍵", "🧃", "🥤", "🧋", "🍶", "🍺", "🍻", "🥂", "🍷", "🥃", "🍸", "🍹", "🧉", "🍾", "🧊", "🥢", "🍽️", "🍴", "🥄"
+      ]
     },
     {
       id: "activity",
       label: "⚽️ Activity & Travel",
       emojis: [
-        "⚽️",
-        "🏀",
-        "🏈",
-        "⚾️",
-        "🥎",
-        "🎾",
-        "🏐",
-        "🏉",
-        "🥏",
-        "🎱",
-        "🪀",
-        "🏸",
-        "🏒",
-        "🥍",
-        "🏹",
-        "🤿",
-        "🥊",
-        "🥋",
-        "🥅",
-        "⛳️",
-        "⛸️",
-        "🎽",
-        "🎿",
-        "🛷",
-        "🥌",
-        "🎯",
-        "🪗",
-        "🪘",
-        "🎮",
-        "🕹️",
-        "🎰",
-        "🎲",
-        "🧩",
-        "🧸",
-        "🪅",
-        "🪩",
-        "🎨",
-        "🖼️",
-        "🧵",
-        "🪡",
-        "🧶",
-        "🎸",
-        "🎹",
-        "🎺",
-        "🎻",
-        "🥁",
-        "🪕",
-        "🎧",
-        "🎤",
-        "🎬",
-        "🎟️",
-        "🎫",
-        "🎭",
-        "🎪",
-        "🧗",
-        "🏋️",
-        "🚴",
-        "🏃",
-        "🚶",
-        "🚗",
-        "🚕",
-        "🚙",
-        "🚌",
-        "🚎",
-        "🏎️",
-        "🚓",
-        "🚑",
-        "🚒",
-        "🚐",
-        "🛻",
-        "🚚",
-        "🚛",
-        "🚜",
-        "🛵",
-        "🏍️",
-        "🛺",
-        "🚲",
-        "🛴",
-        "🛼",
-        "🚏",
-        "🛣️",
-        "🛤️",
-        "🚢",
-        "⛵️",
-        "🚤",
-        "🛥️",
-        "🛳️",
-        "⛴️",
-        "🛶",
-        "🛸",
-        "🚁",
-        "🛩️",
-        "✈️",
-        "🛫",
-        "🛬",
-        "🚀",
-        "🛰️",
-        "⚓️",
-        "🗺️",
-        "🧭",
-        "🏔️",
-        "⛰️",
-        "🌋",
-        "🗻",
-        "🏕️",
-        "🏖️",
-        "🏜️",
-        "🏝️",
-        "🏞️",
-        "🏛️",
-        "🏗️",
-        "🧱",
-        "🏘️",
-        "🏚️",
-        "🏠",
-        "🏡",
-        "🏢",
-        "🏣",
-        "🏤",
-        "🏥",
-        "🏦",
-        "🏨",
-        "🏩",
-        "🏪",
-        "🏫",
-        "🏬",
-        "🏭",
-        "🏯",
-        "🏰",
-        "💒",
-        "🗼",
-        "🗽",
-        "🕌",
-        "⛪️",
-        "🛕",
-        "🕍",
-        "⛩️",
-        "🕋",
-        "⛲️",
-        "⛺️",
-        "🌁",
-        "🌃",
-        "🏙️",
-        "🌅",
-        "🌄",
-        "🌇",
-        "🌆",
-        "🌉",
-        "🎠",
-        "🎡",
-        "🎢",
-        "💈",
-      ],
+        "⚽️", "🏀", "🏈", "⚾️", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱", "🪀", "🏸", "🏒", "🥍", "🏹", "🤿", "🥊", "🥋", "🥅", "⛳️", "⛸️", "🎽", "🎿", "🛷", "🥌", "🎯", "🪗", "🪘", "🎮", "🕹️", "🎰", "🎲", "🧩", "🧸", "🪅", "🪩", "🎨", "🖼️", "🧵", "🪡", "🧶", "🎸", "🎹", "🎺", "🎻", "🥁", "🪕", "🎧", "🎤", "🎬", "🎟️", "🎫", "🎭", "🎪", "🧗", "🏋️", "🚴", "🏃", "🚶", "🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒", "🚐", "🛻", "🚚", "🚛", "🚜", "🛵", "🏍️", "🛺", "🚲", "🛴", "🛼", "🚏", "🛣️", "🛤️", "🚢", "⛵️", "🚤", "🛥️", "🛳️", "⛴️", "🛶", "🛸", "🚁", "🛩️", "✈️", "🛫", "🛬", "🚀", "🛰️", "⚓️", "🗺️", "🧭", "🏔️", "⛰️", "🌋", "🗻", "🏕️", "🏖️", "🏜️", "🏝️", "🏞️", "🏛️", "🏗️", "🧱", "🏘️", "🏚️", "🏠", "🏡", "🏢", "🏣", "🏤", "🏥", "🏦", "🏨", "🏩", "🏪", "🏫", "🏬", "🏭", "🏯", "🏰", "💒", "🗼", "🗽", "🕌", "⛪️", "🛕", " synagogues", "⛩️", "🕋", "⛲️", "⛺️", "🌁", "🌃", "🏙️", "🌅", "🌄", "🌇", "🌆", "🌉", "🎠", "🎡", "🎢", "💈"
+      ]
     },
     {
       id: "objects",
       label: "💡 Objects & Symbols",
       emojis: [
-        "⌚️",
-        "📱",
-        "📲",
-        "💻",
-        "⌨️",
-        "🖥️",
-        "🖨️",
-        "🖱️",
-        "🖲️",
-        "💽",
-        "💾",
-        "💿",
-        "📀",
-        "📼",
-        "📷",
-        "📸",
-        "📹",
-        "🎥",
-        "📽️",
-        "🎞️",
-        "📞",
-        "☎️",
-        "📟",
-        "📠",
-        "📺",
-        "📻",
-        "🎙️",
-        "🎚️",
-        "🎛️",
-        "🧭",
-        "⏰",
-        "⌛️",
-        "⏳",
-        "🔋",
-        "🔌",
-        "💡",
-        "🕯️",
-        "🪔",
-        "🗑️",
-        "🛢️",
-        "💸",
-        "💵",
-        "💴",
-        "💶",
-        "💷",
-        "🪙",
-        "💰",
-        "💳",
-        "💎",
-        "⚖️",
-        "🪜",
-        "🔧",
-        "🔨",
-        "⚒️",
-        "🛠️",
-        "⛏️",
-        "🪚",
-        "🔩",
-        "⚙️",
-        "🧱",
-        "⛓️",
-        "🧲",
-        "🧯",
-        "🔫",
-        "💣",
-        "🧨",
-        "🪓",
-        "🔪",
-        "🗡️",
-        "⚔️",
-        "🛡️",
-        "🚬",
-        "⚰️",
-        "⚱️",
-        "🏺",
-        "🔮",
-        "📿",
-        "🧿",
-        "💈",
-        "🧫",
-        "🧪",
-        "🔬",
-        "🔭",
-        "📡",
-        "💉",
-        "💊",
-        "🩹",
-        "🩺",
-        "🚪",
-        "🛗",
-        "🪞",
-        "🪟",
-        "🛏️",
-        "🛋️",
-        "🪑",
-        "🚽",
-        "🪠",
-        "🚿",
-        "🛁",
-        "🧼",
-        "🪥",
-        "🪮",
-        "🧴",
-        "🧹",
-        "🧺",
-        "🧻",
-        "🪣",
-        "🪟",
-        "🗝️",
-        "🔑",
-        "🪤",
-        "📦",
-        "🏷️",
-        "✉️",
-        "📩",
-        "📨",
-        "📧",
-        "📤",
-        "📥",
-        "📪",
-        "📫",
-        "📬",
-        "📭",
-        "📮",
-        "🗳️",
-        "✏️",
-        "✒️",
-        "🖋️",
-        "🖊️",
-        "🖌️",
-        "🖍️",
-        "📝",
-        "📁",
-        "📂",
-        "🗂️",
-        "📅",
-        "📆",
-        "🗒️",
-        "🗓️",
-        "🪪",
-        "🗃️",
-        "🗄️",
-        "📋",
-        "📌",
-        "📍",
-        "📎",
-        "🖇️",
-        "📏",
-        "📐",
-        "🧮",
-        "🔐",
-        "🔏",
-        "🔒",
-        "🔓",
-        "❤️",
-        "🧡",
-        "💛",
-        "💚",
-        "💙",
-        "💜",
-        "🖤",
-        "🤍",
-        "🤎",
-        "💔",
-        "❣️",
-        "💕",
-        "💞",
-        "💓",
-        "💗",
-        "💖",
-        "💘",
-        "💝",
-        "💟",
-        "☮️",
-        "✝️",
-        "☪️",
-        "🕉️",
-        "☸️",
-        "✡️",
-        "🔯",
-        "🕎",
-        "☯️",
-        "☦️",
-        "🛐",
-        "♈️",
-        "♉️",
-        "♊️",
-        "♋️",
-        "♌️",
-        "♍️",
-        "♎️",
-        "♏️",
-        "♐️",
-        "♑️",
-        "♒️",
-        "♓️",
-        "🆔",
-        "📯",
-        "🔔",
-        "🔕",
-        "📣",
-        "📢",
-        "💬",
-        "💭",
-        "🗯️",
-        "🏁",
-        "🚩",
-        "🎌",
-        "🏴",
-        "🏳️",
-        "🏳️🌈",
-        "🏴☠️",
-      ],
-    },
+        "⌚️", "📱", "📲", "💻", "⌨️", "🖥️", "🖨️", "🖱️", "🖲️", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽️", "🎞️", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙️", "🎚️", "🎛️", "🧭", "⏰", "⌛️", "⏳", "🔋", "🔌", "💡", "🕯️", "🪔", "🗑️", "🛢️", "💸", "💵", "💴", "💶", "💷", "🪙", "💰", "💳", "💎", "⚖️", "🪜", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🪚", "🔩", "⚙️", "🧱", "⛓️", "🧲", "🧯", "🔫", "bomb", "🧨", "🪓", "🔪", "🗡️", "⚔️", "🛡️", "🚬", "⚰️", "⚱️", "🏺", "🔮", "📿", "🧿", "💈", "🧫", "🧪", "🔬", "🔭", "📡", "💉", "💊", "🩹", "🩺", "🚪", "🛗", "🪞", "🪟", "🛏️", "🛋️", "🪑", "🚽", "🪠", "🚿", "🛁", "🧼", "🪥", "🪮", "🧴", "🧹", "🧺", "🧻", "🪣", "🪟", "🗝️", "🔑", "🪤", "📦", "🏷️", "✉️", "📩", "📨", "📧", "📤", "📥", "📪", "📫", "📬", "📭", "📮", "🗳️", "✏️", "✒️", "🖋️", "🖊️", "🖌️", "🖍️", "📝", "📁", "📂", "🗂️", "📅", "📆", "🗒️", "🗓️", "🪪", "🗃️", "🗄️", "📋", "📌", "📍", "📎", "🖇️", "📏", "📐", "🧮", "🔐", "🔏", "🔒", "🔓", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉️", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "♈️", "♉️", "♊️", "♋️", "♌️", "♍️", "♎️", "♏️", "♐️", "♑️", "♒️", "♓️", "🆔", "📯", "🔔", "🔕", "📣", "📢", "💬", "💭", "🗯️", "🏁", "🚩", "🎌", "🏴", "🏳️", "🏳️🌈", "🏴☠️"
+      ]
+    }
   ];
 
   // Sidebar widths (pixels)
@@ -1928,32 +1215,61 @@
   </div>
 {/if}
 
-<!-- Immersive Markdown Fullscreen Modal (At very top of stacking context) -->
+<!-- Immersive Markdown Fullscreen Modal -->
 {#if showMarkdownFullscreenModal}
-  <div class="fullscreen-editor-overlay">
+  <div class="fullscreen-editor-overlay markdown-fullscreen-theme">
     <div class="fullscreen-header">
       <div class="header-info">
-        <h3>📝 Immersive Markdown Editor</h3>
-        <span class="sub-desc"
-          >Split-workspace editing with instant rendering preview</span
-        >
+        <div class="header-title-row">
+          <span class="header-badge">MARKDOWN</span>
+          <h3>Immersive Workspace</h3>
+        </div>
+        <span class="sub-desc">Writing canvas with live split-screen preview</span>
       </div>
+
+      <!-- Live Typing Stats Indicator -->
+      <div class="editor-stats">
+        <div class="stat-pill">
+          <span class="stat-val">{markdownWordCount}</span> <span class="stat-lbl">words</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-val">{markdownCharCount}</span> <span class="stat-lbl">chars</span>
+        </div>
+      </div>
+
       <div class="header-buttons">
         <button
           class="btn secondary"
           on:click={() => (showMarkdownFullscreenModal = false)}>Cancel</button
         >
         <button class="btn primary" on:click={saveMarkdownFullscreen}
-          >Done</button
+          >Save Changes</button
         >
       </div>
     </div>
+
     <div class="fullscreen-workspace">
-      <textarea
-        class="fullscreen-textarea"
-        bind:value={fullscreenEditContent}
-        placeholder="Start writing markdown content here..."
-      ></textarea>
+      <div class="editor-pane-container">
+        <textarea
+          bind:this={markdownTextarea}
+          class="fullscreen-textarea"
+          bind:value={fullscreenEditContent}
+          placeholder="Start typing your thoughts in markdown..."
+          spellcheck="true"
+        ></textarea>
+
+        <!-- Interactive Formatting Toolbar -->
+        <div class="floating-markdown-toolbar">
+          <button class="tool-btn" title="Bold" on:click={() => insertMarkdownSymbol("**", "**")}><strong>B</strong></button>
+          <button class="tool-btn" title="Italic" on:click={() => insertMarkdownSymbol("*", "*")}><em>I</em></button>
+          <button class="tool-btn" title="Header" on:click={() => insertMarkdownSymbol("### ")}>H3</button>
+          <button class="tool-btn" title="List" on:click={() => insertMarkdownSymbol("- ")}>• List</button>
+          <button class="tool-btn" title="Checklist" on:click={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button>
+          <button class="tool-btn" title="Inline Code" on:click={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button>
+          <button class="tool-btn" title="Code Block" on:click={() => insertMarkdownSymbol("```\n", "\n```")}>Block</button>
+        </div>
+      </div>
+
       <div class="fullscreen-preview markdown-rendered">
         {@html interactivePreviewMarkdown}
       </div>
@@ -1961,43 +1277,70 @@
   </div>
 {/if}
 
-<!-- Immersive Code Fullscreen Modal (At very top of stacking context) -->
+<!-- Immersive Code Fullscreen Modal -->
 {#if showCodeFullscreenModal}
-  <div class="fullscreen-editor-overlay">
+  <div class="fullscreen-editor-overlay code-fullscreen-theme">
     <div class="fullscreen-header">
-      <div
-        class="header-info"
-        style="display: flex; align-items: center; gap: 16px;"
-      >
-        <h3 style="margin: 0;">💻 Immersive Code Editor</h3>
-        <select
-          bind:value={fullscreenCodeLang}
-          style="background: #2a2a2a; color: #818cf8; border: 1px solid #3e3e3e; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; outline: none; cursor: pointer;"
-        >
-          <option value="javascript">JAVASCRIPT</option>
-          <option value="python">PYTHON</option>
-          <option value="html">HTML</option>
-          <option value="css">CSS</option>
-          <option value="go">GO</option>
-          <option value="dart">DART</option>
-          <option value="json">JSON</option>
-          <option value="bash">BASH</option>
-        </select>
+      <div class="header-info" style="display: flex; align-items: center; gap: 16px;">
+        <!-- Language Selector -->
+        <div class="custom-select-wrapper">
+          <select
+            bind:value={fullscreenCodeLang}
+            class="lang-dropdown-select"
+          >
+            <option value="javascript">JAVASCRIPT</option>
+            <option value="python">PYTHON</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="go">GO</option>
+            <option value="dart">DART</option>
+            <option value="json">JSON</option>
+            <option value="bash">BASH</option>
+          </select>
+        </div>
       </div>
+
+      <!-- Code Stats -->
+      <div class="editor-stats">
+        <div class="stat-pill">
+          <span class="stat-val">{lineNumbers}</span> <span class="stat-lbl">lines</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-val">{fullscreenCodeContent ? fullscreenCodeContent.length : 0}</span> <span class="stat-lbl">bytes</span>
+        </div>
+      </div>
+
       <div class="header-buttons">
         <button
           class="btn secondary"
           on:click={() => (showCodeFullscreenModal = false)}>Cancel</button
         >
-        <button class="btn primary" on:click={saveCodeFullscreen}>Done</button>
+        <button class="btn primary" on:click={saveCodeFullscreen}>Save Changes</button>
       </div>
     </div>
+
     <div class="fullscreen-workspace single-pane">
-      <textarea
-        class="fullscreen-textarea monospace"
-        bind:value={fullscreenCodeContent}
-        placeholder="Write code snippet here..."
-      ></textarea>
+      <div class="interactive-code-editor-viewport">
+        <!-- Interactive Vertical Line Numbers Panel -->
+        <div class="editor-line-numbers" bind:this={lineNumbersElement}>
+          {#each Array(lineNumbers) as _, i}
+            <div class="line-number-row">{i + 1}</div>
+          {/each}
+        </div>
+
+        <!-- Textarea and Syntax Highlighter Canvas Container -->
+        <div class="editor-canvas">
+          <pre class="editor-pre" bind:this={preElement}>{@html highlightedCodeHtml}</pre>
+          <textarea
+            class="editor-textarea"
+            bind:value={fullscreenCodeContent}
+            on:scroll={handleEditorScroll}
+            placeholder="Write your code snippet here..."
+            spellcheck="false"
+            autofocus
+          ></textarea>
+        </div>
+      </div>
     </div>
   </div>
 {/if}
@@ -3246,6 +2589,7 @@
     padding: 24px;
     resize: none;
     outline: none;
+    text-align: left !important;
   }
   .fullscreen-textarea.monospace {
     font-family: "Fira Code", monospace;
@@ -3384,5 +2728,306 @@
     100% {
       box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
     }
+  }
+
+  /* --- Immersive Editors CSS Layout Update --- */
+  .markdown-fullscreen-theme, .code-fullscreen-theme {
+    background-color: #0b0b0d !important;
+  }
+
+  .fullscreen-header {
+    height: 64px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #111115;
+    border-bottom: 1px solid #1c1c24;
+    box-sizing: border-box;
+  }
+
+  .header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-badge {
+    font-size: 8px;
+    font-weight: 800;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: rgba(129, 140, 248, 0.12);
+    border: 1px solid rgba(129, 140, 248, 0.25);
+    color: #818cf8;
+    letter-spacing: 0.5px;
+  }
+
+  .header-badge.code {
+    background: rgba(244, 114, 182, 0.12);
+    border-color: rgba(244, 114, 182, 0.25);
+    color: #f472b6;
+  }
+
+  .fullscreen-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .fullscreen-header .sub-desc {
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .editor-stats {
+    display: flex;
+    gap: 8px;
+  }
+
+  .stat-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .stat-val {
+    font-weight: 700;
+    color: #cbd5e1;
+  }
+
+  .stat-lbl {
+    color: #64748b;
+    font-size: 10px;
+  }
+
+  .header-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* --- Markdown Editor Split Panel Canvas --- */
+  .editor-pane-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0f0f13;
+    border-right: 1px solid #1c1c24;
+  }
+
+  .editor-pane-container textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    resize: none;
+    outline: none;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 32px 32px 80px 32px;
+    box-sizing: border-box;
+    text-align: left !important;
+  }
+
+  /* Floating Styling toolbar */
+  .floating-markdown-toolbar {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(17, 17, 21, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid #282834;
+    border-radius: 30px;
+    padding: 6px;
+    display: flex;
+    gap: 4px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+  }
+
+  .tool-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .tool-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+
+  /* Split preview screen */
+  .fullscreen-preview {
+    background: #0b0b0d !important;
+    padding: 32px !important;
+  }
+
+  /* --- Interactive Code Highlighting Canvas Viewport --- */
+  .interactive-code-editor-viewport {
+    display: flex;
+    background: #08080a;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .editor-line-numbers {
+    width: 55px;
+    background: #050506;
+    border-right: 1px solid #131317;
+    color: #475569;
+    font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 12px;
+    line-height: 22px;
+    text-align: right;
+    padding: 24px 14px 24px 0;
+    overflow-y: hidden;
+    user-select: none;
+    box-sizing: border-box;
+  }
+
+  .line-number-row {
+    height: 22px;
+  }
+
+  .editor-canvas {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .editor-textarea,
+  .editor-pre {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+    font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 12px;
+    line-height: 22px;
+    margin: 0;
+    border: 0;
+    box-sizing: border-box;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    text-align: left !important;
+  }
+
+  .editor-textarea {
+    background: transparent;
+    color: transparent !important;
+    text-fill-color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: #818cf8;
+    resize: none;
+    outline: none;
+    z-index: 2;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .editor-pre {
+    background: transparent;
+    color: #94a3b8;
+    z-index: 1;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  /* Dropdown language component */
+  .custom-select-wrapper {
+    position: relative;
+  }
+
+  .lang-dropdown-select {
+    background: #1a1a24;
+    color: #818cf8;
+    border: 1px solid #282834;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+    letter-spacing: 0.5px;
+  }
+
+  .lang-dropdown-select:hover {
+    border-color: #818cf8;
+  }
+
+  .custom-select-wrapper::after {
+    content: "▼";
+    font-size: 8px;
+    color: #818cf8;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  /* Dracula-inspired Token Highlight Styles */
+  :global(.tok-keyword) {
+    color: #f472b6 !important; /* Tailwind Pink */
+    font-weight: bold;
+  }
+
+  :global(.tok-string) {
+    color: #34d399 !important; /* Soft Emerald */
+  }
+
+  :global(.tok-comment) {
+    color: #64748b !important; /* Soft Slate */
+    font-style: italic;
+  }
+
+  :global(.tok-number) {
+    color: #fb923c !important; /* Orange Amber */
+  }
+
+  :global(.tok-builtin) {
+    color: #38bdf8 !important; /* Sky Blue */
+  }
+
+  :global(.tok-function) {
+    color: #60a5fa !important; /* Periwinkle Blue */
   }
 </style>
