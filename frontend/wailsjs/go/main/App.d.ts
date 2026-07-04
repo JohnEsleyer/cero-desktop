@@ -44,7 +44,11 @@ export function RestorePage(arg1:string):Promise<void>;
 
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
 
+export function StartHTMLServer(arg1:string):Promise<string>;
+
 export function StartUdpDiscovery():Promise<void>;
+
+export function StopHTMLServer():Promise<void>;
 
 export function StopUdpDiscovery():Promise<void>;
 

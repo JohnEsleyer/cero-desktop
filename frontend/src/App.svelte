@@ -197,7 +197,19 @@
       } else {
         sortOrder = pageCards.length > 0 ? Math.max(...pageCards.map(c => c.sort_order)) + 1 : 0;
       }
-      await AddCard(selectedPage.id, type, '', sortOrder);
+
+      let defaultContent = '';
+      if (type === 'code') {
+        defaultContent = 'javascript\nconsole.log("Hello from Cero Code Block!");\n';
+      } else if (type === 'sites') {
+        defaultContent = JSON.stringify({
+          name: 'Interactive Site Card',
+          description: 'Sandboxed iframe renderer preview widget',
+          html: '<h1>Welcome directly to Sandboxed Environment!</h1>\n<p>Change this code inside the editor tab to render customized HTML components.</p>'
+        });
+      }
+
+      await AddCard(selectedPage.id, type, defaultContent, sortOrder);
     } catch (e) { alert("Failed: " + e); }
   }
 
@@ -295,15 +307,13 @@
       <div class="sidebar-section manual-connect-card">
         <div class="section-label">Manual Link</div>
         <div class="manual-form">
-          <div class="form-row">
-            <div class="form-group flex-2">
-              <label for="manual-ip">IP Address</label>
-              <input type="text" id="manual-ip" bind:value={manualIp} placeholder="192.168.1.X" />
-            </div>
-            <div class="form-group flex-1">
-              <label for="manual-port">Port</label>
-              <input type="number" id="manual-port" bind:value={manualPort} placeholder="9090" />
-            </div>
+          <div class="form-group">
+            <label for="manual-ip">IP Address</label>
+            <input type="text" id="manual-ip" bind:value={manualIp} placeholder="192.168.1.X" />
+          </div>
+          <div class="form-group">
+            <label for="manual-port">Port</label>
+            <input type="number" id="manual-port" bind:value={manualPort} placeholder="9090" />
           </div>
           <div class="form-group">
             <label for="manual-pin">Auth PIN (from mobile)</label>
@@ -397,6 +407,8 @@
               <button class="btn secondary" on:click={() => handleAddCardType('markdown')}>📝 Markdown</button>
               <button class="btn secondary" on:click={() => handleAddCardType('image')}>🖼️ Image</button>
               <button class="btn secondary" on:click={() => handleAddCardType('subpage_link')}>🔗 Link</button>
+              <button class="btn secondary" on:click={() => handleAddCardType('code')}>💻 Code Block</button>
+              <button class="btn secondary" on:click={() => handleAddCardType('sites')}>🌐 HTML Site</button>
             </div>
           </div>
         {/if}
@@ -445,6 +457,20 @@
           <div class="block-desc">
             <span class="block-title">Subpage Link</span>
             <span class="block-subtitle">Link directly to another nested page in your journal hierarchy.</span>
+          </div>
+        </button>
+        <button class="block-option-row" on:click={() => handleAddCardType('code')}>
+          <span class="block-icon">💻</span>
+          <div class="block-desc">
+            <span class="block-title">Code Block</span>
+            <span class="block-subtitle">Syntax-highlighted editor with multi-programming language options.</span>
+          </div>
+        </button>
+        <button class="block-option-row" on:click={() => handleAddCardType('sites')}>
+          <span class="block-icon">🌐</span>
+          <div class="block-desc">
+            <span class="block-title">HTML Site block</span>
+            <span class="block-subtitle">Creates customized templates with embedded sandbox HTML code rendering.</span>
           </div>
         </button>
       </div>

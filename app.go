@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,6 +85,11 @@ type App struct {
 	isDiscovering bool
 	discoveredMap map[string]DiscoveredDevice
 	discoveredMux sync.Mutex
+
+	// HTML sandbox preview server
+	htmlServer  *http.Server
+	htmlContent string
+	serverMutex sync.Mutex
 }
 
 // NewApp creates a new App application struct
@@ -983,6 +989,61 @@ func (a *App) DeleteImage(filename string) error {
 	path := filepath.Join(dir, filename)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete image: %w", err)
+	}
+	return nil
+}
+
+// StartHTMLServer starts a temporary local HTTP server serving the provided HTML string.
+// Returns the local URL address or an error.
+func (a *App) StartHTMLServer(htmlContent string) (string, error) {
+	a.serverMutex.Lock()
+	defer a.serverMutex.Unlock()
+
+	a.htmlContent = htmlContent
+	if a.htmlServer != nil {
+		// Server already running, return existing dynamic localhost URL
+		return fmt.Sprintf("http://%s/", a.htmlServer.Addr), nil
+	}
+
+	// Dynamic binding to let OS find an ephemeral free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		a.serverMutex.Lock()
+		defer a.serverMutex.Unlock()
+		fmt.Fprint(w, a.htmlContent)
+	})
+
+	a.htmlServer = &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := a.htmlServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Local HTML server closed/error: %v\n", err)
+		}
+	}()
+
+	return fmt.Sprintf("http://%s/", addr), nil
+}
+
+// StopHTMLServer stops serving the temporary local HTML page and frees the port.
+func (a *App) StopHTMLServer() error {
+	a.serverMutex.Lock()
+	defer a.serverMutex.Unlock()
+
+	if a.htmlServer != nil {
+		err := a.htmlServer.Close()
+		a.htmlServer = nil
+		return err
 	}
 	return nil
 }

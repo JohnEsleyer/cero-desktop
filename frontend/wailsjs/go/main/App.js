@@ -86,8 +86,16 @@ export function SaveImage(arg1, arg2) {
   return window['go']['main']['App']['SaveImage'](arg1, arg2);
 }
 
+export function StartHTMLServer(arg1) {
+  return window['go']['main']['App']['StartHTMLServer'](arg1);
+}
+
 export function StartUdpDiscovery() {
   return window['go']['main']['App']['StartUdpDiscovery']();
+}
+
+export function StopHTMLServer() {
+  return window['go']['main']['App']['StopHTMLServer']();
 }
 
 export function StopUdpDiscovery() {

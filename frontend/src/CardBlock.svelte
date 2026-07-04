@@ -1,6 +1,6 @@
 <script>
   import { marked } from 'marked';
-  import { UpdateCard, DeleteCard, SaveImage, GetImage } from '../wailsjs/go/main/App.js';
+  import { UpdateCard, DeleteCard, SaveImage, GetImage, AddPage, StartHTMLServer, StopHTMLServer } from '../wailsjs/go/main/App.js';
 
   export let card;
   export let isSelected = false;
@@ -14,9 +14,47 @@
   let showLinkModal = false;
   let pageSearchQuery = '';
 
-  // Sync editContent when card changes externally
+  // Code Block variables
+  let editingCode = false;
+  let codeLang = 'javascript';
+  let codeContent = '';
+
+  // Sites Card variables
+  let showSitesModal = false;
+  let sitesTab = 'edit'; // 'edit' | 'preview'
+  let sitesName = 'My HTML Site';
+  let sitesDesc = 'Renders customized HTML template preview';
+  let sitesHtml = '<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live in the preview tab.</p>';
+  let sitesLocalUrl = '';
+
+  // Sync state properties on external card change
   $: if (card.id && !editing) {
     editContent = card.content || '';
+  }
+
+  $: if (card.type === 'code') {
+    const raw = card.content || '';
+    if (raw.includes('\n')) {
+      const firstLineIdx = raw.indexOf('\n');
+      codeLang = raw.substring(0, firstLineIdx).trim().toLowerCase();
+      codeContent = raw.substring(firstLineIdx + 1);
+    } else {
+      codeLang = 'javascript';
+      codeContent = raw;
+    }
+  }
+
+  $: if (card.type === 'sites') {
+    try {
+      const parsed = JSON.parse(card.content || '{}');
+      sitesName = parsed.name || 'My HTML Site';
+      sitesDesc = parsed.description || 'Renders customized HTML template preview';
+      sitesHtml = parsed.html || '<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live in the preview tab.</p>';
+    } catch (_) {
+      sitesName = 'My HTML Site';
+      sitesDesc = 'Renders customized HTML template preview';
+      sitesHtml = card.content || '';
+    }
   }
 
   function handleClick() {
@@ -97,16 +135,12 @@
 
   function getImageSrc(content) {
     if (!content) return '';
-    // If it's a URL, return as-is
     if (content.startsWith('http://') || content.startsWith('https://') || content.startsWith('data:')) {
       return content;
     }
-    // If it's a local file path, return as-is
     if (content.startsWith('/') || content.startsWith('file://')) {
       return content;
     }
-    // Otherwise it's a workspace image filename — use GetImage
-    // For now, we'll try to construct the path
     return content;
   }
 
@@ -141,6 +175,84 @@
     if (!card.content || !onNavigate) return;
     const target = allPages.find(p => p.id === card.content);
     if (target) onNavigate(target);
+  }
+
+  function handleSaveCode() {
+    const combined = `${codeLang}\n${codeContent}`;
+    UpdateCard(card.id, card.page_id, combined).then(() => {
+      card.content = combined;
+    }).catch(err => console.error(err));
+  }
+
+  function getCodeHighlightHtml(code, lang) {
+    if (!code) return '<span style="color: #64748b; font-style: italic;">// Empty code block...</span>';
+    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const keywords = ['function', 'return', 'if', 'else', 'for', 'while', 'const', 'let', 'var', 'import', 'class', 'void', 'final', 'def', 'package', 'func', 'interface'];
+    const keywordsRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+    let highlighted = escaped
+      .replace(keywordsRegex, '<span style="color: #f472b6; font-weight: bold;">$1</span>')
+      .replace(/("(.*?)"|\'([^\']*)\')/g, '<span style="color: #34d399;">$1</span>')
+      .replace(/(\/\/[^\n]*)/g, '<span style="color: #94a3b8; font-style: italic;">$1</span>');
+    return highlighted;
+  }
+
+  async function openSitesModal() {
+    showSitesModal = true;
+    sitesTab = 'edit';
+    sitesLocalUrl = '';
+    try {
+      if (typeof StartHTMLServer === 'function') {
+        sitesLocalUrl = await StartHTMLServer(sitesHtml);
+      } else {
+        sitesLocalUrl = 'http://localhost:9095/fallback/' + card.id;
+      }
+    } catch (err) {
+      console.error("Failed to start html server:", err);
+    }
+  }
+
+  async function closeSitesModal() {
+    handleSaveSites();
+    showSitesModal = false;
+    try {
+      if (typeof StopHTMLServer === 'function') {
+        await StopHTMLServer();
+      }
+    } catch (err) {
+      console.error("Failed to stop html server:", err);
+    }
+  }
+
+  async function handleSaveSites() {
+    const combined = JSON.stringify({
+      name: sitesName,
+      description: sitesDesc,
+      html: sitesHtml
+    });
+    UpdateCard(card.id, card.page_id, combined).then(() => {
+      card.content = combined;
+    }).catch(err => console.error(err));
+
+    if (showSitesModal && typeof StartHTMLServer === 'function') {
+      try {
+        sitesLocalUrl = await StartHTMLServer(sitesHtml);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  async function handleCreateNewPageAndLink() {
+    showLinkModal = false;
+    try {
+      const res = await AddPage(card.page_id, 'subpage', 'New Subpage Link', '📝');
+      if (res && res.id) {
+        await UpdateCard(card.id, card.page_id, res.id);
+        card.content = res.id;
+      }
+    } catch (err) {
+      console.error("Failed creating linked page in modal:", err);
+    }
   }
 
   $: linkedPage = (() => {
@@ -230,6 +342,55 @@
       </div>
     {/if}
 
+  <!-- Syntax Code Block Card -->
+  {:else if card.type === 'code'}
+    <div class="code-card-content">
+      {#if editingCode}
+        <div class="code-toolbar" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <select bind:value={codeLang} on:change={handleSaveCode} style="background: #2a2a2a; color: #818cf8; border: 1px solid #3e3e3e; padding: 4px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+            <option value="javascript">JAVASCRIPT</option>
+            <option value="python">PYTHON</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="go">GO</option>
+            <option value="dart">DART</option>
+            <option value="json">JSON</option>
+            <option value="bash">BASH</option>
+          </select>
+          <span style="flex: 1;"></span>
+          <button class="tool-btn done-btn" on:click|stopPropagation={() => { editingCode = false; handleSaveCode(); }}>Done</button>
+        </div>
+        <textarea
+          class="card-textarea"
+          bind:value={codeContent}
+          on:input={handleSaveCode}
+          on:blur={() => { editingCode = false; handleSaveCode(); }}
+          placeholder="Write code snippet..."
+        ></textarea>
+      {:else}
+        <div class="code-preview-container" on:dblclick|stopPropagation={() => editingCode = true} style="position: relative; background: #131313; border: 1px solid #2a2a2a; border-radius: 6px; padding: 14px; font-family: monospace; cursor: pointer;">
+          <div class="code-lang-tag" style="position: absolute; top: 6px; right: 10px; font-size: 9px; color: #818cf8; font-weight: bold; text-transform: uppercase;">{codeLang}</div>
+          <pre style="margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.5; overflow-x: auto;">{@html getCodeHighlightHtml(codeContent, codeLang)}</pre>
+          <span class="empty-hint" style="font-size: 10px; color: #4a4a4a; display: block; margin-top: 6px;">Double-click code block to edit...</span>
+        </div>
+      {/if}
+    </div>
+
+  <!-- HTML Sites Sandbox Card -->
+  {:else if card.type === 'sites'}
+    <div class="sites-card-preview" on:click|stopPropagation={openSitesModal} style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed #3e3e3e; border-radius: 8px; padding: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 24px;">🌐</span>
+        <div style="display: flex; flex-direction: column; flex: 1;">
+          <span style="font-weight: bold; color: white; font-size: 14px;">{sitesName}</span>
+          <span style="color: #64748b; font-size: 12px;">{sitesDesc}</span>
+        </div>
+      </div>
+      <div style="color: #818cf8; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-top: 6px;">
+        <span>🔍</span> Click block to open sandboxed workspace HTML local server
+      </div>
+    </div>
+
   <!-- File Card -->
   {:else}
     <div class="file-card">
@@ -266,6 +427,12 @@
         {/if}
       </div>
 
+      <div class="modal-create-action-row" style="padding: 10px 16px; border-bottom: 1px solid #2e2e2e; display: flex;">
+        <button class="btn primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px;" on:click|stopPropagation={handleCreateNewPageAndLink}>
+          <span>+</span> Create New Page & Link
+        </button>
+      </div>
+
       <div class="modal-body">
         {#if filteredCandidates.length === 0}
           <div class="empty-results">
@@ -287,7 +454,75 @@
   </div>
 {/if}
 
+<!-- Modal: HTML Site Sandbox Workspace -->
+{#if showSitesModal}
+  <div class="modal-backdrop" on:click|self={closeSitesModal} role="button" tabindex="-1">
+    <div class="modal-container" style="width: 750px; max-width: 95%; height: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h3 style="margin:0;">🌐 HTML Site block Sandbox</h3>
+          <span style="font-size: 11px; color: #64748b;">Renders templates seamlessly using sandbox environment</span>
+        </div>
+        <button class="close-btn" on:click={closeSitesModal}>&times;</button>
+      </div>
+
+      <div class="sites-tabs" style="display: flex; gap: 4px; background: #121212; border-bottom: 1px solid #2e2e2e; padding: 6px 12px;">
+        <button class="emoji-tab-btn" class:active={sitesTab === 'edit'} on:click={() => sitesTab = 'edit'}>
+          🛠️ Code Editor
+        </button>
+        <button class="emoji-tab-btn" class:active={sitesTab === 'preview'} on:click={() => sitesTab = 'preview'}>
+          📡 Local Server
+        </button>
+      </div>
+
+      <div class="modal-body" style="flex:1; overflow-y:auto; padding: 18px;">
+        {#if sitesTab === 'edit'}
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-size: 10px; font-weight: 700; color: #818cf8; letter-spacing: 0.5px;">SITE NAME</label>
+              <input type="text" bind:value={sitesName} on:input={handleSaveSites} placeholder="Enter name of site widget" style="background:#1e1e1e; border: 1px solid #2e2e2e; border-radius: 6px; padding: 8px 12px; color: white;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-size: 10px; font-weight: 700; color: #818cf8; letter-spacing: 0.5px;">SITE SHORT DESCRIPTION</label>
+              <input type="text" bind:value={sitesDesc} on:input={handleSaveSites} placeholder="Renders templates cleanly" style="background:#1e1e1e; border: 1px solid #2e2e2e; border-radius: 6px; padding: 8px 12px; color: white;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-size: 10px; font-weight: 700; color: #818cf8; letter-spacing: 0.5px;">HTML CODE</label>
+              <textarea bind:value={sitesHtml} on:input={handleSaveSites} placeholder="Write HTML tags here..." style="background:#121212; border: 1px solid #2e2e2e; border-radius: 6px; color: #e2e8f0; font-family: monospace; font-size: 13px; padding: 12px; height: 260px; resize: vertical; line-height: 1.5;"></textarea>
+            </div>
+          </div>
+        {:else}
+          <div style="width: 100%; height: 100%; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
+            <span style="font-size: 48px;">🌐</span>
+            <h3 style="margin: 0; color: white;">Local Sandbox Server Active</h3>
+            <p style="color: #64748b; font-size: 13px; text-align: center; max-width: 440px; margin: 0; line-height: 1.5;">
+              The HTML code is temporarily served on your local machine. Open the address below in any web browser to view the live rendering.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; background: #121212; border: 1px solid #2e2e2e; padding: 12px 18px; border-radius: 6px; width: 100%; max-width: 440px; align-items: center;">
+              <span style="font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Local Access Address</span>
+              <span style="font-size: 15px; color: #818cf8; font-family: monospace; font-weight: bold; word-break: break-all; margin: 4px 0;">
+                {sitesLocalUrl || 'Starting local server...'}
+              </span>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 12px;">
+              <button class="btn primary" on:click={() => { if (sitesLocalUrl) window.open(sitesLocalUrl, '_blank'); }}>
+                Open in Browser
+              </button>
+              <button class="btn secondary" on:click={() => { if (sitesLocalUrl) { navigator.clipboard.writeText(sitesLocalUrl); alert('Copied to clipboard!'); } }}>
+                Copy Address
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
+  /* Keep existing styles intact */
   .card-block {
     position: relative;
     background: #1e1e1e;
@@ -643,5 +878,29 @@
   .empty-results p {
     font-size: 12px;
     margin: 0;
+  }
+
+  /* Code Card specific hover */
+  .sites-card-preview:hover { background: rgba(129, 140, 248, 0.05); border-color: #818cf8; }
+
+  .emoji-tab-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .emoji-tab-btn:hover {
+    color: #94a3b8;
+    background: #1a1a1a;
+  }
+  .emoji-tab-btn.active {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.1);
   }
 </style>
