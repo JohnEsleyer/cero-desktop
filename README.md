@@ -1,6 +1,8 @@
 # Cero Desktop — Wails + Svelte
 
-Desktop companion for [Cero Journal](https://github.com/JohnEsleyer/pocketdatabase). Discovers the mobile app on the local network, connects via WebSocket with PIN authentication, and provides a full markdown editing workspace.
+Desktop companion for [Cero Journal](https://github.com/JohnEsleyer/pocketdatabase). Discovers the mobile app on the local network, connects via WebSocket with PIN authentication, and provides a block-based card editing workspace.
+
+> **Upgrading**: See [root README](../README.md) for the full technical plan transitioning from single-text markdown to multi-workspace card-based editing with subpages and side pages.
 
 ## Architecture
 
@@ -13,24 +15,26 @@ Desktop companion for [Cero Journal](https://github.com/JohnEsleyer/pocketdataba
 │  │ (Vite)      │    │  • WS Client     │──│──── WebSocket ───► Cero Mobile
 │  │  • Sidebar  │    │  • UDP Listener  │──│──── Multicast :9100
 │  │  • Editor   │    │  • Page Cache    │  │
-│  │  • Preview  │    └──────────────────┘  │
-│  └─────────────┘                          │
+│  │  • Cards    │    │  • Card Cache    │  │
+│  └─────────────┘    └──────────────────┘  │
 └──────────────────────────────────────────┘
 ```
 
-- **Go backend** (`app.go`) — WebSocket client that connects to the Flutter server, listens for UDP multicast beacons, and maintains an in-memory page cache
-- **Svelte frontend** — recursive page tree sidebar, split-pane markdown editor with live preview, emoji picker
-- **Lazy loading** — initial sync transfers metadata only (no content); page content is fetched on demand
+- **Go backend** (`app.go`) — WebSocket client that connects to the Flutter server, listens for UDP multicast beacons, and maintains an in-memory page + card cache
+- **Svelte frontend** — recursive page tree sidebar, block-based card editor, side pages panel, workspace selector
+- **Lazy loading** — initial sync transfers metadata only; page content and card data fetched on demand
 - **Auth** — 4-digit PIN required for WebSocket connection; pairing approval dialog on mobile
 
 ## Features
 
+- Multi-workspace switching (dynamic `.db` file selection)
 - Automatic device discovery via UDP multicast
 - Manual IP + PIN connection fallback
 - Infinite nesting page tree (recursive `<svelte:self>`)
-- Edit / Preview / Split Screen modes
+- Block-based card editor (markdown, image, subpage link cards)
+- Hierarchical subpages (left sidebar) + contextual side pages (right sidebar)
+- Drag-and-drop card reordering
 - Markdown toolbar (bold, italic, headers, lists, code)
-- Drag-and-drop ready reparenting (Move To...)
 - Soft-delete archive with restore option
 
 ## Getting Started
