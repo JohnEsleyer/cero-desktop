@@ -30,6 +30,7 @@
   // Pages State
   let allPages = [];
   let selectedPage = null;
+  let navigationHistory = []; // Stack to track page selection history
 
   // Editor State
   let editorTitle = '';
@@ -38,6 +39,7 @@
   let viewMode = 'split'; // 'edit', 'preview', 'split'
   let showEmojiPicker = false;
   let pendingContentFetch = false;
+  let saveTimeout;
 
   // Tree UI Expansion State
   let expandedPageIds = {};
@@ -63,6 +65,7 @@
         connectedDevice = null;
         allPages = [];
         selectedPage = null;
+        navigationHistory = [];
       }
       connectionError = '';
     });
@@ -77,22 +80,26 @@
         const updated = pages.find(p => p.id === selectedPage.id);
         if (!updated) {
           selectedPage = null;
+          navigationHistory = [];
         } else if (updated.updated_at !== selectedPage.updated_at) {
           // Preserve content if incoming update has no content (metadata-only sync)
           const hasContent = updated.content && updated.content.length > 0;
           
-          // Update selected page copy if changed remotely and user isn't typing
+          // Update selected page copy if changed remotely
           if (hasContent) {
             selectedPage = updated;
           } else {
             selectedPage = {...updated, content: selectedPage.content || ''};
           }
           
-          // Only update edit text fields if they differ from what was just parsed
-          if (hasContent && document.activeElement?.id !== 'editor-textarea') {
+          // Only update edit text fields if the user is not actively editing them to prevent cursor jumping
+          const isContentFocused = document.activeElement?.id === 'editor-textarea';
+          const isTitleFocused = document.activeElement?.id === 'editor-title-input';
+
+          if (hasContent && !isContentFocused) {
             editorContent = updated.content;
           }
-          if (document.activeElement?.id !== 'editor-title-input') {
+          if (!isTitleFocused) {
             editorTitle = updated.title;
           }
           editorEmoji = updated.emoji;
@@ -163,6 +170,7 @@
       connectedDevice = null;
       allPages = [];
       selectedPage = null;
+      navigationHistory = [];
     } catch (err) {
       console.error(err);
     }
@@ -172,12 +180,22 @@
     expandedPageIds[pageId] = !expandedPageIds[pageId];
   }
 
-  function selectPage(page) {
+  function selectPage(page, pushToHistory = true) {
+    // If there is a pending debounced save, execute it immediately before switching
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      savePage();
+    }
+
+    if (pushToHistory && selectedPage && selectedPage.id !== page.id) {
+      navigationHistory = [...navigationHistory, selectedPage.id];
+    }
+
     selectedPage = page;
     editorTitle = page.title;
     editorEmoji = page.emoji;
     showEmojiPicker = false;
-    
+
     // Lazy load content if it's empty (metadata-only sync)
     if (!page.content) {
       pendingContentFetch = true;
@@ -193,6 +211,16 @@
     }
   }
 
+  function goBack() {
+    if (navigationHistory.length === 0) return;
+    const prevId = navigationHistory[navigationHistory.length - 1];
+    navigationHistory = navigationHistory.slice(0, -1);
+    const prevPage = allPages.find(p => p.id === prevId);
+    if (prevPage) {
+      selectPage(prevPage, false);
+    }
+  }
+
   function savePage() {
     if (!selectedPage) return;
     UpdatePage(
@@ -204,6 +232,13 @@
     ).catch(err => {
       console.error("Save error:", err);
     });
+  }
+
+  function savePageDebounced() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      savePage();
+    }, 500); // 500ms debounce
   }
 
   function createPage(parentId = '') {
@@ -226,6 +261,7 @@
       DeletePage(id).then(() => {
         if (selectedPage && selectedPage.id === id) {
           selectedPage = null;
+          navigationHistory = [];
         }
       }).catch(err => {
         alert("Failed to archive page: " + err);
@@ -427,6 +463,10 @@
       <!-- Connected Editor Workspace -->
       <div class="editor-header">
         <div class="breadcrumbs">
+          {#if navigationHistory.length > 0}
+            <button class="btn-back" on:click={goBack} title="Go Back">← Back</button>
+            <span class="divider">|</span>
+          {/if}
           <span class="breadcrumb-root">Journal</span>
           <span class="divider">/</span>
           <span class="breadcrumb-page">{editorTitle || 'Untitled'}</span>
@@ -480,7 +520,7 @@
                 type="text" 
                 class="title-input" 
                 bind:value={editorTitle} 
-                on:input={savePage} 
+                on:input={savePageDebounced} 
                 placeholder="Untitled" 
               />
 
@@ -489,7 +529,7 @@
                 id="editor-textarea"
                 class="textarea-editor" 
                 bind:value={editorContent} 
-                on:input={savePage} 
+                on:input={savePageDebounced} 
                 placeholder="Start writing notes..."
               ></textarea>
             </div>
@@ -1091,6 +1131,7 @@
   .markdown-rendered :global(ul), .markdown-rendered :global(ol) { padding-left: 20px; }
   .markdown-rendered :global(li) { margin-bottom: 4px; }
 
+  /* FETCH CONTENT PROMPT */
   /* UNIVERSAL BUTTONS */
   .btn {
     border-radius: 6px;
@@ -1111,6 +1152,28 @@
 
   .btn-danger { background-color: rgba(239,68,68,0.1); color: #f87171; }
   .btn-danger:hover { background-color: rgba(239,68,68,0.25); }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-back {
+    background: transparent;
+    border: none;
+    color: #8e8e8e;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-back:hover {
+    background-color: #2e2e2e;
+    color: white;
+  }
 
   .w-full { width: 100%; }
 </style>

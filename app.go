@@ -25,6 +25,7 @@ type DbPage struct {
 	UpdatedAt  string  `json:"updated_at"`
 	IsArchived int     `json:"is_archived"` // 0 or 1
 	SortOrder  int     `json:"sort_order"`
+	Revision   int     `json:"revision"`
 }
 
 // DiscoveredDevice represents a device broadcasting UDP beacons
@@ -378,6 +379,10 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 				a.dbPagesMutex.Lock()
 				for i, existing := range a.dbPages {
 					if existing.ID == page.ID {
+						// Ignore stale broadcasts (out-of-order network frames)
+						if page.Revision > 0 && page.Revision < existing.Revision {
+							break
+						}
 						a.dbPages[i] = page
 						break
 					}
@@ -547,6 +552,16 @@ func (a *App) UpdatePage(id string, parentID string, title string, content strin
 		parentPtr = &parentID
 	}
 
+	a.dbPagesMutex.RLock()
+	currentRevision := 0
+	for _, p := range a.dbPages {
+		if p.ID == id {
+			currentRevision = p.Revision
+			break
+		}
+	}
+	a.dbPagesMutex.RUnlock()
+
 	page := DbPage{
 		ID:         id,
 		ParentID:   parentPtr,
@@ -557,6 +572,7 @@ func (a *App) UpdatePage(id string, parentID string, title string, content strin
 		UpdatedAt:  time.Now().Format(time.RFC3339),
 		IsArchived: 0,
 		SortOrder:  0,
+		Revision:   currentRevision,
 	}
 
 	message := map[string]interface{}{
