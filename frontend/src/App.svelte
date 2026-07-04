@@ -13,10 +13,17 @@
     RestorePage,
     HardDeletePage,
     MovePage,
-    FetchPageContent
+    GetCards,
+    FetchCards,
+    AddCard,
+    UpdateCard,
+    DeleteCard,
+    ReorderCards,
+    ListWorkspaces,
+    CreateWorkspace,
+    SwitchWorkspace,
+    GetActiveWorkspace
   } from '../wailsjs/go/main/App.js';
-  import { marked } from 'marked';
-
   // Network State
   let connectionStatus = 'disconnected';
   let discoveredDevices = [];
@@ -27,18 +34,28 @@
   let connectionError = '';
   let pairingDeviceIp = '';
 
+  // Workspace State
+  let workspaces = [];
+  let activeWorkspace = '';
+  let showWorkspaceDropdown = false;
+  let newWorkspaceName = '';
+
   // Pages State
   let allPages = [];
   let selectedPage = null;
   let navigationHistory = []; // Stack to track page selection history
 
+  // Cards State (per selected page)
+  let pageCards = [];
+  let selectedCardId = null;
+
+  // Tab State (main page or side page)
+  let activeTab = 'main'; // 'main' or side page ID
+
   // Editor State
   let editorTitle = '';
-  let editorContent = '';
   let editorEmoji = '📓';
-  let viewMode = 'split'; // 'edit', 'preview', 'split'
   let showEmojiPicker = false;
-  let pendingContentFetch = false;
   let saveTimeout;
 
   // Tree UI Expansion State
@@ -55,6 +72,7 @@
       connectionStatus = await GetConnectionStatus();
       discoveredDevices = await GetDiscoveredDevices();
       allPages = await GetDbPages();
+      await loadWorkspaces();
     } catch (e) {
       console.error("Initial load failed:", e);
     }
@@ -82,23 +100,8 @@
           selectedPage = null;
           navigationHistory = [];
         } else if (updated.updated_at !== selectedPage.updated_at) {
-          // Preserve content if incoming update has no content (metadata-only sync)
-          const hasContent = updated.content && updated.content.length > 0;
-          
-          // Update selected page copy if changed remotely
-          if (hasContent) {
-            selectedPage = updated;
-          } else {
-            selectedPage = {...updated, content: selectedPage.content || ''};
-          }
-          
-          // Only update edit text fields if the user is not actively editing them to prevent cursor jumping
-          const isContentFocused = document.activeElement?.id === 'editor-textarea';
+          selectedPage = updated;
           const isTitleFocused = document.activeElement?.id === 'editor-title-input';
-
-          if (hasContent && !isContentFocused) {
-            editorContent = updated.content;
-          }
           if (!isTitleFocused) {
             editorTitle = updated.title;
           }
@@ -107,21 +110,62 @@
       }
     });
 
-    EventsOn('pairing-required', (data) => {
-      pairingDeviceIp = data.remoteAddress || 'Unknown';
+    EventsOn('workspace-status', (data) => {
+      activeWorkspace = data.activeWorkspace;
+      workspaces = data.availableWorkspaces || [];
     });
 
-    EventsOn('page-content', (data) => {
-      if (selectedPage && selectedPage.id === data.id) {
-        // Only apply if content hasn't been modified by user since fetch was requested
-        if (pendingContentFetch) {
-          editorContent = data.content;
-          selectedPage.content = data.content;
-          pendingContentFetch = false;
+    EventsOn('cards-update', (data) => {
+      const targetPageId = activeTab === 'main' ? selectedPage?.id : activeTab;
+      if (targetPageId && data.pageId === targetPageId) {
+        pageCards = data.cards || [];
+        // If selected card was removed, deselect
+        if (selectedCardId && !pageCards.find(c => c.id === selectedCardId)) {
+          selectedCardId = null;
+          cardEditorContent = '';
         }
       }
     });
+
+    EventsOn('pairing-required', (data) => {
+      pairingDeviceIp = data.remoteAddress || 'Unknown';
+    });
   });
+
+  async function loadWorkspaces() {
+    try {
+      workspaces = await ListWorkspaces();
+      activeWorkspace = await GetActiveWorkspace();
+    } catch (e) {
+      console.error("Failed to load workspaces:", e);
+    }
+  }
+
+  async function handleSwitchWorkspace(name) {
+    try {
+      await SwitchWorkspace(name);
+      activeWorkspace = name;
+      allPages = await GetDbPages();
+      selectedPage = null;
+      navigationHistory = [];
+      showWorkspaceDropdown = false;
+    } catch (e) {
+      alert("Failed to switch workspace: " + e);
+    }
+  }
+
+  async function handleCreateWorkspace() {
+    const name = newWorkspaceName.trim();
+    if (!name) return;
+    try {
+      await CreateWorkspace(name);
+      newWorkspaceName = '';
+      await loadWorkspaces();
+      await handleSwitchWorkspace(name);
+    } catch (e) {
+      alert("Failed to create workspace: " + e);
+    }
+  }
 
   async function handleConnect(device) {
     connectionError = '';
@@ -181,10 +225,9 @@
   }
 
   function selectPage(page, pushToHistory = true) {
-    // If there is a pending debounced save, execute it immediately before switching
     if (saveTimeout) {
       clearTimeout(saveTimeout);
-      savePage();
+      saveCard();
     }
 
     if (pushToHistory && selectedPage && selectedPage.id !== page.id) {
@@ -195,20 +238,10 @@
     editorTitle = page.title;
     editorEmoji = page.emoji;
     showEmojiPicker = false;
-
-    // Lazy load content if it's empty (metadata-only sync)
-    if (!page.content) {
-      pendingContentFetch = true;
-      editorContent = '...';
-      FetchPageContent(page.id).catch(err => {
-        console.error("Failed to fetch content:", err);
-        editorContent = '';
-        pendingContentFetch = false;
-      });
-    } else {
-      pendingContentFetch = false;
-      editorContent = page.content;
-    }
+    selectedCardId = null;
+    cardEditorContent = '';
+    pageCards = [];
+    activeTab = 'main';
   }
 
   function goBack() {
@@ -221,13 +254,24 @@
     }
   }
 
+  function selectTab(tabId) {
+    activeTab = tabId;
+    selectedCardId = null;
+    pageCards = [];
+    if (tabId === 'main' && selectedPage) {
+      FetchCards(selectedPage.id);
+    } else if (tabId !== 'main') {
+      FetchCards(tabId);
+    }
+  }
+
   function savePage() {
     if (!selectedPage) return;
     UpdatePage(
       selectedPage.id,
       selectedPage.parent_id || '',
+      selectedPage.relation_type || 'subpage',
       editorTitle.trim() || 'Untitled',
-      editorContent,
       editorEmoji
     ).catch(err => {
       console.error("Save error:", err);
@@ -238,22 +282,79 @@
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       savePage();
-    }, 500); // 500ms debounce
+    }, 500);
   }
 
-  function createPage(parentId = '') {
-    AddPage(
-      parentId,
-      'New Page',
-      '# New Page\n\nStart writing markdown here...',
-      '📝'
-    ).then(() => {
+  function saveCard() {
+    if (!selectedCardId) return;
+    UpdateCard(selectedCardId, cardEditorContent).catch(err => {
+      console.error("Card save error:", err);
+    });
+  }
+
+  function saveCardDebounced() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      saveCard();
+    }, 500);
+  }
+
+  function selectCard(card) {
+    selectedCardId = card.id;
+  }
+
+  function createPage(parentId = '', relationType = 'subpage') {
+    AddPage(parentId, 'New Page', '📝', relationType).then(() => {
       if (parentId) {
         expandedPageIds[parentId] = true;
       }
     }).catch(err => {
       alert("Failed to create page: " + err);
     });
+  }
+
+  function createSidePage() {
+    if (!selectedPage) return;
+    createPage(selectedPage.id, 'sidepage');
+  }
+
+  async function addCard(type = 'markdown', insertIndex = -1) {
+    const targetPageId = activeTab === 'main' ? selectedPage?.id : activeTab;
+    if (!targetPageId) return;
+    try {
+      const sortOrders = pageCards.map(c => c.sort_order);
+      const nextOrder = sortOrders.length > 0 ? Math.max(...sortOrders) + 1 : 0;
+      await AddCard(targetPageId, type, '', nextOrder);
+    } catch (e) {
+      alert("Failed to add card: " + e);
+    }
+  }
+
+  function handleCardDrop(e, toIndex) {
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+    if (isNaN(fromIndex) || fromIndex === toIndex) return;
+    const targetPageId = activeTab === 'main' ? selectedPage?.id : activeTab;
+    if (!targetPageId) return;
+    const reordered = [...pageCards];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, moved);
+    const ids = reordered.map(c => c.id);
+    ReorderCards(targetPageId, ids).then(() => {
+      pageCards = reordered;
+    }).catch(err => {
+      console.error("Reorder failed:", err);
+    });
+  }
+
+  function showInsertMenu(index) {
+    const types = ['markdown', 'image', 'subpage_link'];
+    const labels = ['📝 Markdown', '🖼️ Image', '🔗 Subpage Link'];
+    const choice = prompt('Insert card type:\n1: 📝 Markdown\n2: 🖼️ Image\n3: 🔗 Subpage Link');
+    if (choice == null) return;
+    const idx = parseInt(choice);
+    if (idx >= 1 && idx <= types.length) {
+      addCard(types[idx - 1]);
+    }
   }
 
   function deletePage(id) {
@@ -291,32 +392,10 @@
     savePage();
   }
 
-  function insertMarkdown(prefix, suffix) {
-    const textarea = document.getElementById('editor-textarea');
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selected = text.substring(start, end);
-    
-    editorContent = text.substring(0, start) + prefix + selected + suffix + text.substring(end);
-    
-    // Focus back and set selection
-    setTimeout(() => {
-      textarea.focus();
-      const newCursorPos = start + prefix.length + selected.length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-      savePage();
-    }, 0);
-  }
-
-  // Reactive markdown parser
-  $: parsedMarkdown = marked.parse(editorContent || '');
-
-  // Recursive page nodes finder
-  $: rootPages = allPages.filter(p => !p.parent_id);
-  $: getChildrenOf = (parentId) => allPages.filter(p => p.parent_id === parentId);
+  // Only subpages go in left sidebar tree; sidepages appear contextually on right
+  $: rootPages = allPages.filter(p => !p.parent_id && p.relation_type !== 'sidepage');
+  $: getChildrenOf = (parentId) => allPages.filter(p => p.parent_id === parentId && p.relation_type !== 'sidepage');
+  $: sidePages = allPages.filter(p => p.parent_id === selectedPage?.id && p.relation_type === 'sidepage');
 </script>
 
 <main class="app-layout">
@@ -331,6 +410,32 @@
         <span class="indicator-dot"></span>
         <span class="indicator-text">{connectionStatus}</span>
       </div>
+    </div>
+
+    <!-- Workspace Selector -->
+    <div class="sidebar-section workspace-section">
+      <div class="section-title">
+        <span>Workspace</span>
+      </div>
+      <div class="workspace-current">
+        <button class="workspace-selector" on:click={() => showWorkspaceDropdown = !showWorkspaceDropdown}>
+          <span class="workspace-name">{activeWorkspace || 'None'}</span>
+          <span class="dropdown-arrow">{showWorkspaceDropdown ? '▲' : '▼'}</span>
+        </button>
+      </div>
+      {#if showWorkspaceDropdown}
+        <div class="workspace-dropdown">
+          {#each workspaces as ws}
+            <button class="workspace-option {ws === activeWorkspace ? 'active' : ''}" on:click={() => handleSwitchWorkspace(ws)}>
+              {ws}
+            </button>
+          {/each}
+          <div class="workspace-create">
+            <input type="text" bind:value={newWorkspaceName} placeholder="New workspace name..." on:keydown={(e) => e.key === 'Enter' && handleCreateWorkspace()} />
+            <button class="btn btn-primary" on:click={handleCreateWorkspace}>Create</button>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Sync Server Discovered list -->
@@ -455,99 +560,70 @@
         <div class="connected-placeholder">
           <span class="placeholder-emoji">📝</span>
           <h2>Select or Create a Page</h2>
-          <p>Choose a journal entry from the sidebar tree, or create a new root note to start writing markdown.</p>
+          <p>Choose a journal entry from the sidebar tree, or create a new root note to start writing.</p>
           <button class="btn btn-primary" on:click={() => createPage('')}>Create New Page</button>
         </div>
       </div>
     {:else}
-      <!-- Connected Editor Workspace -->
+      <!-- Page Header -->
       <div class="editor-header">
         <div class="breadcrumbs">
           {#if navigationHistory.length > 0}
             <button class="btn-back" on:click={goBack} title="Go Back">← Back</button>
             <span class="divider">|</span>
           {/if}
-          <span class="breadcrumb-root">Journal</span>
+          <span class="breadcrumb-root">{activeWorkspace}</span>
           <span class="divider">/</span>
           <span class="breadcrumb-page">{editorTitle || 'Untitled'}</span>
         </div>
 
         <div class="header-controls">
-          <!-- View Mode Toggle -->
-          <div class="view-mode-tabs">
-            <button class="tab-btn {viewMode === 'edit' ? 'active' : ''}" on:click={() => viewMode = 'edit'}>Edit</button>
-            <button class="tab-btn {viewMode === 'preview' ? 'active' : ''}" on:click={() => viewMode = 'preview'}>Preview</button>
-            <button class="tab-btn {viewMode === 'split' ? 'active' : ''}" on:click={() => viewMode = 'split'}>Split Screen</button>
-          </div>
-
           <button class="btn btn-secondary" on:click={() => movePage(selectedPage.id)}>Move To...</button>
           <button class="btn btn-danger" on:click={() => deletePage(selectedPage.id)}>Archive</button>
         </div>
       </div>
 
-      <div class="editor-body {viewMode}">
-        <!-- LEFT HALF: Writing Area -->
-        {#if viewMode === 'edit' || viewMode === 'split'}
-          <div class="editor-pane">
-            <!-- Markdown Format Toolbar -->
-            <div class="format-toolbar">
-              <button class="tool-btn" title="Bold" on:click={() => insertMarkdown('**', '**')}>B</button>
-              <button class="tool-btn" title="Italic" on:click={() => insertMarkdown('*', '*')}>I</button>
-              <button class="tool-btn" title="Header" on:click={() => insertMarkdown('# ', '')}>H</button>
-              <button class="tool-btn" title="List" on:click={() => insertMarkdown('- ', '')}>List</button>
-              <button class="tool-btn" title="Checkbox" on:click={() => insertMarkdown('- [ ] ', '')}>Todo</button>
-              <button class="tool-btn" title="Code" on:click={() => insertMarkdown('`', '`')}>Code</button>
-            </div>
+      <!-- Tabs Bar (main page + side pages) -->
+      <SidePages
+        {sidePages}
+        {activeTab}
+        onSelectTab={selectTab}
+        onCreateSidePage={createSidePage}
+        mainPageTitle={editorTitle}
+        mainPageEmoji={editorEmoji}
+      />
 
-            <div class="pane-content-wrapper">
-              <!-- Emoji Picker -->
-              <div class="emoji-container">
-                <button class="emoji-trigger" on:click={() => showEmojiPicker = !showEmojiPicker}>
-                  {editorEmoji}
-                </button>
-                {#if showEmojiPicker}
-                  <div class="emoji-dropdown">
-                    {#each curatedEmojis as emoji}
-                      <button class="emoji-picker-btn" on:click={() => selectEmoji(emoji)}>{emoji}</button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
+      <!-- Card Column -->
+      <div class="card-column">
+        {#each pageCards as card, index (card.id)}
+          <div class="card-slot"
+               draggable="true"
+               on:dragstart={(e) => { e.dataTransfer.setData('text/plain', index.toString()); e.dataTransfer.effectAllowed = 'move'; }}
+               on:dragover|preventDefault={(e) => { e.dataTransfer.dropEffect = 'move'; }}
+               on:drop|preventDefault={(e) => { handleCardDrop(e, index); }}>
+            <CardBlock
+              {card}
+              isSelected={selectedCardId === card.id}
+              allPages={allPages}
+              onSelect={selectCard}
+              onNavigate={selectPage}
+              onDeleted={(id) => { pageCards = pageCards.filter(c => c.id !== id); }}
+            />
+          </div>
+          <div class="insert-slot"
+               on:dragover|preventDefault={(e) => { e.dataTransfer.dropEffect = 'move'; }}
+               on:drop|preventDefault={(e) => { handleCardDrop(e, index + 1); }}>
+            <button class="insert-btn" on:click={() => showInsertMenu(index)}>+</button>
+          </div>
+        {/each}
 
-              <!-- Title Input -->
-              <input 
-                id="editor-title-input"
-                type="text" 
-                class="title-input" 
-                bind:value={editorTitle} 
-                on:input={savePageDebounced} 
-                placeholder="Untitled" 
-              />
-
-              <!-- Monospace Editor Textarea -->
-              <textarea 
-                id="editor-textarea"
-                class="textarea-editor" 
-                bind:value={editorContent} 
-                on:input={savePageDebounced} 
-                placeholder="Start writing notes..."
-              ></textarea>
-            </div>
+        {#if pageCards.length === 0}
+          <div class="empty-cards">
+            <span>No cards yet. Add one to start writing.</span>
           </div>
         {/if}
 
-        <!-- RIGHT HALF: Live Preview -->
-        {#if viewMode === 'preview' || viewMode === 'split'}
-          <div class="preview-pane">
-            <div class="pane-content-wrapper">
-              <div class="preview-emoji-header">{editorEmoji}</div>
-              <h1 class="preview-title">{editorTitle || 'Untitled'}</h1>
-              <div class="markdown-rendered">
-                {@html parsedMarkdown}
-              </div>
-            </div>
-          </div>
-        {/if}
+        <button class="add-card-btn" on:click={() => addCard('markdown')}>+ Add Card</button>
       </div>
     {/if}
   </section>
@@ -555,8 +631,9 @@
 
 <!-- HELPER RECURSIVE COMPONENT FOR SIDEBAR TREE (Rendered Inline as a helper subcomponent) -->
 <script context="module">
-  // We define the TreeRender component structure to enable infinite nested listings in Wails
   import { default as TreeRender } from './TreeRender.svelte';
+  import { default as CardBlock } from './CardBlock.svelte';
+  import { default as SidePages } from './SidePages.svelte';
 </script>
 
 <style>
@@ -980,12 +1057,6 @@
     overflow: hidden;
   }
 
-  /* Split screen layout options */
-  .editor-body.edit .editor-pane { width: 100%; }
-  .editor-body.preview .preview-pane { width: 100%; }
-  .editor-body.split .editor-pane { width: 50%; border-right: 1px solid #2e2e2e; }
-  .editor-body.split .preview-pane { width: 50%; }
-
   .editor-pane, .preview-pane {
     height: 100%;
     display: flex;
@@ -1176,4 +1247,117 @@
   }
 
   .w-full { width: 100%; }
+
+  /* WORKSPACE SELECTOR */
+  .workspace-section { border-bottom: 1px solid #2e2e2e; }
+  .workspace-current { padding: 0 12px 8px; }
+  .workspace-selector {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #2a2a2a;
+    border: 1px solid #3e3e3e;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #e2e8f0;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .workspace-selector:hover { background: #333; }
+  .workspace-dropdown {
+    padding: 0 12px 8px;
+  }
+  .workspace-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .workspace-option:hover { background: #2a2a2a; color: #e2e8f0; }
+  .workspace-option.active { background: #333; color: #818cf8; font-weight: 600; }
+  .workspace-create {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .workspace-create input {
+    flex: 1;
+    background: #2a2a2a;
+    border: 1px solid #3e3e3e;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: #e2e8f0;
+    font-size: 11px;
+  }
+  .workspace-create .btn { padding: 4px 8px; font-size: 11px; }
+
+  /* CARD COLUMN */
+  .card-column {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .add-card-btn {
+    background: transparent;
+    border: 1px dashed #3e3e3e;
+    border-radius: 8px;
+    padding: 10px;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+  }
+  .add-card-btn:hover { border-color: #818cf8; color: #818cf8; }
+
+  .card-slot { transition: opacity 0.15s ease; }
+  .card-slot[draggable="true"] { cursor: grab; }
+  .card-slot[draggable="true"]:active { cursor: grabbing; }
+
+  .insert-slot {
+    height: 4px;
+    margin: 0 24px;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .insert-slot:hover { height: 24px; background: rgba(129,140,248,0.05); }
+
+  .insert-btn {
+    opacity: 0;
+    background: #2a2a2a;
+    border: 1px solid #3e3e3e;
+    color: #64748b;
+    font-size: 12px;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .insert-slot:hover .insert-btn { opacity: 1; }
+  .insert-btn:hover { border-color: #818cf8; color: #818cf8; }
+
+  .empty-cards {
+    text-align: center;
+    color: #4a4a4a;
+    font-size: 13px;
+    padding: 24px;
+  }
 </style>

@@ -1,10 +1,36 @@
 export namespace main {
 	
+	export class Card {
+	    id: string;
+	    page_id: string;
+	    type: string;
+	    content: string;
+	    sort_order: number;
+	    created_at: string;
+	    updated_at: string;
+	    revision: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Card(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.page_id = source["page_id"];
+	        this.type = source["type"];
+	        this.content = source["content"];
+	        this.sort_order = source["sort_order"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.revision = source["revision"];
+	    }
+	}
 	export class DbPage {
 	    id: string;
 	    parent_id?: string;
+	    relation_type: string;
 	    title: string;
-	    content: string;
 	    emoji: string;
 	    created_at: string;
 	    updated_at: string;
@@ -20,8 +46,8 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.parent_id = source["parent_id"];
+	        this.relation_type = source["relation_type"];
 	        this.title = source["title"];
-	        this.content = source["content"];
 	        this.emoji = source["emoji"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];

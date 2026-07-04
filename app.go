@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,16 +20,28 @@ import (
 
 // DbPage represents the database page model matching Dart's DbPage
 type DbPage struct {
-	ID         string  `json:"id"`
-	ParentID   *string `json:"parent_id"` // Nullable
-	Title      string  `json:"title"`
-	Content    string  `json:"content"`
-	Emoji      string  `json:"emoji"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
-	IsArchived int     `json:"is_archived"` // 0 or 1
-	SortOrder  int     `json:"sort_order"`
-	Revision   int     `json:"revision"`
+	ID           string  `json:"id"`
+	ParentID     *string `json:"parent_id"`
+	RelationType string  `json:"relation_type"` // "subpage" or "sidepage"
+	Title        string  `json:"title"`
+	Emoji        string  `json:"emoji"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
+	IsArchived   int     `json:"is_archived"`
+	SortOrder    int     `json:"sort_order"`
+	Revision     int     `json:"revision"`
+}
+
+// Card represents a content block within a page
+type Card struct {
+	ID        string `json:"id"`
+	PageID    string `json:"page_id"`
+	Type      string `json:"type"` // "markdown", "image", "subpage_link", "file"
+	Content   string `json:"content"`
+	SortOrder int    `json:"sort_order"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Revision  int    `json:"revision"`
 }
 
 // DiscoveredDevice represents a device broadcasting UDP beacons
@@ -40,15 +56,24 @@ type DiscoveredDevice struct {
 type App struct {
 	ctx        context.Context
 	wsConn     *websocket.Conn
-	connStatus string // "disconnected", "connecting", "connected"
+	connStatus string
 	connMutex  sync.Mutex
-	
+
 	// Database state cache
 	dbPages      []DbPage
 	dbPagesMutex sync.RWMutex
 
+	// Card cache: pageID -> []Card
+	cardCache      map[string][]Card
+	cardCacheMutex sync.RWMutex
+
+	// Workspace state
+	activeWorkspace string
+	workspaceCache  []string // list of workspace names
+	imageDir        string   // directory for storing workspace images
+
 	// UDP Discovery state
-	udpListener  *net.UDPConn
+	udpListener   *net.UDPConn
 	isDiscovering bool
 	discoveredMap map[string]DiscoveredDevice
 	discoveredMux sync.Mutex
@@ -59,6 +84,7 @@ func NewApp() *App {
 	return &App{
 		connStatus:    "disconnected",
 		dbPages:       []DbPage{},
+		cardCache:     make(map[string][]Card),
 		discoveredMap: make(map[string]DiscoveredDevice),
 	}
 }
@@ -82,7 +108,6 @@ func (a *App) GetConnectionStatus() string {
 	return a.connStatus
 }
 
-// setConnectionStatus updates status and notifies frontend
 func (a *App) setConnectionStatus(status string) {
 	a.connMutex.Lock()
 	a.connStatus = status
@@ -97,9 +122,50 @@ func (a *App) GetDbPages() []DbPage {
 	return a.dbPages
 }
 
+// GetActiveWorkspace returns the current workspace name
+func (a *App) GetActiveWorkspace() string {
+	return a.activeWorkspace
+}
+
+// ListWorkspaces requests the workspace list from the server and returns cached names
+func (a *App) ListWorkspaces() []string {
+	a.sendToServer(map[string]interface{}{
+		"type": "list_workspaces",
+	})
+	a.connMutex.Lock()
+	conn := a.wsConn
+	a.connMutex.Unlock()
+	if conn == nil {
+		return a.workspaceCache
+	}
+	return a.workspaceCache
+}
+
+// CreateWorkspace requests the Flutter server to create a new workspace
+func (a *App) CreateWorkspace(name string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type":          "create_workspace",
+		"workspaceName": name,
+	})
+}
+
+// SwitchWorkspace requests the Flutter server to switch to a workspace
+func (a *App) SwitchWorkspace(name string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type":          "switch_workspace",
+		"workspaceName": name,
+	})
+}
+
+// GetCards returns cached cards for a page
+func (a *App) GetCards(pageID string) []Card {
+	a.cardCacheMutex.RLock()
+	defer a.cardCacheMutex.RUnlock()
+	return a.cardCache[pageID]
+}
+
 // --- UDP Discovery Service ---
 
-// StartUdpDiscovery starts listening for UDP beacons
 func (a *App) StartUdpDiscovery() {
 	a.discoveredMux.Lock()
 	if a.isDiscovering {
@@ -122,7 +188,6 @@ func (a *App) StartUdpDiscovery() {
 			return
 		}
 
-		// Join multicast group for better router traversal
 		multicastAddr := &net.UDPAddr{IP: net.IPv4(239, 255, 255, 250), Port: 9100}
 		packetConn := ipv4.NewPacketConn(conn)
 		if err := packetConn.JoinGroup(nil, multicastAddr); err != nil {
@@ -161,14 +226,14 @@ func (a *App) StartUdpDiscovery() {
 			if err := json.Unmarshal(buf[:n], &payload); err == nil && payload.App == "cero-journal" {
 				a.discoveredMux.Lock()
 				key := fmt.Sprintf("%s:%d", payload.IP, payload.Port)
-				
+
 				device := DiscoveredDevice{
 					IP:         payload.IP,
 					Port:       payload.Port,
 					DeviceName: payload.DeviceName,
 					LastSeen:   time.Now(),
 				}
-				
+
 				_, exists := a.discoveredMap[key]
 				a.discoveredMap[key] = device
 				a.discoveredMux.Unlock()
@@ -181,7 +246,6 @@ func (a *App) StartUdpDiscovery() {
 	}()
 }
 
-// StopUdpDiscovery stops listening for UDP beacons
 func (a *App) StopUdpDiscovery() {
 	a.discoveredMux.Lock()
 	defer a.discoveredMux.Unlock()
@@ -234,11 +298,10 @@ func (a *App) emitDiscoveredDevices() {
 	runtime.EventsEmit(a.ctx, "discovered-devices", devices)
 }
 
-// GetDiscoveredDevices returns current discovered servers
 func (a *App) GetDiscoveredDevices() []DiscoveredDevice {
 	a.discoveredMux.Lock()
 	defer a.discoveredMux.Unlock()
-	
+
 	devices := make([]DiscoveredDevice, 0, len(a.discoveredMap))
 	for _, device := range a.discoveredMap {
 		devices = append(devices, device)
@@ -248,7 +311,6 @@ func (a *App) GetDiscoveredDevices() []DiscoveredDevice {
 
 // --- WebSocket Client Service ---
 
-// ConnectToDevice establishes connection to Flutter server with auth PIN
 func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 	a.Disconnect()
 
@@ -268,7 +330,6 @@ func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 	a.connMutex.Lock()
 	a.wsConn = conn
 	a.connMutex.Unlock()
-	// Don't set "connected" yet - wait for pairing approval from user
 	a.setConnectionStatus("connecting")
 
 	go a.readWebSocketLoop(conn)
@@ -276,7 +337,6 @@ func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 	return nil
 }
 
-// Disconnect closes the current websocket connection
 func (a *App) Disconnect() {
 	a.connMutex.Lock()
 	defer a.connMutex.Unlock()
@@ -290,7 +350,7 @@ func (a *App) Disconnect() {
 		a.wsConn.Close()
 		a.wsConn = nil
 	}
-	
+
 	if a.connStatus != "disconnected" {
 		a.connStatus = "disconnected"
 		go func() {
@@ -318,10 +378,11 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 		}
 
 		var envelope struct {
-			Type string          `json:"type"`
-			Data json.RawMessage `json:"data"`
-			Item json.RawMessage `json:"item"`
-			ID   string          `json:"id"`
+			Type   string          `json:"type"`
+			Data   json.RawMessage `json:"data"`
+			Item   json.RawMessage `json:"item"`
+			ID     string          `json:"id"`
+			PageID string          `json:"page_id"`
 		}
 
 		if err := json.Unmarshal(message, &envelope); err != nil {
@@ -331,7 +392,6 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 
 		switch envelope.Type {
 		case "pairing_required":
-			// Notify frontend that pairing is needed
 			var pairInfo struct {
 				RemoteAddress string `json:"remoteAddress"`
 			}
@@ -345,9 +405,37 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 		case "pairing_rejected":
 			a.setConnectionStatus("disconnected")
 			runtime.EventsEmit(a.ctx, "pairing-rejected", nil)
-			// Close connection since pairing was rejected
 			conn.Close()
 			return
+
+		// Workspace
+		case "workspace_status":
+			var wsInfo struct {
+				ActiveWorkspace    string   `json:"activeWorkspace"`
+				AvailableWorkspaces []string `json:"availableWorkspaces,omitempty"`
+			}
+			if err := json.Unmarshal(envelope.Data, &wsInfo); err == nil {
+				a.activeWorkspace = wsInfo.ActiveWorkspace
+				if len(wsInfo.AvailableWorkspaces) > 0 {
+					a.workspaceCache = wsInfo.AvailableWorkspaces
+				}
+				runtime.EventsEmit(a.ctx, "workspace-status", wsInfo)
+			}
+		case "workspace_list":
+			var wsList struct {
+				Workspaces     []string `json:"workspaces"`
+				ActiveWorkspace string  `json:"activeWorkspace"`
+			}
+			if err := json.Unmarshal(envelope.Data, &wsList); err == nil {
+				a.workspaceCache = wsList.Workspaces
+				a.activeWorkspace = wsList.ActiveWorkspace
+				runtime.EventsEmit(a.ctx, "workspace-status", map[string]interface{}{
+					"activeWorkspace":    wsList.ActiveWorkspace,
+					"availableWorkspaces": wsList.Workspaces,
+				})
+			}
+
+		// Page sync
 		case "sync":
 			var pages []DbPage
 			if err := json.Unmarshal(envelope.Data, &pages); err == nil {
@@ -379,7 +467,6 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 				a.dbPagesMutex.Lock()
 				for i, existing := range a.dbPages {
 					if existing.ID == page.ID {
-						// Ignore stale broadcasts (out-of-order network frames)
 						if page.Revision > 0 && page.Revision < existing.Revision {
 							break
 						}
@@ -396,8 +483,6 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 			a.dbPagesMutex.Unlock()
 			runtime.EventsEmit(a.ctx, "db-update", a.dbPages)
 		case "restore":
-			// Full sync needed after restore to get archived pages back in active view
-			// The server will re-sync, but for now we can just emit a refresh event
 			runtime.EventsEmit(a.ctx, "db-refresh", nil)
 		case "delete":
 			a.dbPagesMutex.Lock()
@@ -409,22 +494,6 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 			a.dbPages = removePageAndDescendants(a.dbPages, envelope.ID)
 			a.dbPagesMutex.Unlock()
 			runtime.EventsEmit(a.ctx, "db-update", a.dbPages)
-		case "content":
-			var contentPayload struct {
-				ID      string `json:"id"`
-				Content string `json:"content"`
-			}
-			if err := json.Unmarshal(message, &contentPayload); err == nil {
-				a.dbPagesMutex.Lock()
-				for i, p := range a.dbPages {
-					if p.ID == contentPayload.ID {
-						a.dbPages[i].Content = contentPayload.Content
-						break
-					}
-				}
-				a.dbPagesMutex.Unlock()
-				runtime.EventsEmit(a.ctx, "page-content", contentPayload)
-			}
 		case "move":
 			var movePayload struct {
 				ID       string  `json:"id"`
@@ -441,23 +510,116 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 				a.dbPagesMutex.Unlock()
 				runtime.EventsEmit(a.ctx, "db-update", a.dbPages)
 			}
+
+		// Card sync
+		case "sync_cards":
+			var payload struct {
+				PageID string `json:"page_id"`
+				Cards  []Card `json:"cards"`
+			}
+			if err := json.Unmarshal(envelope.Data, &payload); err == nil {
+				a.cardCacheMutex.Lock()
+				a.cardCache[payload.PageID] = payload.Cards
+				a.cardCacheMutex.Unlock()
+				runtime.EventsEmit(a.ctx, "cards-update", payload)
+			}
+		case "add_card":
+			var card Card
+			if err := json.Unmarshal(envelope.Item, &card); err == nil {
+				a.cardCacheMutex.Lock()
+				a.cardCache[card.PageID] = append(a.cardCache[card.PageID], card)
+				a.cardCacheMutex.Unlock()
+				runtime.EventsEmit(a.ctx, "cards-update", map[string]interface{}{
+					"page_id": card.PageID,
+					"cards":   a.cardCache[card.PageID],
+				})
+			}
+		case "update_card":
+			var card Card
+			if err := json.Unmarshal(envelope.Item, &card); err == nil {
+				a.cardCacheMutex.Lock()
+				if cards, ok := a.cardCache[card.PageID]; ok {
+					for i, c := range cards {
+						if c.ID == card.ID {
+							cards[i] = card
+							break
+						}
+					}
+				}
+				a.cardCacheMutex.Unlock()
+				runtime.EventsEmit(a.ctx, "cards-update", map[string]interface{}{
+					"page_id": card.PageID,
+					"cards":   a.cardCache[card.PageID],
+				})
+			}
+		case "delete_card":
+			var payload struct {
+				ID     string `json:"id"`
+				PageID string `json:"page_id"`
+			}
+			if err := json.Unmarshal(message, &payload); err == nil {
+				a.cardCacheMutex.Lock()
+				if cards, ok := a.cardCache[payload.PageID]; ok {
+					for i, c := range cards {
+						if c.ID == payload.ID {
+							a.cardCache[payload.PageID] = append(cards[:i], cards[i+1:]...)
+							break
+						}
+					}
+				}
+				remaining := a.cardCache[payload.PageID]
+				a.cardCacheMutex.Unlock()
+				runtime.EventsEmit(a.ctx, "cards-update", map[string]interface{}{
+					"page_id": payload.PageID,
+					"cards":   remaining,
+				})
+			}
+		case "reorder_cards":
+			var payload struct {
+				PageID string   `json:"page_id"`
+				Order  []string `json:"order"`
+			}
+			if err := json.Unmarshal(message, &payload); err == nil {
+				a.cardCacheMutex.Lock()
+				if cards, ok := a.cardCache[payload.PageID]; ok {
+					orderMap := make(map[string]int)
+					for i, id := range payload.Order {
+						orderMap[id] = i
+					}
+					for i := range cards {
+						if newOrder, ok := orderMap[cards[i].ID]; ok {
+							cards[i].SortOrder = newOrder
+						}
+					}
+					// Sort by new order
+					for i := 0; i < len(cards); i++ {
+						for j := i + 1; j < len(cards); j++ {
+							if cards[i].SortOrder > cards[j].SortOrder {
+								cards[i], cards[j] = cards[j], cards[i]
+							}
+						}
+					}
+				}
+				remaining := a.cardCache[payload.PageID]
+				a.cardCacheMutex.Unlock()
+				runtime.EventsEmit(a.ctx, "cards-update", map[string]interface{}{
+					"page_id": payload.PageID,
+					"cards":   remaining,
+				})
+			}
 		}
 	}
 }
 
-// Recursive helper to remove a page and all its nested subpages from cache
 func removePageAndDescendants(pages []DbPage, targetID string) []DbPage {
-	// Find all pages that are children of targetID
 	var toDelete []string
 	toDelete = append(toDelete, targetID)
-	
-	// Keep searching for nested children until no new ones are found
+
 	added := true
 	for added {
 		added = false
 		for _, page := range pages {
 			if page.ParentID != nil {
-				// If parent is in delete list, and this child is not already in delete list
 				parentInList := false
 				for _, delID := range toDelete {
 					if *page.ParentID == delID {
@@ -465,7 +627,7 @@ func removePageAndDescendants(pages []DbPage, targetID string) []DbPage {
 						break
 					}
 				}
-				
+
 				childInList := false
 				for _, delID := range toDelete {
 					if page.ID == delID {
@@ -473,7 +635,7 @@ func removePageAndDescendants(pages []DbPage, targetID string) []DbPage {
 						break
 					}
 				}
-				
+
 				if parentInList && !childInList {
 					toDelete = append(toDelete, page.ID)
 					added = true
@@ -481,8 +643,7 @@ func removePageAndDescendants(pages []DbPage, targetID string) []DbPage {
 			}
 		}
 	}
-	
-	// Create new slice without items in toDelete list
+
 	var result []DbPage
 	for _, page := range pages {
 		inList := false
@@ -519,22 +680,26 @@ func (a *App) sendToServer(message interface{}) error {
 }
 
 // AddPage requests the Flutter server to add a new page
-func (a *App) AddPage(parentID string, title string, content string, emoji string) error {
+func (a *App) AddPage(parentID string, relationType string, title string, emoji string) error {
 	var parentPtr *string
 	if parentID != "" {
 		parentPtr = &parentID
 	}
 
+	if relationType == "" {
+		relationType = "subpage"
+	}
+
 	page := DbPage{
-		ID:         uuid.New().String(),
-		ParentID:   parentPtr,
-		Title:      title,
-		Content:    content,
-		Emoji:      emoji,
-		CreatedAt:  time.Now().Format(time.RFC3339),
-		UpdatedAt:  time.Now().Format(time.RFC3339),
-		IsArchived: 0,
-		SortOrder:  0,
+		ID:           uuid.New().String(),
+		ParentID:     parentPtr,
+		RelationType: relationType,
+		Title:        title,
+		Emoji:        emoji,
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		UpdatedAt:    time.Now().Format(time.RFC3339),
+		IsArchived:   0,
+		SortOrder:    0,
 	}
 
 	message := map[string]interface{}{
@@ -546,12 +711,7 @@ func (a *App) AddPage(parentID string, title string, content string, emoji strin
 }
 
 // UpdatePage requests the Flutter server to update a page
-func (a *App) UpdatePage(id string, parentID string, title string, content string, emoji string) error {
-	var parentPtr *string
-	if parentID != "" {
-		parentPtr = &parentID
-	}
-
+func (a *App) UpdatePage(id string, title string, emoji string) error {
 	a.dbPagesMutex.RLock()
 	currentRevision := 0
 	for _, p := range a.dbPages {
@@ -563,16 +723,11 @@ func (a *App) UpdatePage(id string, parentID string, title string, content strin
 	a.dbPagesMutex.RUnlock()
 
 	page := DbPage{
-		ID:         id,
-		ParentID:   parentPtr,
-		Title:      title,
-		Content:    content,
-		Emoji:      emoji,
-		CreatedAt:  time.Now().Format(time.RFC3339), // Fallback, server will retain original
-		UpdatedAt:  time.Now().Format(time.RFC3339),
-		IsArchived: 0,
-		SortOrder:  0,
-		Revision:   currentRevision,
+		ID:        id,
+		Title:     title,
+		Emoji:     emoji,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+		Revision:  currentRevision,
 	}
 
 	message := map[string]interface{}{
@@ -583,58 +738,185 @@ func (a *App) UpdatePage(id string, parentID string, title string, content strin
 	return a.sendToServer(message)
 }
 
-// DeletePage requests the Flutter server to archive a page
 func (a *App) DeletePage(id string) error {
-	message := map[string]interface{}{
-		"type": "archive",
-		"id":   id,
-	}
-
-	return a.sendToServer(message)
+	return a.sendToServer(map[string]interface{}{"type": "archive", "id": id})
 }
 
-// RestorePage requests the Flutter server to restore an archived page
 func (a *App) RestorePage(id string) error {
-	message := map[string]interface{}{
-		"type": "restore",
-		"id":   id,
-	}
-
-	return a.sendToServer(message)
+	return a.sendToServer(map[string]interface{}{"type": "restore", "id": id})
 }
 
-// HardDeletePage requests permanent deletion
 func (a *App) HardDeletePage(id string) error {
-	message := map[string]interface{}{
-		"type": "hard_delete",
-		"id":   id,
-	}
-
-	return a.sendToServer(message)
+	return a.sendToServer(map[string]interface{}{"type": "hard_delete", "id": id})
 }
 
-// MovePage moves a page to a new parent
 func (a *App) MovePage(id string, newParentID string) error {
 	var parentPtr *string
 	if newParentID != "" {
 		parentPtr = &newParentID
 	}
-
-	message := map[string]interface{}{
+	return a.sendToServer(map[string]interface{}{
 		"type":      "move",
 		"id":        id,
 		"parent_id": parentPtr,
-	}
-
-	return a.sendToServer(message)
+	})
 }
 
-// FetchPageContent requests full content for a specific page
-func (a *App) FetchPageContent(id string) error {
-	message := map[string]interface{}{
-		"type": "fetch",
-		"id":   id,
+// --- Card Operations ---
+
+func (a *App) FetchCards(pageID string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type":    "fetch_cards",
+		"page_id": pageID,
+	})
+}
+
+func (a *App) AddCard(pageID string, cardType string, content string) error {
+	card := Card{
+		ID:        uuid.New().String(),
+		PageID:    pageID,
+		Type:      cardType,
+		Content:   content,
+		SortOrder: 0,
+		CreatedAt: time.Now().Format(time.RFC3339),
+		UpdatedAt: time.Now().Format(time.RFC3339),
 	}
 
-	return a.sendToServer(message)
+	return a.sendToServer(map[string]interface{}{
+		"type": "add_card",
+		"item": card,
+	})
+}
+
+func (a *App) UpdateCard(id string, pageID string, content string) error {
+	a.cardCacheMutex.RLock()
+	currentRevision := 0
+	if cards, ok := a.cardCache[pageID]; ok {
+		for _, c := range cards {
+			if c.ID == id {
+				currentRevision = c.Revision
+				break
+			}
+		}
+	}
+	a.cardCacheMutex.RUnlock()
+
+	card := Card{
+		ID:        id,
+		PageID:    pageID,
+		Content:   content,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+		Revision:  currentRevision + 1,
+	}
+
+	return a.sendToServer(map[string]interface{}{
+		"type": "update_card",
+		"item": card,
+	})
+}
+
+func (a *App) DeleteCard(id string, pageID string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type":     "delete_card",
+		"id":       id,
+		"page_id":  pageID,
+	})
+}
+
+func (a *App) ReorderCards(pageID string, cardIds []string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type":     "reorder_cards",
+		"page_id":  pageID,
+		"order":    cardIds,
+	})
+}
+
+// --- Image Storage ---
+
+// getImageDir returns the image directory for the active workspace.
+// Creates it if it doesn't exist.
+func (a *App) getImageDir() (string, error) {
+	if a.imageDir != "" {
+		return a.imageDir, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home dir: %w", err)
+	}
+
+	wsName := a.activeWorkspace
+	if wsName == "" {
+		wsName = "default"
+	}
+	wsName = strings.ReplaceAll(wsName, "/", "_")
+	wsName = strings.ReplaceAll(wsName, "\\", "_")
+
+	dir := filepath.Join(home, ".cero", wsName+"_images")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create image dir: %w", err)
+	}
+	a.imageDir = dir
+	return dir, nil
+}
+
+// SaveImage saves a base64-encoded image to the workspace image directory.
+// Returns the relative file path to store in card.content.
+func (a *App) SaveImage(base64Data string, originalName string) (string, error) {
+	dir, err := a.getImageDir()
+	if err != nil {
+		return "", err
+	}
+
+	// Determine extension from original name or default to .png
+	ext := ".png"
+	if idx := strings.LastIndex(originalName, "."); idx > 0 {
+		ext = originalName[idx:]
+	}
+
+	filename := uuid.New().String() + ext
+
+	// Decode base64 (handle data URLs like "data:image/png;base64,...")
+	if idx := strings.Index(base64Data, ","); idx > 0 {
+		base64Data = base64Data[idx+1:]
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	filePath := filepath.Join(dir, filename)
+	if err := os.WriteFile(filePath, decoded, 0644); err != nil {
+		return "", fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// Return relative path (just the filename, since image dir is derived from workspace)
+	return filename, nil
+}
+
+// GetImage returns the file path for a given image filename in the workspace image dir.
+func (a *App) GetImage(filename string) (string, error) {
+	dir, err := a.getImageDir()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, filename)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return "", fmt.Errorf("image not found: %s", filename)
+	}
+	return path, nil
+}
+
+// DeleteImage removes an image file from the workspace image directory.
+func (a *App) DeleteImage(filename string) error {
+	dir, err := a.getImageDir()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, filename)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete image: %w", err)
+	}
+	return nil
 }
