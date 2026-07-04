@@ -10,7 +10,11 @@
   <div class="sidebar-header">
     <span class="header-title">Context</span>
     {#if selectedPage}
-      <button class="add-btn" title="Add context page" on:click={onCreateSidePage}>+</button>
+      <button
+        class="add-btn"
+        title="Add context page"
+        on:click={onCreateSidePage}>+</button
+      >
     {/if}
   </div>
 
@@ -23,8 +27,12 @@
     <div class="empty-state">
       <span class="empty-icon">📎</span>
       <p>No context pages yet</p>
-      <span class="empty-hint">Side pages provide supplementary info about the current page.</span>
-      <button class="add-btn-label" on:click={onCreateSidePage}>+ Add Context Page</button>
+      <span class="empty-hint"
+        >Side pages provide supplementary info about the current page.</span
+      >
+      <button class="add-btn-label" on:click={onCreateSidePage}
+        >+ Add Context Page</button
+      >
     </div>
   {:else}
     <div class="pages-list">
@@ -33,10 +41,14 @@
           <button class="page-btn" on:click={() => onSelectPage(sp)}>
             <span class="page-emoji">{sp.emoji}</span>
             <div class="page-info">
-              <span class="page-title">{sp.title || 'Untitled'}</span>
+              <span class="page-title">{sp.title || "Untitled"}</span>
             </div>
           </button>
-          <button class="delete-btn" title="Remove context page" on:click|stopPropagation={() => onDeletePage(sp.id)}>
+          <button
+            class="delete-btn"
+            title="Remove context page"
+            on:click|stopPropagation={() => onDeletePage(sp.id)}
+          >
             ×
           </button>
         </div>
@@ -51,7 +63,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background-color: #1a1a1a;
+    background-color: #121215;
     overflow: hidden;
   }
 
@@ -59,34 +71,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 14px;
-    border-bottom: 1px solid #2e2e2e;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
   }
 
   .header-title {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #8e8e8e;
+    color: #71717a;
   }
 
   .add-btn {
     background: transparent;
-    border: 1px solid #3e3e3e;
-    color: #64748b;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #a1a1aa;
     cursor: pointer;
-    font-size: 14px;
-    width: 22px;
-    height: 22px;
+    font-size: 13px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 4px;
     transition: all 0.15s ease;
   }
-  .add-btn:hover { border-color: #818cf8; color: #818cf8; }
+  .add-btn:hover {
+    border-color: rgba(129, 140, 248, 0.3);
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.04);
+  }
 
   .empty-state {
     flex: 1;
@@ -99,40 +115,46 @@
   }
 
   .empty-icon {
-    font-size: 32px;
+    font-size: 24px;
     margin-bottom: 12px;
     opacity: 0.6;
   }
 
   .empty-state p {
-    font-size: 12px;
-    color: #6c6c6c;
-    margin: 0 0 8px 0;
+    font-size: 11px;
+    color: #71717a;
+    margin: 0 0 6px 0;
+    font-weight: 500;
   }
 
   .empty-hint {
-    font-size: 11px;
-    color: #4a4a4a;
+    font-size: 10px;
+    color: #52525b;
     line-height: 1.4;
     margin-bottom: 16px;
+    max-width: 180px;
   }
 
   .add-btn-label {
-    background: transparent;
-    border: 1px dashed #3e3e3e;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px dashed rgba(255, 255, 255, 0.06);
     color: #818cf8;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
     padding: 8px 16px;
     border-radius: 6px;
     transition: all 0.15s ease;
   }
-  .add-btn-label:hover { border-color: #818cf8; background: rgba(129,140,248,0.05); }
+  .add-btn-label:hover {
+    border-color: rgba(129, 140, 248, 0.3);
+    background: rgba(129, 140, 248, 0.04);
+  }
 
   .pages-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -142,27 +164,33 @@
     display: flex;
     align-items: center;
     border-radius: 6px;
-    transition: background 0.12s ease;
+    border: 1px solid transparent;
+    transition: all 0.12s ease;
   }
-  .page-card:hover { background: #222; }
+  .page-card:hover {
+    background: rgba(255, 255, 255, 0.01);
+    border-color: rgba(255, 255, 255, 0.02);
+  }
 
   .page-btn {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: transparent;
     border: none;
     text-align: left;
-    color: #e2e8f0;
-    padding: 8px 10px;
+    color: #cbd5e1;
+    padding: 6px 8px;
     cursor: pointer;
     border-radius: 6px;
     min-width: 0;
   }
-  .page-btn:hover { background: rgba(255,255,255,0.03); }
 
-  .page-emoji { font-size: 18px; flex-shrink: 0; }
+  .page-emoji {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
 
   .page-info {
     flex: 1;
@@ -170,7 +198,7 @@
   }
 
   .page-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     display: block;
     overflow: hidden;
@@ -181,14 +209,18 @@
   .delete-btn {
     background: transparent;
     border: none;
-    color: #4a4a4a;
+    color: #52525b;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     padding: 4px 8px;
     opacity: 0;
     transition: all 0.12s ease;
     flex-shrink: 0;
   }
-  .page-card:hover .delete-btn { opacity: 1; }
-  .delete-btn:hover { color: #f87171; }
+  .page-card:hover .delete-btn {
+    opacity: 1;
+  }
+  .delete-btn:hover {
+    color: #f87171;
+  }
 </style>

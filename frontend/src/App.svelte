@@ -95,8 +95,12 @@
 
   // Immersive Markdown Helpers
   let markdownTextarea;
-  $: markdownCharCount = fullscreenEditContent ? fullscreenEditContent.length : 0;
-  $: markdownWordCount = fullscreenEditContent ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length : 0;
+  $: markdownCharCount = fullscreenEditContent
+    ? fullscreenEditContent.length
+    : 0;
+  $: markdownWordCount = fullscreenEditContent
+    ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length
+    : 0;
 
   function insertMarkdownSymbol(prefix, suffix = "") {
     if (!markdownTextarea) return;
@@ -105,7 +109,12 @@
     const text = fullscreenEditContent;
     const selected = text.substring(start, end);
 
-    fullscreenEditContent = text.substring(0, start) + prefix + selected + suffix + text.substring(end);
+    fullscreenEditContent =
+      text.substring(0, start) +
+      prefix +
+      selected +
+      suffix +
+      text.substring(end);
 
     setTimeout(() => {
       markdownTextarea.focus();
@@ -131,7 +140,8 @@
 
   // Custom regex syntax highlighter supporting JS, Go, Python, HTML/CSS, Dart, etc.
   function highlightCode(code, lang) {
-    if (!code) return '<span style="color: #4b5563; font-style: italic;">// Start writing your code here...</span>';
+    if (!code)
+      return '<span style="color: #4b5563; font-style: italic;">// Start writing your code here...</span>';
 
     let escaped = code
       .replace(/&/g, "&amp;")
@@ -139,14 +149,61 @@
       .replace(/>/g, "&gt;");
 
     const keywords = [
-      "function", "return", "if", "else", "for", "while", "const", "let", "var",
-      "import", "export", "class", "void", "final", "def", "package", "func", "interface",
-      "from", "default", "as", "new", "this", "extends", "super", "try", "catch", "finally",
-      "async", "await", "break", "continue", "switch", "case", "throw", "true", "false", "null"
+      "function",
+      "return",
+      "if",
+      "else",
+      "for",
+      "while",
+      "const",
+      "let",
+      "var",
+      "import",
+      "export",
+      "class",
+      "void",
+      "final",
+      "def",
+      "package",
+      "func",
+      "interface",
+      "from",
+      "default",
+      "as",
+      "new",
+      "this",
+      "extends",
+      "super",
+      "try",
+      "catch",
+      "finally",
+      "async",
+      "await",
+      "break",
+      "continue",
+      "switch",
+      "case",
+      "throw",
+      "true",
+      "false",
+      "null",
     ];
-    const builtins = ["console", "window", "document", "process", "Object", "Array", "String", "Number", "Boolean", "Math", "JSON"];
+    const builtins = [
+      "console",
+      "window",
+      "document",
+      "process",
+      "Object",
+      "Array",
+      "String",
+      "Number",
+      "Boolean",
+      "Math",
+      "JSON",
+    ];
 
-    const stringRegex = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g;
+    const stringRegex =
+      /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g;
     const commentRegex = /(\/\/[^\n]*|#[^\n]*)/g;
     const multiLineCommentRegex = /(\/\*[\s\S]*?\*\/)/g;
 
@@ -154,41 +211,57 @@
     let counter = 0;
     function saveToken(text, className) {
       const placeholder = `___TOK_PLCHLDR_${counter++}___`;
-      tokens.push({ placeholder, html: `<span class="${className}">${text}</span>` });
+      tokens.push({
+        placeholder,
+        html: `<span class="${className}">${text}</span>`,
+      });
       return placeholder;
     }
 
     // 1. Multi-line comments
-    escaped = escaped.replace(multiLineCommentRegex, (m) => saveToken(m, "tok-comment"));
+    escaped = escaped.replace(multiLineCommentRegex, (m) =>
+      saveToken(m, "tok-comment"),
+    );
     // 2. Single-line comments
     escaped = escaped.replace(commentRegex, (m) => saveToken(m, "tok-comment"));
     // 3. Strings
     escaped = escaped.replace(stringRegex, (m) => saveToken(m, "tok-string"));
     // 4. Numbers
-    escaped = escaped.replace(/\b(\d+(?:\.\d+)?)\b/g, (m) => saveToken(m, "tok-number"));
+    escaped = escaped.replace(/\b(\d+(?:\.\d+)?)\b/g, (m) =>
+      saveToken(m, "tok-number"),
+    );
     // 5. Keywords
     const keywordsRegex = new RegExp(`\\b(${keywords.join("|")})\\b`, "g");
-    escaped = escaped.replace(keywordsRegex, (m) => saveToken(m, "tok-keyword"));
+    escaped = escaped.replace(keywordsRegex, (m) =>
+      saveToken(m, "tok-keyword"),
+    );
     // 6. Built-ins
     const builtinsRegex = new RegExp(`\\b(${builtins.join("|")})\\b`, "g");
-    escaped = escaped.replace(builtinsRegex, (m) => saveToken(m, "tok-builtin"));
+    escaped = escaped.replace(builtinsRegex, (m) =>
+      saveToken(m, "tok-builtin"),
+    );
     // 7. Functions
-    escaped = escaped.replace(/\b(\w+)(?=\s*\()/g, (m) => saveToken(m, "tok-function"));
+    escaped = escaped.replace(/\b(\w+)(?=\s*\()/g, (m) =>
+      saveToken(m, "tok-function"),
+    );
 
     // Restore placeholder tokens
     for (let i = tokens.length - 1; i >= 0; i--) {
       escaped = escaped.replace(tokens[i].placeholder, tokens[i].html);
     }
 
-    if (escaped.endsWith('\n') || escaped === '') {
-      escaped += ' ';
+    if (escaped.endsWith("\n") || escaped === "") {
+      escaped += " ";
     }
 
     return escaped;
   }
 
   $: lineNumbers = (fullscreenCodeContent.match(/\n/g) || []).length + 1;
-  $: highlightedCodeHtml = highlightCode(fullscreenCodeContent, fullscreenCodeLang);
+  $: highlightedCodeHtml = highlightCode(
+    fullscreenCodeContent,
+    fullscreenCodeLang,
+  );
 
   // Rich Keyboard-Matching Emojis Catalog grouped by category
   const emojiCategories = [
@@ -196,37 +269,847 @@
       id: "smileys",
       label: "😀 Smileys & People",
       emojis: [
-        "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🥸", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤔", "🫣", "🤭", "🫢", "🫡", "🤫", "🫠", "🤥", "😶", "😐", "😑", "😬", "🫨", "😴", "🤤", "😪", "😵", "😵💫", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "😈", "👿", "👹", "👺", "💀", "☠️", "👻", "👽", "👾", "🤖", "🎃", "😺", "😸", "😹", "😻", "😼", "😽", "😾", "😿", "🙀", "👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞", "🫰", "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝️", "👍", "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "🫶", "👐", "🤲", "🤝", "🙏", "✍️", "💅", "🤳", "💪", "🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃", "🧠", "🫀", "🫁", "🦷", "🦴", "👀", "👁️", "👅", "👄", "💋", "🩸", "👤", "👥", "🫂"
-      ]
+        "😀",
+        "😃",
+        "😄",
+        "😁",
+        "😆",
+        "😅",
+        "😂",
+        "🤣",
+        "😊",
+        "😇",
+        "🙂",
+        "🙃",
+        "😉",
+        "😌",
+        "😍",
+        "🥰",
+        "😘",
+        "😗",
+        "😙",
+        "😚",
+        "😋",
+        "😛",
+        "😝",
+        "😜",
+        "🤪",
+        "🤨",
+        "🧐",
+        "🤓",
+        "😎",
+        "🥸",
+        "🤩",
+        "🥳",
+        "😏",
+        "😒",
+        "😞",
+        "😔",
+        "😟",
+        "😕",
+        "🙁",
+        "☹️",
+        "😣",
+        "😖",
+        "😫",
+        "😩",
+        "🥺",
+        "😢",
+        "😭",
+        "😤",
+        "😠",
+        "😡",
+        "🤬",
+        "🤯",
+        "😳",
+        "🥵",
+        "🥶",
+        "😱",
+        "😨",
+        "😰",
+        "😥",
+        "😓",
+        "🤔",
+        "🫣",
+        "🤭",
+        "🫢",
+        "🫡",
+        "🤫",
+        "🫠",
+        "🤥",
+        "😶",
+        "😐",
+        "😑",
+        "😬",
+        "🫨",
+        "😴",
+        "🤤",
+        "😪",
+        "😵",
+        "😵💫",
+        "🤐",
+        "🥴",
+        "🤢",
+        "🤮",
+        "🤧",
+        "😷",
+        "🤒",
+        "🤕",
+        "😈",
+        "👿",
+        "👹",
+        "👺",
+        "💀",
+        "☠️",
+        "👻",
+        "👽",
+        "👾",
+        "🤖",
+        "🎃",
+        "😺",
+        "😸",
+        "😹",
+        "😻",
+        "😼",
+        "😽",
+        "😾",
+        "😿",
+        "🙀",
+        "👋",
+        "🤚",
+        "🖐️",
+        "✋",
+        "🖖",
+        "👌",
+        "🤌",
+        "🤏",
+        "✌️",
+        "🤞",
+        "🫰",
+        "🤟",
+        "🤘",
+        "🤙",
+        "👈",
+        "👉",
+        "👆",
+        "🖕",
+        "👇",
+        "☝️",
+        "👍",
+        "👎",
+        "✊",
+        "👊",
+        "🤛",
+        "🤜",
+        "👏",
+        "🙌",
+        "🫶",
+        "👐",
+        "🤲",
+        "🤝",
+        "🙏",
+        "✍️",
+        "💅",
+        "🤳",
+        "💪",
+        "🦾",
+        "🦿",
+        "🦵",
+        "🦶",
+        "👂",
+        "🦻",
+        "👃",
+        "🧠",
+        "🫀",
+        "🫁",
+        "🦷",
+        "🦴",
+        "👀",
+        "👁️",
+        "👅",
+        "👄",
+        "💋",
+        "🩸",
+        "👤",
+        "👥",
+        "🫂",
+      ],
     },
     {
       id: "animals",
       label: "🐱 Animals & Nature",
       emojis: [
-        "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐽", "🐸", "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥", "🦆", "🦅", "🦉", "🪱", "🐛", "🦋", "🐌", "🐞", "🐜", "🪰", "🪲", "🪳", "🦗", "🕷️", "🕸️", "🐢", "🐍", "🦎", "🐙", "🦑", "🦞", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🦧", "🦣", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🦬", "🐃", "🐂", "🐄", "🐎", "🐖", "🐏", "🐑", "🦙", "🐐", "🦌", "🐕", "🐩", "🦮", "🐈", "🐓", "🦃", "🦚", "🦜", "🕊️", "🐇", "🦝", "🦨", "🦡", "🦦", "🦥", "🐿️", "🦔", "🐾", "🐉", "🐲", "🌵", "🎄", "🌲", "🌳", "🌴", "🪵", "🌱", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🍄", "🐚", "🪸", "🪨", "🌾", "💐", "🌷", "🌹", "🥀", "🌺", "🌸", "🌼", "🌻", "🌞", "🌝", "🌛", "🌜", "🌚", "🌕", "🌖", "🌗", "🌘", "🌑", "🌒", "🌓", "🌔", "🌙", "🌎", "🌍", "🌏", "🪐", "💫", "⭐️", "🌟", "✨", "⚡️", "☄️", "💥", "🔥", "🌪️", "🌈", "☀️", "🌤️", "⛅️", "🌥️", "🌦️", "☁️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "☃️", "⛄️", "🌬️", "💨", "💧", "💦", "🫧", "☔️", "🌊", "🌫️"
-      ]
+        "🐶",
+        "🐱",
+        "🐭",
+        "🐹",
+        "🐰",
+        "🦊",
+        "🐻",
+        "🐼",
+        "🐨",
+        "🐯",
+        "🦁",
+        "🐮",
+        "🐷",
+        "🐽",
+        "🐸",
+        "🐵",
+        "🙈",
+        "🙉",
+        "🙊",
+        "🐒",
+        "🐔",
+        "🐧",
+        "🐦",
+        "🐤",
+        "🐣",
+        "🐥",
+        "🦆",
+        "🦅",
+        "🦉",
+        "🪱",
+        "🐛",
+        "🦋",
+        "🐌",
+        "🐞",
+        "🐜",
+        "🪰",
+        "🪲",
+        "🪳",
+        "🦗",
+        "🕷️",
+        "🕸️",
+        "🐢",
+        "🐍",
+        "🦎",
+        "🐙",
+        "🦑",
+        "🦞",
+        "🦀",
+        "🐡",
+        "🐠",
+        "🐟",
+        "🐬",
+        "🐳",
+        "🐋",
+        "🦈",
+        "🐊",
+        "🐅",
+        "🐆",
+        "🦓",
+        "🦍",
+        "🦧",
+        "🦣",
+        "🐘",
+        "🦛",
+        "🦏",
+        "🐪",
+        "🐫",
+        "🦒",
+        "🦘",
+        "🦬",
+        "🐃",
+        "🐂",
+        "🐄",
+        "🐎",
+        "🐖",
+        "🐏",
+        "🐑",
+        "🦙",
+        "🐐",
+        "🦌",
+        "🐕",
+        "🐩",
+        "🦮",
+        "🐈",
+        "🐓",
+        "🦃",
+        "🦚",
+        "🦜",
+        "🕊️",
+        "🐇",
+        "🦝",
+        "🦨",
+        "🦡",
+        "🦦",
+        "🦥",
+        "🐿️",
+        "🦔",
+        "🐾",
+        "🐉",
+        "🐲",
+        "🌵",
+        "🎄",
+        "🌲",
+        "🌳",
+        "🌴",
+        "🪵",
+        "🌱",
+        "🌿",
+        "☘️",
+        "🍀",
+        "🍁",
+        "🍂",
+        "🍃",
+        "🍄",
+        "🐚",
+        "🪸",
+        "🪨",
+        "🌾",
+        "💐",
+        "🌷",
+        "🌹",
+        "🥀",
+        "🌺",
+        "🌸",
+        "🌼",
+        "🌻",
+        "🌞",
+        "🌝",
+        "🌛",
+        "🌜",
+        "🌚",
+        "🌕",
+        "🌖",
+        "🌗",
+        "🌘",
+        "🌑",
+        "🌒",
+        "🌓",
+        "🌔",
+        "🌙",
+        "🌎",
+        "🌍",
+        "🌏",
+        "🪐",
+        "💫",
+        "⭐️",
+        "🌟",
+        "✨",
+        "⚡️",
+        "☄️",
+        "💥",
+        "🔥",
+        "🌪️",
+        "🌈",
+        "☀️",
+        "🌤️",
+        "⛅️",
+        "🌥️",
+        "🌦️",
+        "☁️",
+        "🌧️",
+        "⛈️",
+        "🌩️",
+        "🌨️",
+        "❄️",
+        "☃️",
+        "⛄️",
+        "🌬️",
+        "💨",
+        "💧",
+        "💦",
+        "🫧",
+        "☔️",
+        "🌊",
+        "🌫️",
+      ],
     },
     {
       id: "food",
       label: "🍏 Food & Drink",
       emojis: [
-        "🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🥬", "🥒", "🌶️", "🫑", "🌽", "🥕", "🫒", "🧄", "🧅", "🥔", "🍠", "🥐", "🍞", "🥖", "🥨", "🧀", "🍳", "🥞", "🥓", "🥩", "🍗", "🍖", "🌭", "🍔", "🍟", "🍕", "🥪", "🥙", "🫓", "🌮", "🌯", "🫔", "🥗", "🥘", "🍲", "🫕", "🥫", "🍝", "🍜", "🍛", "🍣", "🍱", "🥟", "🍤", "🍙", "🍘", "🍥", "🥠", "🥮", "🍢", "🍡", "🍧", "🍨", "🍦", "🥧", "🍰", "🎂", "🧁", "🍮", "🍭", "🍬", "🍫", "🍿", "🍩", "🍪", "🌰", "🥜", "🫘", "🍯", "🥛", "🍼", "☕️", "🍵", "🧃", "🥤", "🧋", "🍶", "🍺", "🍻", "🥂", "🍷", "🥃", "🍸", "🍹", "🧉", "🍾", "🧊", "🥢", "🍽️", "🍴", "🥄"
-      ]
+        "🍏",
+        "🍎",
+        "🍐",
+        "🍊",
+        "🍋",
+        "🍌",
+        "🍉",
+        "🍇",
+        "🍓",
+        "🫐",
+        "🍈",
+        "🍒",
+        "🍑",
+        "🥭",
+        "🍍",
+        "🥥",
+        "🥝",
+        "🍅",
+        "🍆",
+        "🥑",
+        "🥦",
+        "🥬",
+        "🥒",
+        "🌶️",
+        "🫑",
+        "🌽",
+        "🥕",
+        "🫒",
+        "🧄",
+        "🧅",
+        "🥔",
+        "🍠",
+        "🥐",
+        "🍞",
+        "🥖",
+        "🥨",
+        "🧀",
+        "🍳",
+        "🥞",
+        "🥓",
+        "🥩",
+        "🍗",
+        "🍖",
+        "🌭",
+        "🍔",
+        "🍟",
+        "🍕",
+        "🥪",
+        "🥙",
+        "🫓",
+        "🌮",
+        "🌯",
+        "🫔",
+        "🥗",
+        "🥘",
+        "🍲",
+        "🫕",
+        "🥫",
+        "🍝",
+        "🍜",
+        "🍛",
+        "🍣",
+        "🍱",
+        "🥟",
+        "🍤",
+        "🍙",
+        "🍘",
+        "🍥",
+        "🥠",
+        "🥮",
+        "🍢",
+        "🍡",
+        "🍧",
+        "🍨",
+        "🍦",
+        "🥧",
+        "🍰",
+        "🎂",
+        "🧁",
+        "🍮",
+        "🍭",
+        "🍬",
+        "🍫",
+        "🍿",
+        "🍩",
+        "🍪",
+        "🌰",
+        "🥜",
+        "🫘",
+        "🍯",
+        "🥛",
+        "🍼",
+        "☕️",
+        "🍵",
+        "🧃",
+        "🥤",
+        "🧋",
+        "🍶",
+        "🍺",
+        "🍻",
+        "🥂",
+        "🍷",
+        "🥃",
+        "🍸",
+        "🍹",
+        "🧉",
+        "🍾",
+        "🧊",
+        "🥢",
+        "🍽️",
+        "🍴",
+        "🥄",
+      ],
     },
     {
       id: "activity",
       label: "⚽️ Activity & Travel",
       emojis: [
-        "⚽️", "🏀", "🏈", "⚾️", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱", "🪀", "🏸", "🏒", "🥍", "🏹", "🤿", "🥊", "🥋", "🥅", "⛳️", "⛸️", "🎽", "🎿", "🛷", "🥌", "🎯", "🪗", "🪘", "🎮", "🕹️", "🎰", "🎲", "🧩", "🧸", "🪅", "🪩", "🎨", "🖼️", "🧵", "🪡", "🧶", "🎸", "🎹", "🎺", "🎻", "🥁", "🪕", "🎧", "🎤", "🎬", "🎟️", "🎫", "🎭", "🎪", "🧗", "🏋️", "🚴", "🏃", "🚶", "🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒", "🚐", "🛻", "🚚", "🚛", "🚜", "🛵", "🏍️", "🛺", "🚲", "🛴", "🛼", "🚏", "🛣️", "🛤️", "🚢", "⛵️", "🚤", "🛥️", "🛳️", "⛴️", "🛶", "🛸", "🚁", "🛩️", "✈️", "🛫", "🛬", "🚀", "🛰️", "⚓️", "🗺️", "🧭", "🏔️", "⛰️", "🌋", "🗻", "🏕️", "🏖️", "🏜️", "🏝️", "🏞️", "🏛️", "🏗️", "🧱", "🏘️", "🏚️", "🏠", "🏡", "🏢", "🏣", "🏤", "🏥", "🏦", "🏨", "🏩", "🏪", "🏫", "🏬", "🏭", "🏯", "🏰", "💒", "🗼", "🗽", "🕌", "⛪️", "🛕", " synagogues", "⛩️", "🕋", "⛲️", "⛺️", "🌁", "🌃", "🏙️", "🌅", "🌄", "🌇", "🌆", "🌉", "🎠", "🎡", "🎢", "💈"
-      ]
+        "⚽️",
+        "🏀",
+        "🏈",
+        "⚾️",
+        "🥎",
+        "🎾",
+        "🏐",
+        "🏉",
+        "🥏",
+        "🎱",
+        "🪀",
+        "🏸",
+        "🏒",
+        "🥍",
+        "🏹",
+        "🤿",
+        "🥊",
+        "🥋",
+        "🥅",
+        "⛳️",
+        "⛸️",
+        "🎽",
+        "🎿",
+        "🛷",
+        "🥌",
+        "🎯",
+        "🪗",
+        "🪘",
+        "🎮",
+        "🕹️",
+        "🎰",
+        "🎲",
+        "🧩",
+        "🧸",
+        "🪅",
+        "🪩",
+        "🎨",
+        "🖼️",
+        "🧵",
+        "🪡",
+        "🧶",
+        "🎸",
+        "🎹",
+        "🎺",
+        "🎻",
+        "🥁",
+        "🪕",
+        "🎧",
+        "🎤",
+        "🎬",
+        "🎟️",
+        "🎫",
+        "🎭",
+        "🎪",
+        "🧗",
+        "🏋️",
+        "🚴",
+        "🏃",
+        "🚶",
+        "🚗",
+        "🚕",
+        "🚙",
+        "🚌",
+        "🚎",
+        "🏎️",
+        "🚓",
+        "🚑",
+        "🚒",
+        "🚐",
+        "🛻",
+        "🚚",
+        "🚛",
+        "🚜",
+        "🛵",
+        "🏍️",
+        "🛺",
+        "🚲",
+        "🛴",
+        "🛼",
+        "🚏",
+        "🛣️",
+        "🛤️",
+        "🚢",
+        "⛵️",
+        "🚤",
+        "🛥️",
+        "🛳️",
+        "⛴️",
+        "🛶",
+        "🛸",
+        "🚁",
+        "🛩️",
+        "✈️",
+        "🛫",
+        "🛬",
+        "🚀",
+        "🛰️",
+        "⚓️",
+        "🗺️",
+        "🧭",
+        "🏔️",
+        "⛰️",
+        "🌋",
+        "🗻",
+        "🏕️",
+        "🏖️",
+        "🏜️",
+        "🏝️",
+        "🏞️",
+        "🏛️",
+        "🏗️",
+        "🧱",
+        "🏘️",
+        "🏚️",
+        "🏠",
+        "🏡",
+        "🏢",
+        "🏣",
+        "🏤",
+        "🏥",
+        "🏦",
+        "🏨",
+        "🏩",
+        "🏪",
+        "🏫",
+        "🏬",
+        "🏭",
+        "🏯",
+        "🏰",
+        "💒",
+        "🗼",
+        "🗽",
+        "🕌",
+        "⛪️",
+        "🛕",
+        " synagogues",
+        "⛩️",
+        "🕋",
+        "⛲️",
+        "⛺️",
+        "🌁",
+        "🌃",
+        "🏙️",
+        "🌅",
+        "🌄",
+        "🌇",
+        "🌆",
+        "🌉",
+        "🎠",
+        "🎡",
+        "🎢",
+        "💈",
+      ],
     },
     {
       id: "objects",
       label: "💡 Objects & Symbols",
       emojis: [
-        "⌚️", "📱", "📲", "💻", "⌨️", "🖥️", "🖨️", "🖱️", "🖲️", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽️", "🎞️", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙️", "🎚️", "🎛️", "🧭", "⏰", "⌛️", "⏳", "🔋", "🔌", "💡", "🕯️", "🪔", "🗑️", "🛢️", "💸", "💵", "💴", "💶", "💷", "🪙", "💰", "💳", "💎", "⚖️", "🪜", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🪚", "🔩", "⚙️", "🧱", "⛓️", "🧲", "🧯", "🔫", "bomb", "🧨", "🪓", "🔪", "🗡️", "⚔️", "🛡️", "🚬", "⚰️", "⚱️", "🏺", "🔮", "📿", "🧿", "💈", "🧫", "🧪", "🔬", "🔭", "📡", "💉", "💊", "🩹", "🩺", "🚪", "🛗", "🪞", "🪟", "🛏️", "🛋️", "🪑", "🚽", "🪠", "🚿", "🛁", "🧼", "🪥", "🪮", "🧴", "🧹", "🧺", "🧻", "🪣", "🪟", "🗝️", "🔑", "🪤", "📦", "🏷️", "✉️", "📩", "📨", "📧", "📤", "📥", "📪", "📫", "📬", "📭", "📮", "🗳️", "✏️", "✒️", "🖋️", "🖊️", "🖌️", "🖍️", "📝", "📁", "📂", "🗂️", "📅", "📆", "🗒️", "🗓️", "🪪", "🗃️", "🗄️", "📋", "📌", "📍", "📎", "🖇️", "📏", "📐", "🧮", "🔐", "🔏", "🔒", "🔓", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉️", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "♈️", "♉️", "♊️", "♋️", "♌️", "♍️", "♎️", "♏️", "♐️", "♑️", "♒️", "♓️", "🆔", "📯", "🔔", "🔕", "📣", "📢", "💬", "💭", "🗯️", "🏁", "🚩", "🎌", "🏴", "🏳️", "🏳️🌈", "🏴☠️"
-      ]
-    }
+        "⌚️",
+        "📱",
+        "📲",
+        "💻",
+        "⌨️",
+        "🖥️",
+        "🖨️",
+        "🖱️",
+        "🖲️",
+        "💽",
+        "💾",
+        "💿",
+        "📀",
+        "📼",
+        "📷",
+        "📸",
+        "📹",
+        "🎥",
+        "📽️",
+        "🎞️",
+        "📞",
+        "☎️",
+        "📟",
+        "📠",
+        "📺",
+        "📻",
+        "🎙️",
+        "🎚️",
+        "🎛️",
+        "🧭",
+        "⏰",
+        "⌛️",
+        "⏳",
+        "🔋",
+        "🔌",
+        "💡",
+        "🕯️",
+        "🪔",
+        "🗑️",
+        "🛢️",
+        "💸",
+        "💵",
+        "💴",
+        "💶",
+        "💷",
+        "🪙",
+        "💰",
+        "💳",
+        "💎",
+        "⚖️",
+        "🪜",
+        "🔧",
+        "🔨",
+        "⚒️",
+        "🛠️",
+        "⛏️",
+        "🪚",
+        "🔩",
+        "⚙️",
+        "🧱",
+        "⛓️",
+        "🧲",
+        "🧯",
+        "🔫",
+        "bomb",
+        "🧨",
+        "🪓",
+        "🔪",
+        "🗡️",
+        "⚔️",
+        "🛡️",
+        "🚬",
+        "⚰️",
+        "⚱️",
+        "🏺",
+        "🔮",
+        "📿",
+        "🧿",
+        "💈",
+        "🧫",
+        "🧪",
+        "🔬",
+        "🔭",
+        "📡",
+        "💉",
+        "💊",
+        "🩹",
+        "🩺",
+        "🚪",
+        "🛗",
+        "🪞",
+        "🪟",
+        "🛏️",
+        "🛋️",
+        "🪑",
+        "🚽",
+        "🪠",
+        "🚿",
+        "🛁",
+        "🧼",
+        "🪥",
+        "🪮",
+        "🧴",
+        "🧹",
+        "🧺",
+        "🧻",
+        "🪣",
+        "🪟",
+        "🗝️",
+        "🔑",
+        "🪤",
+        "📦",
+        "🏷️",
+        "✉️",
+        "📩",
+        "📨",
+        "📧",
+        "📤",
+        "📥",
+        "📪",
+        "📫",
+        "📬",
+        "📭",
+        "📮",
+        "🗳️",
+        "✏️",
+        "✒️",
+        "🖋️",
+        "🖊️",
+        "🖌️",
+        "🖍️",
+        "📝",
+        "📁",
+        "📂",
+        "🗂️",
+        "📅",
+        "📆",
+        "🗒️",
+        "🗓️",
+        "🪪",
+        "🗃️",
+        "🗄️",
+        "📋",
+        "📌",
+        "📍",
+        "📎",
+        "🖇️",
+        "📏",
+        "📐",
+        "🧮",
+        "🔐",
+        "🔏",
+        "🔒",
+        "🔓",
+        "❤️",
+        "🧡",
+        "💛",
+        "💚",
+        "💙",
+        "💜",
+        "🖤",
+        "🤍",
+        "🤎",
+        "💔",
+        "❣️",
+        "💕",
+        "💞",
+        "💓",
+        "💗",
+        "💖",
+        "💘",
+        "💝",
+        "💟",
+        "☮️",
+        "✝️",
+        "☪️",
+        "🕉️",
+        "☸️",
+        "✡️",
+        "🔯",
+        "🕎",
+        "☯️",
+        "☦️",
+        "🛐",
+        "♈️",
+        "♉️",
+        "♊️",
+        "♋️",
+        "♌️",
+        "♍️",
+        "♎️",
+        "♏️",
+        "♐️",
+        "♑️",
+        "♒️",
+        "♓️",
+        "🆔",
+        "📯",
+        "🔔",
+        "🔕",
+        "📣",
+        "📢",
+        "💬",
+        "💭",
+        "🗯️",
+        "🏁",
+        "🚩",
+        "🎌",
+        "🏴",
+        "🏳️",
+        "🏳️🌈",
+        "🏴☠️",
+      ],
+    },
   ];
 
   // Sidebar widths (pixels)
@@ -1224,16 +2107,20 @@
           <span class="header-badge">MARKDOWN</span>
           <h3>Immersive Workspace</h3>
         </div>
-        <span class="sub-desc">Writing canvas with live split-screen preview</span>
+        <span class="sub-desc"
+          >Writing canvas with live split-screen preview</span
+        >
       </div>
 
       <!-- Live Typing Stats Indicator -->
       <div class="editor-stats">
         <div class="stat-pill">
-          <span class="stat-val">{markdownWordCount}</span> <span class="stat-lbl">words</span>
+          <span class="stat-val">{markdownWordCount}</span>
+          <span class="stat-lbl">words</span>
         </div>
         <div class="stat-pill">
-          <span class="stat-val">{markdownCharCount}</span> <span class="stat-lbl">chars</span>
+          <span class="stat-val">{markdownCharCount}</span>
+          <span class="stat-lbl">chars</span>
         </div>
       </div>
 
@@ -1260,13 +2147,43 @@
 
         <!-- Interactive Formatting Toolbar -->
         <div class="floating-markdown-toolbar">
-          <button class="tool-btn" title="Bold" on:click={() => insertMarkdownSymbol("**", "**")}><strong>B</strong></button>
-          <button class="tool-btn" title="Italic" on:click={() => insertMarkdownSymbol("*", "*")}><em>I</em></button>
-          <button class="tool-btn" title="Header" on:click={() => insertMarkdownSymbol("### ")}>H3</button>
-          <button class="tool-btn" title="List" on:click={() => insertMarkdownSymbol("- ")}>• List</button>
-          <button class="tool-btn" title="Checklist" on:click={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button>
-          <button class="tool-btn" title="Inline Code" on:click={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button>
-          <button class="tool-btn" title="Code Block" on:click={() => insertMarkdownSymbol("```\n", "\n```")}>Block</button>
+          <button
+            class="tool-btn"
+            title="Bold"
+            on:click={() => insertMarkdownSymbol("**", "**")}
+            ><strong>B</strong></button
+          >
+          <button
+            class="tool-btn"
+            title="Italic"
+            on:click={() => insertMarkdownSymbol("*", "*")}><em>I</em></button
+          >
+          <button
+            class="tool-btn"
+            title="Header"
+            on:click={() => insertMarkdownSymbol("### ")}>H3</button
+          >
+          <button
+            class="tool-btn"
+            title="List"
+            on:click={() => insertMarkdownSymbol("- ")}>• List</button
+          >
+          <button
+            class="tool-btn"
+            title="Checklist"
+            on:click={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button
+          >
+          <button
+            class="tool-btn"
+            title="Inline Code"
+            on:click={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button
+          >
+          <button
+            class="tool-btn"
+            title="Code Block"
+            on:click={() => insertMarkdownSymbol("```\n", "\n```")}
+            >Block</button
+          >
         </div>
       </div>
 
@@ -1281,13 +2198,13 @@
 {#if showCodeFullscreenModal}
   <div class="fullscreen-editor-overlay code-fullscreen-theme">
     <div class="fullscreen-header">
-      <div class="header-info" style="display: flex; align-items: center; gap: 16px;">
+      <div
+        class="header-info"
+        style="display: flex; align-items: center; gap: 16px;"
+      >
         <!-- Language Selector -->
         <div class="custom-select-wrapper">
-          <select
-            bind:value={fullscreenCodeLang}
-            class="lang-dropdown-select"
-          >
+          <select bind:value={fullscreenCodeLang} class="lang-dropdown-select">
             <option value="javascript">JAVASCRIPT</option>
             <option value="python">PYTHON</option>
             <option value="html">HTML</option>
@@ -1303,10 +2220,13 @@
       <!-- Code Stats -->
       <div class="editor-stats">
         <div class="stat-pill">
-          <span class="stat-val">{lineNumbers}</span> <span class="stat-lbl">lines</span>
+          <span class="stat-val">{lineNumbers}</span>
+          <span class="stat-lbl">lines</span>
         </div>
         <div class="stat-pill">
-          <span class="stat-val">{fullscreenCodeContent ? fullscreenCodeContent.length : 0}</span> <span class="stat-lbl">bytes</span>
+          <span class="stat-val"
+            >{fullscreenCodeContent ? fullscreenCodeContent.length : 0}</span
+          > <span class="stat-lbl">bytes</span>
         </div>
       </div>
 
@@ -1315,7 +2235,9 @@
           class="btn secondary"
           on:click={() => (showCodeFullscreenModal = false)}>Cancel</button
         >
-        <button class="btn primary" on:click={saveCodeFullscreen}>Save Changes</button>
+        <button class="btn primary" on:click={saveCodeFullscreen}
+          >Save Changes</button
+        >
       </div>
     </div>
 
@@ -1330,7 +2252,9 @@
 
         <!-- Textarea and Syntax Highlighter Canvas Container -->
         <div class="editor-canvas">
-          <pre class="editor-pre" bind:this={preElement}>{@html highlightedCodeHtml}</pre>
+          <pre
+            class="editor-pre"
+            bind:this={preElement}>{@html highlightedCodeHtml}</pre>
           <textarea
             class="editor-textarea"
             bind:value={fullscreenCodeContent}
@@ -1507,6 +2431,13 @@
   :global(*) {
     scrollbar-width: none !important; /* Firefox */
     -ms-overflow-style: none !important; /* IE/Edge */
+    box-sizing: border-box;
+  }
+
+  :global(body) {
+    background-color: #09090b;
+    margin: 0;
+    padding: 0;
   }
 
   /* Force all modals and overlays to sit at the absolute top of Wails' rendering layers */
@@ -1516,12 +2447,12 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(9, 9, 11, 0.7);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 99999999 !important; /* High layer authority to clear WebKit scrollbars */
+    z-index: 99999999 !important;
     cursor: default;
   }
 
@@ -1531,8 +2462,8 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: #121212;
-    z-index: 100000000 !important; /* Highest layer authority */
+    background: #09090b;
+    z-index: 100000000 !important;
     display: flex;
     flex-direction: column;
   }
@@ -1542,10 +2473,10 @@
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background-color: #121212;
-    color: #e2e8f0;
+    background-color: #09090b;
+    color: #f4f4f5;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+      Helvetica, Arial, sans-serif;
   }
   .app-layout.dragging {
     cursor: col-resize;
@@ -1558,19 +2489,19 @@
     height: 100%;
     overflow: hidden;
     flex-shrink: 0;
+    background: #121215;
   }
   .left-sidebar {
-    background: #1a1a1a;
-    border-right: 1px solid #2e2e2e;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
   }
   .right-sidebar {
-    background: #1a1a1a;
-    border-left: 1px solid #2e2e2e;
+    background: #121215;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   /* Drag handles */
   .drag-handle {
-    width: 5px;
+    width: 4px;
     cursor: col-resize;
     display: flex;
     align-items: center;
@@ -1582,13 +2513,13 @@
   }
   .drag-handle:hover,
   .drag-handle.active {
-    background: rgba(129, 140, 248, 0.15);
+    background: rgba(129, 140, 248, 0.1);
   }
   .handle-line {
-    width: 2px;
-    height: 24px;
+    width: 1px;
+    height: 32px;
     border-radius: 1px;
-    background: #3e3e3e;
+    background: rgba(255, 255, 255, 0.1);
     transition: background 0.15s;
   }
   .drag-handle:hover .handle-line,
@@ -1597,8 +2528,8 @@
   }
 
   .sidebar-header {
-    padding: 14px 16px;
-    border-bottom: 1px solid #2e2e2e;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1611,11 +2542,12 @@
     font-weight: 700;
   }
   .logo-icon {
-    font-size: 18px;
+    font-size: 16px;
   }
   .logo-text {
-    font-size: 14px;
-    background: linear-gradient(135deg, #a5b4fc, #c084fc);
+    font-size: 13px;
+    letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #a5b4fc, #818cf8);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -1624,31 +2556,32 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 8px;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
   .status-badge.disconnected {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.15);
     color: #f87171;
   }
   .status-badge.connected {
-    background: rgba(34, 197, 94, 0.1);
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.15);
     color: #4ade80;
   }
-  .status-badge.connecting {
-    background: rgba(251, 191, 36, 0.1);
-    color: #fbbf24;
-  }
+  .status-badge.connecting,
   .status-badge.reconnecting {
-    background: rgba(251, 191, 36, 0.1);
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.15);
     color: #fbbf24;
   }
   .dot {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
   }
   .disconnected .dot {
@@ -1660,7 +2593,7 @@
   .connecting .dot,
   .reconnecting .dot {
     background: #fbbf24;
-    animation: pulse 1s infinite;
+    animation: pulse 1.5s infinite;
   }
   @keyframes pulse {
     0%,
@@ -1673,8 +2606,8 @@
   }
 
   .sidebar-section {
-    padding: 12px 14px;
-    border-bottom: 1px solid #2e2e2e;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
   .sidebar-section.grow {
     flex: 1;
@@ -1684,12 +2617,12 @@
   }
 
   .section-label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #8e8e8e;
-    margin-bottom: 8px;
+    letter-spacing: 1px;
+    color: #71717a;
+    margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1698,23 +2631,22 @@
   /* Read-Only Active Workspace Display */
   .active-workspace-card {
     background: transparent;
-    padding: 10px 14px;
-    border-bottom: 1px solid #2e2e2e;
+    padding: 12px 20px;
   }
   .active-ws-display {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #121212;
-    border: 1px solid #2e2e2e;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 6px 12px;
     color: #cbd5e1;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
   }
   .ws-icon {
-    font-size: 14px;
+    font-size: 12px;
   }
   .ws-name {
     overflow: hidden;
@@ -1723,19 +2655,19 @@
   }
 
   .devices-box {
-    background: #121212;
-    border: 1px solid #2e2e2e;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 8px;
-    padding: 10px;
+    padding: 12px;
   }
   .connected-info {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
   .conn-label {
-    color: #8e8e8e;
+    color: #71717a;
   }
   .conn-name {
     color: #4ade80;
@@ -1743,60 +2675,67 @@
   }
   .no-dev {
     font-size: 11px;
-    color: #6c6c6c;
+    color: #52525b;
     text-align: center;
+    padding: 6px 0;
   }
   .dev-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .dev-row:last-child {
+    margin-bottom: 0;
   }
   .dev-name {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 600;
     display: block;
+    color: #e4e4e7;
   }
   .dev-ip {
-    font-size: 10px;
-    color: #6c6c6c;
+    font-size: 9px;
+    color: #52525b;
     font-family: monospace;
   }
 
   .tree-scroll {
     flex: 1;
     overflow-y: auto;
+    margin-left: -4px;
   }
   .tree-empty {
-    font-size: 12px;
-    color: #6c6c6c;
-    padding: 8px 0;
+    font-size: 11px;
+    color: #52525b;
+    padding: 8px 4px;
   }
 
   .icon-btn {
     background: transparent;
     border: none;
-    color: #8e8e8e;
+    color: #71717a;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     padding: 0 4px;
+    transition: color 0.15s;
   }
   .icon-btn:hover {
-    color: white;
+    color: #f4f4f5;
   }
 
   /* Manual Connect Form UI styling */
   .manual-connect-card {
-    background: #151515;
+    background: rgba(255, 255, 255, 0.01);
     border-radius: 8px;
-    border: 1px solid #252525;
-    margin: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    margin: 12px 20px;
     padding: 12px;
   }
   .manual-form {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .form-group {
     display: flex;
@@ -1804,31 +2743,33 @@
     gap: 4px;
   }
   .form-group label {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
-    color: #64748b;
+    color: #52525b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   .form-group input {
-    background: #1e1e1e !important;
-    border: 1px solid #2e2e2e !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
     border-radius: 6px !important;
-    color: #e2e8f0 !important;
-    font-size: 12px !important;
+    color: #f4f4f5 !important;
+    font-size: 11px !important;
     padding: 6px 10px !important;
     outline: none !important;
     margin-bottom: 0 !important;
-    transition: border-color 0.15s;
+    transition: all 0.2s ease;
   }
   .form-group input:focus {
-    border-color: #818cf8 !important;
+    border-color: rgba(129, 140, 248, 0.4) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.1) !important;
   }
   .pin-input {
-    letter-spacing: 6px !important;
+    letter-spacing: 4px !important;
     text-align: center !important;
     font-weight: 700 !important;
-    font-size: 14px !important;
+    font-size: 12px !important;
   }
   .connect-btn {
     width: 100%;
@@ -1837,29 +2778,34 @@
     border: none;
     border-radius: 6px;
     padding: 8px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    transition: background 0.15s;
+    transition:
+      background 0.15s,
+      transform 0.1s;
   }
   .connect-btn:hover {
     background: #6366f1;
+  }
+  .connect-btn:active {
+    transform: translateY(0.5px);
   }
   .connection-error-box {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
     border-radius: 6px;
     padding: 6px 10px;
   }
   .err-icon {
-    font-size: 12px;
+    font-size: 11px;
   }
   .err-msg {
     color: #f87171;
@@ -1871,28 +2817,34 @@
   /* Buttons */
   .btn-sm {
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    padding: 5px 10px;
+    padding: 4px 10px;
     cursor: pointer;
-    border: none;
-    background: #2e2e2e;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.02);
     color: #cbd5e1;
     transition: all 0.15s;
   }
   .btn-sm:hover {
-    background: #3e3e3e;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f4f4f5;
   }
   .btn-sm.primary {
     background: #818cf8;
+    border-color: rgba(129, 140, 248, 0.2);
     color: white;
   }
   .btn-sm.primary:hover {
     background: #6366f1;
   }
   .btn-sm.danger {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.1);
     color: #f87171;
+  }
+  .btn-sm.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
   }
   .btn-sm.full {
     width: 100%;
@@ -1900,7 +2852,7 @@
 
   .btn {
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     padding: 8px 16px;
     cursor: pointer;
@@ -1910,47 +2862,42 @@
   .btn.primary {
     background: #818cf8;
     color: #ffffff;
-    border: 1px solid rgba(129, 140, 248, 0.4);
-    box-shadow: 0 4px 12px rgba(129, 140, 248, 0.2);
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    box-shadow: 0 2px 8px rgba(129, 140, 248, 0.15);
   }
   .btn.primary:hover {
     background: #6366f1;
-    border-color: rgba(99, 102, 241, 0.6);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
     transform: translateY(-0.5px);
   }
   .btn.secondary {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     color: #cbd5e1;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
   .btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
     color: #ffffff;
-    transform: translateY(-0.5px);
   }
   .btn.stop-btn {
-    background: rgba(239, 68, 68, 0.04);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.02);
+    border: 1px solid rgba(239, 68, 68, 0.15);
     color: #f87171;
   }
   .btn.stop-btn:hover {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #fca5a5;
-    transform: translateY(-0.5px);
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
   }
 
-  /* Editor */
+  /* Editor Workspace */
   .editor-workspace {
     flex: 1;
     display: flex;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
-    background: #121212;
+    background: #09090b;
   }
 
   .welcome {
@@ -1959,36 +2906,40 @@
     align-items: center;
     justify-content: center;
     padding: 40px;
+    background: #09090b;
   }
   .welcome-card {
-    max-width: 500px;
+    max-width: 460px;
     text-align: center;
-    background: #1a1a1a;
-    border: 1px solid #2e2e2e;
-    border-radius: 20px;
+    background: #121215;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
     padding: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   }
   .pulse {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    background: rgba(165, 180, 252, 0.05);
-    border: 1px solid rgba(165, 180, 252, 0.15);
+    background: rgba(129, 140, 248, 0.04);
+    border: 1px solid rgba(129, 140, 248, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 16px;
-    font-size: 28px;
+    margin: 0 auto 20px;
+    font-size: 24px;
   }
   .welcome-card h1 {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 800;
     margin: 0 0 8px;
+    letter-spacing: -0.3px;
   }
   .welcome-card p {
-    font-size: 13px;
-    color: #8e8e8e;
-    margin: 0 0 24px;
+    font-size: 12px;
+    color: #a1a1aa;
+    margin: 0 0 28px;
+    line-height: 1.5;
   }
   .steps {
     display: grid;
@@ -1997,27 +2948,27 @@
     text-align: left;
   }
   .step {
-    background: #121212;
-    border: 1px solid #2e2e2e;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.03);
     border-radius: 10px;
-    padding: 14px;
+    padding: 12px;
   }
   .step .num {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: #818cf8;
     color: white;
     font-weight: 700;
-    font-size: 10px;
+    font-size: 9px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
   .step p {
-    font-size: 11px;
-    color: #d1d5db;
+    font-size: 10px;
+    color: #cbd5e1;
     margin: 0;
     line-height: 1.4;
   }
@@ -2026,24 +2977,25 @@
     text-align: center;
   }
   .big-icon {
-    font-size: 48px;
+    font-size: 40px;
     display: block;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
   }
   .empty-page h2 {
-    font-size: 18px;
+    font-size: 16px;
     margin: 0 0 6px;
+    font-weight: 700;
   }
   .empty-page p {
-    font-size: 13px;
-    color: #8e8e8e;
+    font-size: 12px;
+    color: #71717a;
     margin: 0 0 20px;
   }
 
   .editor-header {
-    background: #1a1a1a;
-    border-bottom: 1px solid #2e2e2e;
-    padding: 10px 24px;
+    background: #09090b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 12px 28px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2053,27 +3005,28 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11px;
   }
   .back-btn {
     background: transparent;
     border: none;
-    color: #8e8e8e;
+    color: #71717a;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     padding: 3px 6px;
     border-radius: 4px;
+    transition: all 0.15s;
   }
   .back-btn:hover {
-    background: #2e2e2e;
-    color: white;
+    background: rgba(255, 255, 255, 0.05);
+    color: #f4f4f5;
   }
   .sep {
-    color: #444;
+    color: rgba(255, 255, 255, 0.1);
   }
   .bc-root {
-    color: #8e8e8e;
+    color: #71717a;
   }
   .bc-current {
     color: #818cf8;
@@ -2087,54 +3040,55 @@
   .title-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 24px 0;
+    gap: 12px;
+    padding: 24px 28px 12px;
     flex-shrink: 0;
   }
   .emoji-input-btn {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
-    background: #1e1e1e;
-    border: 1px solid #2e2e2e;
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     color: #e2e8f0;
     cursor: pointer;
     flex-shrink: 0;
-    transition: all 0.12s;
+    transition: all 0.15s;
   }
   .emoji-input-btn:hover {
-    border-color: #818cf8;
-    background: rgba(129, 140, 248, 0.05);
+    border-color: rgba(129, 140, 248, 0.3);
+    background: rgba(129, 140, 248, 0.04);
   }
   .title-input {
     flex: 1;
     background: transparent;
     border: none;
     outline: none;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
-    color: #e2e8f0;
-    padding: 6px 0;
+    color: #f4f4f5;
+    padding: 4px 0;
     border-bottom: 2px solid transparent;
+    letter-spacing: -0.3px;
   }
   .title-input:focus {
-    border-bottom-color: #818cf8;
+    border-bottom-color: rgba(129, 140, 248, 0.3);
   }
   .title-input::placeholder {
-    color: #4a4a4a;
+    color: #3f3f46;
   }
 
   .card-column {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 24px;
+    padding: 16px 28px 60px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
 
   .empty-cards {
@@ -2142,45 +3096,52 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 60px 40px;
+    padding: 48px 32px;
     text-align: center;
-    background: #1a1a1a;
-    border: 1px dashed #2e2e2e;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px dashed rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    margin: 16px 0;
+    margin: 8px 0;
   }
   .empty-cards .empty-icon {
-    font-size: 48px;
+    font-size: 32px;
     margin-bottom: 12px;
+    opacity: 0.8;
   }
   .empty-cards h3 {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     margin: 0 0 6px;
+    color: #e4e4e7;
   }
   .empty-cards p {
-    font-size: 13px;
-    color: #8e8e8e;
+    font-size: 12px;
+    color: #71717a;
     margin: 0 0 20px;
   }
   .empty-actions {
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
   }
 
   .add-card-btn {
     background: transparent;
-    border: 1px dashed #3e3e3e;
+    border: 1px dashed rgba(255, 255, 255, 0.06);
     border-radius: 8px;
     padding: 10px;
-    color: #64748b;
+    color: #52525b;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
     transition: all 0.15s;
+    margin-top: 10px;
   }
   .add-card-btn:hover {
-    border-color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.25);
     color: #818cf8;
+    background: rgba(129, 140, 248, 0.01);
   }
 
   .card-slot {
@@ -2195,24 +3156,25 @@
 
   .insert-slot {
     height: 4px;
-    margin: 0 24px;
+    margin: 0 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
   }
   .insert-slot:hover {
-    height: 24px;
-    background: rgba(129, 140, 248, 0.05);
+    height: 28px;
+    background: rgba(129, 140, 248, 0.02);
+    border-radius: 4px;
   }
   .insert-btn {
     opacity: 0;
-    background: #2a2a2a;
-    border: 1px solid #3e3e3e;
-    color: #64748b;
-    font-size: 12px;
-    width: 20px;
-    height: 20px;
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #71717a;
+    font-size: 11px;
+    width: 18px;
+    height: 18px;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
@@ -2228,94 +3190,90 @@
     color: #818cf8;
   }
 
-  /* Notion-style Block Selector Modal Styles */
+  /* Block Selector Modal Styles */
   .block-selector-modal {
-    width: 440px;
+    width: 400px;
     max-width: 90%;
   }
   .block-options-grid {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     padding: 16px !important;
   }
   .block-option-row {
     display: flex;
     align-items: center;
-    gap: 14px;
-    background: #1e1e1e;
-    border: 1px solid #2e2e2e;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 8px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     text-align: left;
     cursor: pointer;
-    color: #e2e8f0;
+    color: #f4f4f5;
     transition: all 0.15s ease;
     width: 100%;
   }
   .block-option-row:hover {
-    background: rgba(129, 140, 248, 0.08);
-    border-color: #818cf8;
-    transform: translateY(-1px);
+    background: rgba(129, 140, 248, 0.04);
+    border-color: rgba(129, 140, 248, 0.3);
+    transform: translateY(-0.5px);
   }
   .block-icon {
-    font-size: 24px;
+    font-size: 20px;
     flex-shrink: 0;
   }
   .block-desc {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
   }
   .block-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: #f4f4f5;
   }
   .block-subtitle {
-    font-size: 11px;
-    color: #64748b;
+    font-size: 10px;
+    color: #71717a;
     line-height: 1.3;
   }
 
   /* Emoji Picker Modal Styles */
   .emoji-picker-modal {
-    width: 480px;
+    width: 440px;
     max-width: 95%;
-    height: 450px;
-    max-height: 85vh;
+    height: 420px;
+    max-height: 80vh;
   }
   .emoji-picker-tabs {
     display: flex;
     gap: 4px;
-    background: #121212;
-    border-bottom: 1px solid #2e2e2e;
+    background: #09090b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     padding: 6px 12px;
     overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .emoji-picker-tabs::-webkit-scrollbar {
-    display: none;
   }
   .emoji-tab-btn {
     background: transparent;
     border: none;
-    color: #64748b;
-    font-size: 12px;
+    color: #71717a;
+    font-size: 11px;
     font-weight: 600;
-    padding: 6px 12px;
+    padding: 6px 10px;
     border-radius: 4px;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.12s;
   }
   .emoji-tab-btn:hover {
-    color: #94a3b8;
-    background: #1a1a1a;
+    color: #a1a1aa;
+    background: rgba(255, 255, 255, 0.02);
   }
   .emoji-tab-btn.active {
     color: #818cf8;
-    background: rgba(129, 140, 248, 0.1);
+    background: rgba(129, 140, 248, 0.08);
   }
   .emoji-picker-body {
     padding: 12px !important;
@@ -2324,12 +3282,12 @@
   .emoji-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    gap: 6px;
+    gap: 4px;
   }
   .emoji-select-btn {
     background: transparent;
     border: none;
-    font-size: 24px;
+    font-size: 20px;
     aspect-ratio: 1;
     display: flex;
     align-items: center;
@@ -2339,12 +3297,12 @@
     transition: background 0.12s;
   }
   .emoji-select-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   /* PIN Modal Specific Styles */
   .pin-entry-modal {
-    width: 380px;
+    width: 340px;
     max-width: 90%;
   }
   .pin-modal-body {
@@ -2356,73 +3314,71 @@
   .device-info-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    background: #121212;
-    border: 1px solid #2e2e2e;
+    gap: 10px;
+    background: #09090b;
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 8px;
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   .device-icon {
-    font-size: 24px;
+    font-size: 20px;
   }
   .device-details {
     display: flex;
     flex-direction: column;
   }
   .pin-instructions {
-    font-size: 12px;
-    color: #8e8e8e;
+    font-size: 11px;
+    color: #a1a1aa;
     line-height: 1.5;
     margin: 0;
   }
   .pin-input-container {
     display: flex;
     justify-content: center;
-    margin: 8px 0;
+    margin: 4px 0;
   }
   .pin-display-input {
-    background: #121212 !important;
-    border: 2px solid #2e2e2e !important;
+    background: #09090b !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
     border-radius: 8px !important;
     color: #818cf8 !important;
-    font-size: 32px !important;
+    font-size: 24px !important;
     font-weight: 700 !important;
-    letter-spacing: 12px !important;
+    letter-spacing: 8px !important;
     text-align: center !important;
-    width: 180px !important;
-    padding: 8px 0 8px 12px !important; /* Offset end letter spacing */
+    width: 140px !important;
+    padding: 6px 0 6px 8px !important;
     outline: none !important;
     font-family: monospace;
-    transition:
-      border-color 0.15s,
-      box-shadow 0.15s;
+    transition: all 0.2s ease;
     margin-bottom: 0 !important;
   }
   .pin-display-input:focus {
-    border-color: #818cf8 !important;
-    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+    border-color: rgba(129, 140, 248, 0.5) !important;
+    box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.2) !important;
   }
   .modal-error-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
     border-radius: 8px;
     padding: 8px 12px;
   }
   .modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
-    padding: 14px 16px;
-    border-top: 1px solid #2e2e2e;
-    background: #151515;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: #121215;
   }
   .spinner {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
     border-top-color: white;
@@ -2436,22 +3392,22 @@
   }
 
   .modal-container {
-    background: #1a1a1a;
-    border: 1px solid #2e2e2e;
+    background: #1a1a1d;
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    width: 420px;
+    width: 380px;
     max-width: 90%;
     max-height: 400px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
     overflow: hidden;
-    animation: modal-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modal-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   }
   @keyframes modal-fade-in {
     from {
       opacity: 0;
-      transform: scale(0.95) translateY(10px);
+      transform: scale(0.97) translateY(8px);
     }
     to {
       opacity: 1;
@@ -2462,20 +3418,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    border-bottom: 1px solid #2e2e2e;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
   .modal-header h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: #f4f4f5;
   }
   .close-btn {
     background: transparent;
     border: none;
-    color: #8e8e8e;
-    font-size: 20px;
+    color: #71717a;
+    font-size: 18px;
     cursor: pointer;
     line-height: 1;
     padding: 4px;
@@ -2486,34 +3442,34 @@
   }
   .close-btn:hover {
     color: #f87171;
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.08);
   }
   .modal-search {
-    padding: 12px 16px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #121212;
-    border-bottom: 1px solid #2e2e2e;
+    background: #09090b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     position: relative;
   }
   .search-icon {
-    font-size: 14px;
-    color: #64748b;
+    font-size: 12px;
+    color: #52525b;
   }
   .modal-search input {
     flex: 1;
     background: transparent;
     border: none;
-    color: #e2e8f0;
-    font-size: 13px;
+    color: #f4f4f5;
+    font-size: 12px;
     outline: none;
-    padding: 4px 0;
+    padding: 2px 0;
   }
   .clear-btn {
     background: transparent;
     border: none;
-    color: #64748b;
+    color: #52525b;
     font-size: 14px;
     cursor: pointer;
     padding: 2px 6px;
@@ -2526,31 +3482,32 @@
   .candidates-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
   .candidate-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: transparent;
     border: none;
     text-align: left;
-    color: #e2e8f0;
-    padding: 8px 12px;
+    color: #cbd5e1;
+    padding: 6px 10px;
     cursor: pointer;
     border-radius: 6px;
     width: 100%;
+    transition: all 0.12s;
   }
   .candidate-row:hover {
-    background: rgba(129, 140, 248, 0.08);
-    color: #a5b4fc;
+    background: rgba(129, 140, 248, 0.06);
+    color: #818cf8;
   }
   .cand-emoji {
-    font-size: 16px;
+    font-size: 14px;
     flex-shrink: 0;
   }
   .cand-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -2561,12 +3518,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 32px 16px;
-    color: #64748b;
+    padding: 24px 16px;
+    color: #52525b;
   }
   .empty-results span {
-    font-size: 24px;
-    margin-bottom: 8px;
+    font-size: 20px;
+    margin-bottom: 6px;
   }
 
   .fullscreen-workspace {
@@ -2579,11 +3536,11 @@
     grid-template-columns: 1fr;
   }
   .fullscreen-textarea {
-    background: #151515;
+    background: #09090b;
     border: none;
-    border-right: 1px solid #2e2e2e;
-    color: #e2e8f0;
-    font-size: 14px;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    color: #f4f4f5;
+    font-size: 13px;
     font-family: inherit;
     line-height: 1.6;
     padding: 24px;
@@ -2593,12 +3550,30 @@
   }
   .fullscreen-textarea.monospace {
     font-family: "Fira Code", monospace;
-    font-size: 13px;
+    font-size: 12px;
   }
   .fullscreen-preview {
-    padding: 24px;
+    background: #09090b !important;
+    padding: 32px !important;
     overflow-y: auto;
-    background: #121212;
+    text-align: left !important; /* Enforces left alignment on container */
+  }
+
+  .fullscreen-preview.markdown-rendered {
+    text-align: left !important;
+  }
+
+  .fullscreen-preview.markdown-rendered :global(p),
+  .fullscreen-preview.markdown-rendered :global(li),
+  .fullscreen-preview.markdown-rendered :global(h1),
+  .fullscreen-preview.markdown-rendered :global(h2),
+  .fullscreen-preview.markdown-rendered :global(h3),
+  .fullscreen-preview.markdown-rendered :global(h4),
+  .fullscreen-preview.markdown-rendered :global(h5),
+  .fullscreen-preview.markdown-rendered :global(h6),
+  .fullscreen-preview.markdown-rendered :global(blockquote),
+  .fullscreen-preview.markdown-rendered :global(span) {
+    text-align: left !important; /* Ensures raw blocks do not justify alignment */
   }
 
   .server-workspace-pane {
@@ -2606,47 +3581,46 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 36px 16px;
-    gap: 20px;
+    padding: 28px 16px;
+    gap: 16px;
   }
   .server-status-card {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
     width: 100%;
-    max-width: 480px;
+    max-width: 440px;
     text-align: center;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s ease;
   }
   .server-status-card.active {
-    background: rgba(16, 185, 129, 0.02);
-    border-color: rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.01);
+    border-color: rgba(16, 185, 129, 0.1);
   }
   .server-status-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 12px;
   }
   .pulse-indicator {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.2);
     transition: all 0.3s ease;
   }
   .pulse-indicator.active {
     background: #10b981;
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
     animation: pulse-active 2s infinite;
   }
   .status-text {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
-    color: #94a3b8;
+    color: #71717a;
   }
   .server-status-card.active .status-text {
     color: #cbd5e1;
@@ -2654,29 +3628,29 @@
   .server-address-box {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    background: #121212;
+    gap: 4px;
+    background: #09090b;
     border: 1px solid rgba(255, 255, 255, 0.04);
-    padding: 12px;
-    border-radius: 8px;
+    padding: 10px;
+    border-radius: 6px;
   }
   .address-label {
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 700;
-    color: #64748b;
+    color: #52525b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   .address-value {
-    font-size: 14px;
+    font-size: 12px;
     color: #818cf8;
     font-family: monospace;
     font-weight: 600;
     word-break: break-all;
   }
   .server-offline-hint {
-    font-size: 12px;
-    color: #64748b;
+    font-size: 11px;
+    color: #52525b;
     line-height: 1.5;
     margin: 0;
   }
@@ -2687,117 +3661,115 @@
   }
   .active-server-buttons {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
-    max-width: 480px;
+    max-width: 440px;
   }
   .active-server-buttons .btn {
     flex: 1;
   }
   .btn-serve.start {
-    background: rgba(16, 185, 129, 0.06);
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.03);
+    border: 1px solid rgba(16, 185, 129, 0.15);
     color: #34d399;
     font-weight: 600;
-    font-size: 13px;
-    padding: 12px 24px;
+    font-size: 11px;
+    padding: 10px 20px;
     border-radius: 8px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05);
+    gap: 6px;
+    transition: all 0.2s ease;
   }
   .btn-serve.start:hover {
-    background: rgba(16, 185, 129, 0.12);
-    border-color: rgba(16, 185, 129, 0.4);
-    color: #6ee7b7;
-    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.3);
     transform: translateY(-0.5px);
   }
 
   @keyframes pulse-active {
     0% {
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
     }
     50% {
-      box-shadow: 0 0 16px rgba(16, 185, 129, 0.7);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
     }
     100% {
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
     }
   }
 
-  /* --- Immersive Editors CSS Layout Update --- */
-  .markdown-fullscreen-theme, .code-fullscreen-theme {
-    background-color: #0b0b0d !important;
+  /* Immersive Editors CSS Layout */
+  .markdown-fullscreen-theme,
+  .code-fullscreen-theme {
+    background-color: #09090b !important;
   }
 
   .fullscreen-header {
-    height: 64px;
-    padding: 0 24px;
+    height: 56px;
+    padding: 0 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #111115;
-    border-bottom: 1px solid #1c1c24;
+    background: #121215;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     box-sizing: border-box;
   }
 
   .header-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 
   .header-title-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 
   .header-badge {
     font-size: 8px;
     font-weight: 800;
-    padding: 3px 6px;
+    padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(129, 140, 248, 0.12);
-    border: 1px solid rgba(129, 140, 248, 0.25);
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
     color: #818cf8;
     letter-spacing: 0.5px;
   }
 
   .header-badge.code {
-    background: rgba(244, 114, 182, 0.12);
-    border-color: rgba(244, 114, 182, 0.25);
+    background: rgba(244, 114, 182, 0.08);
+    border-color: rgba(244, 114, 182, 0.15);
     color: #f472b6;
   }
 
   .fullscreen-header h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     color: #ffffff;
   }
 
   .fullscreen-header .sub-desc {
-    font-size: 11px;
-    color: #64748b;
+    font-size: 10px;
+    color: #71717a;
   }
 
   .editor-stats {
     display: flex;
-    gap: 8px;
+    gap: 6px;
   }
 
   .stat-pill {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
     padding: 4px 10px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 10px;
     display: flex;
     gap: 4px;
     align-items: center;
@@ -2805,27 +3777,27 @@
 
   .stat-val {
     font-weight: 700;
-    color: #cbd5e1;
+    color: #e4e4e7;
   }
 
   .stat-lbl {
-    color: #64748b;
-    font-size: 10px;
+    color: #52525b;
+    font-size: 9px;
   }
 
   .header-buttons {
     display: flex;
-    gap: 10px;
+    gap: 8px;
   }
 
-  /* --- Markdown Editor Split Panel Canvas --- */
+  /* Markdown Editor Split Panel Canvas */
   .editor-pane-container {
     position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #0f0f13;
-    border-right: 1px solid #1c1c24;
+    background: #09090b;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   .editor-pane-container textarea {
@@ -2834,11 +3806,11 @@
     border: none;
     resize: none;
     outline: none;
-    color: #e2e8f0;
+    color: #e4e4e7;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.6;
-    padding: 32px 32px 80px 32px;
+    padding: 24px 24px 80px 24px;
     box-sizing: border-box;
     text-align: left !important;
   }
@@ -2846,29 +3818,29 @@
   /* Floating Styling toolbar */
   .floating-markdown-toolbar {
     position: absolute;
-    bottom: 24px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(17, 17, 21, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid #282834;
+    background: rgba(18, 18, 21, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 30px;
-    padding: 6px;
+    padding: 4px;
     display: flex;
-    gap: 4px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+    gap: 2px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     z-index: 10;
   }
 
   .tool-btn {
     background: transparent;
     border: none;
-    color: #94a3b8;
-    width: 32px;
-    height: 32px;
+    color: #a1a1aa;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -2877,20 +3849,20 @@
   }
 
   .tool-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.06);
     color: #ffffff;
   }
 
   /* Split preview screen */
   .fullscreen-preview {
-    background: #0b0b0d !important;
-    padding: 32px !important;
+    background: #09090b !important;
+    padding: 24px !important;
   }
 
-  /* --- Interactive Code Highlighting Canvas Viewport --- */
+  /* Interactive Code Highlighting Canvas Viewport */
   .interactive-code-editor-viewport {
     display: flex;
-    background: #08080a;
+    background: #09090b;
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -2899,22 +3871,22 @@
   }
 
   .editor-line-numbers {
-    width: 55px;
-    background: #050506;
-    border-right: 1px solid #131317;
-    color: #475569;
-    font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
-    font-size: 12px;
-    line-height: 22px;
+    width: 48px;
+    background: rgba(255, 255, 255, 0.01);
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    color: #3f3f46;
+    font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 11px;
+    line-height: 20px;
     text-align: right;
-    padding: 24px 14px 24px 0;
+    padding: 24px 12px 24px 0;
     overflow-y: hidden;
     user-select: none;
     box-sizing: border-box;
   }
 
   .line-number-row {
-    height: 22px;
+    height: 20px;
   }
 
   .editor-canvas {
@@ -2933,9 +3905,9 @@
     width: 100%;
     height: 100%;
     padding: 24px;
-    font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
-    font-size: 12px;
-    line-height: 22px;
+    font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 11px;
+    line-height: 20px;
     margin: 0;
     border: 0;
     box-sizing: border-box;
@@ -2961,7 +3933,7 @@
 
   .editor-pre {
     background: transparent;
-    color: #94a3b8;
+    color: #a1a1aa;
     z-index: 1;
     pointer-events: none;
     overflow: hidden;
@@ -2973,10 +3945,10 @@
   }
 
   .lang-dropdown-select {
-    background: #1a1a24;
+    background: rgba(255, 255, 255, 0.02);
     color: #818cf8;
-    border: 1px solid #282834;
-    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 5px 10px;
     border-radius: 6px;
     font-size: 10px;
     font-weight: 700;
@@ -2985,49 +3957,49 @@
     transition: border-color 0.15s;
     appearance: none;
     -webkit-appearance: none;
-    padding-right: 28px;
+    padding-right: 24px;
     letter-spacing: 0.5px;
   }
 
   .lang-dropdown-select:hover {
-    border-color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.3);
   }
 
   .custom-select-wrapper::after {
     content: "▼";
-    font-size: 8px;
+    font-size: 6px;
     color: #818cf8;
     position: absolute;
-    right: 10px;
+    right: 8px;
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
   }
 
-  /* Dracula-inspired Token Highlight Styles */
+  /* Token Highlight Styles */
   :global(.tok-keyword) {
-    color: #f472b6 !important; /* Tailwind Pink */
+    color: #f472b6 !important;
     font-weight: bold;
   }
 
   :global(.tok-string) {
-    color: #34d399 !important; /* Soft Emerald */
+    color: #34d399 !important;
   }
 
   :global(.tok-comment) {
-    color: #64748b !important; /* Soft Slate */
+    color: #52525b !important;
     font-style: italic;
   }
 
   :global(.tok-number) {
-    color: #fb923c !important; /* Orange Amber */
+    color: #fb923c !important;
   }
 
   :global(.tok-builtin) {
-    color: #38bdf8 !important; /* Sky Blue */
+    color: #38bdf8 !important;
   }
 
   :global(.tok-function) {
-    color: #60a5fa !important; /* Periwinkle Blue */
+    color: #60a5fa !important;
   }
 </style>
