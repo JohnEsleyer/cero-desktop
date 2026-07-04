@@ -4,8 +4,7 @@
   import { 
     GetConnectionStatus, GetDbPages, GetDiscoveredDevices, ConnectToDevice, Disconnect, 
     AddPage, UpdatePage, DeletePage, RestorePage, HardDeletePage, MovePage,
-    GetCards, FetchCards, AddCard, UpdateCard, DeleteCard, ReorderCards,
-    ListWorkspaces, CreateWorkspace, SwitchWorkspace, GetActiveWorkspace
+    GetCards, FetchCards, AddCard, UpdateCard, DeleteCard, ReorderCards
   } from '../wailsjs/go/main/App.js';
 
   let connectionStatus = 'disconnected';
@@ -16,10 +15,7 @@
   let manualPin = '';
   let connectionError = '';
 
-  let workspaces = [];
   let activeWorkspace = '';
-  let showWorkspaceDropdown = false;
-  let newWorkspaceName = '';
 
   let allPages = [];
   let selectedPage = null;
@@ -34,6 +30,22 @@
 
   let expandedPageIds = {};
 
+  // Custom Modal States
+  let showBlockSelectorModal = false;
+  let blockInsertIndex = null;
+
+  let showEmojiPickerModal = false;
+  let selectedCategory = 'smileys';
+
+  // Rich Keyboard-Matching Emojis Catalog grouped by category
+  const emojiCategories = [
+    { id: 'smileys', label: '😀 Smileys & People', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤔', '🫣', '🤭', '🫢', '🫡', '🤫', '🫠', '🤥', '😶', '😐', '😑', '😬', '🫨', '😴', '🤤', '😪', '😵', '😵💫', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '😈', '👿', '👹', '👺', '💀', '☠️', '👻', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '😾', '😿', '🙀', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '🫶', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸', '👤', '👥', '🫂'] },
+    { id: 'animals', label: '🐱 Animals & Nature', emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦗', '🕷️', '🕸️', 'Scorpion', '🐢', '🐍', '🦎', '🐙', '🦑', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐈', '🐓', '🦃', '🦚', '🦜', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦦', '🦥', '🐿️', '🦔', '🐾', '🐉', '🐲', '🌵', '🎄', '🌲', '🌳', '🌴', '🪵', '🌱', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃', '🍄', '🐚', '🪸', '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚', '🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔', '🌙', '🌎', '🌍', '🌏', '🪐', '💫', '⭐️', '🌟', '✨', '⚡️', '☄️', '💥', '🔥', '🌪️', '🌈', '☀️', '🌤️', '⛅️', '🌥️', '🌦️', '☁️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄️', '🌬️', '💨', '💧', '💦', '🫧', '☔️', '🌊', '🌫️'] },
+    { id: 'food', label: '🍏 Food & Drink', emojis: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🍞', '🥖', '🥨', '🧀', '🍳', '🥞', '🥓', '🥩', '🍗', '🍖', '🌭', '🍔', '🍟', '🍕', '🥪', '🥙', '🫓', '🌮', '🌯', '🫔', '🥗', '🥘', '🍲', '🫕', '🥫', '🍝', '🍜', '🍛', '🍣', '🍱', '🥟', '🍤', '🍙', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🍰', '🎂', '🧁', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🫘', '🍯', '🥛', '🍼', '☕️', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊', '🥢', '🍽️', '🍴', '🥄'] },
+    { id: 'activity', label: '⚽️ Activity & Travel', emojis: ['⚽️', '🏀', '🏈', '⚾️', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏸', '🏒', '🥍', '🏹', '🤿', '🥊', '🥋', '🥅', '⛳️', '⛸️', '🎽', '🎿', '🛷', '🥌', '🎯', '🪗', '🪘', '🎮', '🕹️', '🎰', '🎲', '🧩', '🧸', '🪅', '🪩', '🎨', '🖼️', '🧵', '🪡', '🧶', '🎸', '🎹', '🎺', '🎻', '🥁', '🪕', '🎧', '🎤', '🎬', '🎟️', '🎫', '🎭', '🎪', '🧗', '🏋️', '🚴', '🏃', '🚶', '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛵', '🏍️', '🛺', '🚲', '🛴', 'skateboard', '🛼', '🚏', '🛣️', '🛤️', '🚢', '⛵️', '🚤', '🛥️', '🛳️', '⛴️', '🛶', '🛸', '🚁', '🛩️', '✈️', '🛫', '🛬', '🚀', '🛰️', '⚓️', '🗺️', '🧭', '🏔️', '⛰️', '🌋', '🗻', '🏕️', '🏖️', '🏜️', '🏝️', '🏞️', '🏛️', '🏗️', '🧱', '🏘️', '🏚️', '🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒', '🗼', '🗽', '🕌', '⛪️', '🛕', '🕍', '⛩️', '🕋', '⛲️', '⛺️', '🌁', '🌃', '🏙️', '🌅', '🌄', '🌇', '🌆', '🌉', '🎠', '🎡', '🎢', '💈'] },
+    { id: 'objects', label: '💡 Objects & Symbols', emojis: ['⌚️', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏰', '⌛️', '⏳', '🔋', '🔌', '💡', '🕯️', '🪔', '🗑️', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🧱', '⛓️', '🧲', '🧯', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '🧫', '🧪', '🔬', '🔭', '📡', '💉', '💊', '🩹', '🩺', '🚪', '🛗', '🪞', '🪟', '🛏️', '🛋️', '🪑', '🚽', '🪠', '🚿', '🛁', '🧼', '🪥', '🪮', '🧴', '🧹', '🧺', '🧻', '🪣', '🪟', '🗝️', '🔑', '🪤', '📦', '🏷️', '✉️', '📩', '📨', '📧', '📤', '📥', '📪', '📫', '📬', '📭', '📮', '🗳️', '✏️', '✒️', '🖋️', '🖊️', '🖌️', '🖍️', '📝', '📁', '📂', '🗂️', '📅', '📆', '🗒️', '🗓️', '🪪', '🗃️', '🗄️', '📋', '📌', '📍', '📎', '🖇️', '📏', '📐', '🧮', '🔐', '🔏', '🔒', '🔓', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '♈️', '♉️', '♊️', '♋️', '♌️', '♍️', '♎️', '♏️', '♐️', '♑️', '♒️', '♓️', '🆔', '📯', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '🏁', '🚩', '🎌', '🏴', '🏳️', '🏳️🌈', '🏴☠️'] }
+  ];
+
   // Sidebar widths (pixels)
   let leftSidebarWidth = 260;
   let rightSidebarWidth = 260;
@@ -44,12 +56,16 @@
   $: rootPages = allPages.filter(p => !p.parent_id && p.relation_type !== 'sidepage');
   $: sidePages = allPages.filter(p => p.parent_id === selectedPage?.id && p.relation_type === 'sidepage');
 
+  $: currentCategoryEmojis = (() => {
+    const cat = emojiCategories.find(c => c.id === selectedCategory);
+    return cat ? cat.emojis : [];
+  })();
+
   onMount(async () => {
     try {
       connectionStatus = await GetConnectionStatus();
       discoveredDevices = await GetDiscoveredDevices();
       allPages = await GetDbPages();
-      await loadWorkspaces();
     } catch (e) { console.error("Init failed:", e); }
 
     EventsOn('connection-status', (status) => {
@@ -71,7 +87,7 @@
         }
       }
     });
-    EventsOn('workspace-status', (data) => { activeWorkspace = data.activeWorkspace; workspaces = data.availableWorkspaces || []; });
+    EventsOn('workspace-status', (data) => { activeWorkspace = data.activeWorkspace; });
     EventsOn('cards-update', (data) => {
       const pid = data.pageId || data.page_id;
       if (selectedPage && pid === selectedPage.id) {
@@ -108,19 +124,6 @@
 
   function onDragEnd() { dragging = null; }
 
-  async function loadWorkspaces() {
-    try { workspaces = await ListWorkspaces(); activeWorkspace = await GetActiveWorkspace(); } catch (e) {}
-  }
-
-  async function handleSwitchWorkspace(name) {
-    try { await SwitchWorkspace(name); activeWorkspace = name; allPages = await GetDbPages(); selectedPage = null; navigationHistory = []; showWorkspaceDropdown = false; } catch (e) { alert("Failed: " + e); }
-  }
-
-  async function handleCreateWorkspace() {
-    const name = newWorkspaceName.trim(); if (!name) return;
-    try { await CreateWorkspace(name); newWorkspaceName = ''; await loadWorkspaces(); await handleSwitchWorkspace(name); } catch (e) { alert("Failed: " + e); }
-  }
-
   async function handleConnect(device) {
     connectionError = '';
     try {
@@ -143,6 +146,7 @@
 
   function toggleExpand(pageId) { expandedPageIds[pageId] = !expandedPageIds[pageId]; }
 
+  // We should declare selectPage as active since we use TreeRender component
   function selectPage(page, pushToHistory = true) {
     if (saveTimeout) { clearTimeout(saveTimeout); savePageImmediate(); }
     if (pushToHistory && selectedPage && selectedPage.id !== page.id) navigationHistory = [...navigationHistory, selectedPage.id];
@@ -164,6 +168,7 @@
     UpdatePage(selectedPage.id, t, editorEmoji).catch(() => {});
   }
 
+  // Update page details immediately or debounced
   function savePageDebounced() {
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(savePageImmediate, 500);
@@ -182,11 +187,17 @@
     createPage(selectedPage.id, 'sidepage');
   }
 
-  async function addCard(type = 'markdown') {
+  async function handleAddCardType(type) {
+    showBlockSelectorModal = false;
     if (!selectedPage) return;
     try {
-      const nextOrder = pageCards.length > 0 ? Math.max(...pageCards.map(c => c.sort_order)) + 1 : 0;
-      await AddCard(selectedPage.id, type, '', nextOrder);
+      let sortOrder = 0;
+      if (blockInsertIndex !== null) {
+        sortOrder = blockInsertIndex;
+      } else {
+        sortOrder = pageCards.length > 0 ? Math.max(...pageCards.map(c => c.sort_order)) + 1 : 0;
+      }
+      await AddCard(selectedPage.id, type, '', sortOrder);
     } catch (e) { alert("Failed: " + e); }
   }
 
@@ -197,14 +208,6 @@
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, moved);
     ReorderCards(selectedPage.id, reordered.map(c => c.id)).then(() => { pageCards = reordered; }).catch(() => {});
-  }
-
-  function showInsertMenu() {
-    const choice = prompt('Insert card type:\n1: 📝 Markdown\n2: 🖼️ Image\n3: 🔗 Subpage Link');
-    if (!choice) return;
-    const types = ['markdown', 'image', 'subpage_link'];
-    const idx = parseInt(choice);
-    if (idx >= 1 && idx <= 3) addCard(types[idx - 1]);
   }
 
   function deletePage(id) {
@@ -234,23 +237,13 @@
       <div class="status-badge {connectionStatus}"><span class="dot"></span>{connectionStatus}</div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="section-label">Workspace</div>
-      <button class="workspace-btn" on:click={() => showWorkspaceDropdown = !showWorkspaceDropdown}>
-        <span>{activeWorkspace || 'None'}</span>
-        <span class="arrow">{showWorkspaceDropdown ? '▲' : '▼'}</span>
-      </button>
-      {#if showWorkspaceDropdown}
-        <div class="dropdown">
-          {#each workspaces as ws}
-            <button class="opt" class:active={ws === activeWorkspace} on:click={() => handleSwitchWorkspace(ws)}>{ws}</button>
-          {/each}
-          <div class="create-row">
-            <input type="text" bind:value={newWorkspaceName} placeholder="New..." on:keydown={(e) => e.key === 'Enter' && handleCreateWorkspace()} />
-            <button class="btn-sm" on:click={handleCreateWorkspace}>+</button>
-          </div>
-        </div>
-      {/if}
+    <!-- Read-only Active Workspace Details -->
+    <div class="sidebar-section active-workspace-card">
+      <div class="section-label">Active Workspace</div>
+      <div class="active-ws-display">
+        <span class="ws-icon">🗄️</span>
+        <span class="ws-name">{activeWorkspace || 'Personal'}</span>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -297,16 +290,35 @@
       </div>
     </div>
 
+    <!-- Improved Manual Link Section -->
     {#if connectionStatus !== 'connected'}
-      <div class="sidebar-section manual">
+      <div class="sidebar-section manual-connect-card">
         <div class="section-label">Manual Link</div>
-        <input type="text" bind:value={manualIp} placeholder="IP Address" />
-        <input type="text" bind:value={manualPin} placeholder="Auth PIN" maxlength="4" class="pin" />
-        <div class="manual-row">
-          <input type="number" bind:value={manualPort} placeholder="9090" />
-          <button class="btn-sm primary" on:click={handleConnectManually}>Link</button>
+        <div class="manual-form">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="manual-ip">IP Address</label>
+              <input type="text" id="manual-ip" bind:value={manualIp} placeholder="192.168.1.X" />
+            </div>
+            <div class="form-group flex-1">
+              <label for="manual-port">Port</label>
+              <input type="number" id="manual-port" bind:value={manualPort} placeholder="9090" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="manual-pin">Auth PIN (from mobile)</label>
+            <input type="text" id="manual-pin" bind:value={manualPin} placeholder="••••" maxlength="4" class="pin-input" />
+          </div>
+          <button class="connect-btn" on:click={handleConnectManually}>
+            <span class="btn-icon">🔗</span> Link Device
+          </button>
+          {#if connectionError}
+            <div class="connection-error-box">
+              <span class="err-icon">⚠️</span>
+              <span class="err-msg">{connectionError}</span>
+            </div>
+          {/if}
         </div>
-        {#if connectionError}<div class="err">{connectionError}</div>{/if}
       </div>
     {/if}
   </aside>
@@ -354,8 +366,10 @@
       </div>
 
       <div class="title-bar">
-        <input class="emoji-input" type="text" bind:value={editorEmoji}
-               on:input={savePageDebounced} maxlength="4" placeholder="..." />
+        <!-- Interactive Page Emoji Picker Trigger -->
+        <button class="emoji-input-btn" on:click={() => showEmojiPickerModal = true}>
+          {editorEmoji || '📓'}
+        </button>
         <input id="editor-title-input" class="title-input" type="text" bind:value={editorTitle}
                on:input={savePageDebounced} placeholder="Untitled" />
       </div>
@@ -370,7 +384,7 @@
               onSelect={selectCard} onNavigate={selectPage} onDeleted={(id) => { pageCards = pageCards.filter(c => c.id !== id); }} />
           </div>
           <div class="insert-slot" on:dragover|preventDefault on:drop|preventDefault={(e) => handleCardDrop(e, index + 1)}>
-            <button class="insert-btn" on:click={showInsertMenu}>+</button>
+            <button class="insert-btn" on:click={() => { blockInsertIndex = index + 1; showBlockSelectorModal = true; }}>+</button>
           </div>
         {/each}
 
@@ -380,14 +394,14 @@
             <h3>This page is empty</h3>
             <p>Add blocks to start writing.</p>
             <div class="empty-actions">
-              <button class="btn secondary" on:click={() => addCard('markdown')}>📝 Markdown</button>
-              <button class="btn secondary" on:click={() => addCard('image')}>🖼️ Image</button>
-              <button class="btn secondary" on:click={() => addCard('subpage_link')}>🔗 Link</button>
+              <button class="btn secondary" on:click={() => handleAddCardType('markdown')}>📝 Markdown</button>
+              <button class="btn secondary" on:click={() => handleAddCardType('image')}>🖼️ Image</button>
+              <button class="btn secondary" on:click={() => handleAddCardType('subpage_link')}>🔗 Link</button>
             </div>
           </div>
         {/if}
 
-        <button class="add-card-btn" on:click={() => addCard('markdown')}>+ Add Card</button>
+        <button class="add-card-btn" on:click={() => { blockInsertIndex = null; showBlockSelectorModal = true; }}>+ Add Card</button>
       </div>
     {/if}
   </section>
@@ -403,11 +417,68 @@
   </aside>
 </main>
 
-<script context="module">
-  import { default as TreeRender } from './TreeRender.svelte';
-  import { default as CardBlock } from './CardBlock.svelte';
-  import { default as RightSidebar } from './RightSidebar.svelte';
-</script>
+<!-- Block Selector Modal -->
+{#if showBlockSelectorModal}
+  <div class="modal-backdrop" on:click|self={() => showBlockSelectorModal = false} role="button" tabindex="-1">
+    <div class="modal-container block-selector-modal">
+      <div class="modal-header">
+        <h3>Add Block</h3>
+        <button class="close-btn" on:click={() => showBlockSelectorModal = false}>&times;</button>
+      </div>
+      <div class="modal-body block-options-grid">
+        <button class="block-option-row" on:click={() => handleAddCardType('markdown')}>
+          <span class="block-icon">📝</span>
+          <div class="block-desc">
+            <span class="block-title">Markdown</span>
+            <span class="block-subtitle">Write formatted text, headers, checklist items, or code blocks.</span>
+          </div>
+        </button>
+        <button class="block-option-row" on:click={() => handleAddCardType('image')}>
+          <span class="block-icon">🖼️</span>
+          <div class="block-desc">
+            <span class="block-title">Image</span>
+            <span class="block-subtitle">Embed an image from a web URL or upload directly from your computer.</span>
+          </div>
+        </button>
+        <button class="block-option-row" on:click={() => handleAddCardType('subpage_link')}>
+          <span class="block-icon">🔗</span>
+          <div class="block-desc">
+            <span class="block-title">Subpage Link</span>
+            <span class="block-subtitle">Link directly to another nested page in your journal hierarchy.</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Keyboard Emoji Picker Modal -->
+{#if showEmojiPickerModal}
+  <div class="modal-backdrop" on:click|self={() => showEmojiPickerModal = false} role="button" tabindex="-1">
+    <div class="modal-container emoji-picker-modal">
+      <div class="modal-header">
+        <h3>Select Icon</h3>
+        <button class="close-btn" on:click={() => showEmojiPickerModal = false}>&times;</button>
+      </div>
+      <div class="emoji-picker-tabs">
+        {#each emojiCategories as category}
+          <button class="emoji-tab-btn" class:active={selectedCategory === category.id} on:click={() => selectedCategory = category.id}>
+            {category.label.split(' ')[0]}
+          </button>
+        {/each}
+      </div>
+      <div class="modal-body emoji-picker-body">
+        <div class="emoji-grid">
+          {#each currentCategoryEmojis as emoji}
+            <button class="emoji-select-btn" on:click={() => { editorEmoji = emoji; showEmojiPickerModal = false; savePageImmediate(); }}>
+              {emoji}
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .app-layout {
@@ -481,8 +552,7 @@
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
   .sidebar-section { padding: 12px 14px; border-bottom: 1px solid #2e2e2e; }
-  .sidebar-section.grow { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-  .sidebar-section.manual { margin-top: auto; }
+  .sidebar-section.grow { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 
   .section-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -490,24 +560,32 @@
     display: flex; justify-content: space-between; align-items: center;
   }
 
-  .workspace-btn {
-    width: 100%; display: flex; justify-content: space-between; align-items: center;
-    background: #2a2a2a; border: 1px solid #3e3e3e; border-radius: 6px;
-    padding: 6px 10px; color: #e2e8f0; cursor: pointer; font-size: 12px;
+  /* Read-Only Active Workspace Display */
+  .active-workspace-card {
+    background: transparent;
+    padding: 10px 14px;
+    border-bottom: 1px solid #2e2e2e;
   }
-  .workspace-btn:hover { background: #333; }
-  .arrow { font-size: 10px; color: #8e8e8e; }
-
-  .dropdown { margin-top: 6px; }
-  .opt {
-    display: block; width: 100%; text-align: left; background: transparent;
-    border: none; color: #94a3b8; padding: 5px 10px; font-size: 12px;
-    border-radius: 4px; cursor: pointer;
+  .active-ws-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #121212;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
   }
-  .opt:hover { background: #2a2a2a; color: #e2e8f0; }
-  .opt.active { color: #818cf8; font-weight: 600; }
-  .create-row { display: flex; gap: 4px; margin-top: 6px; }
-  .create-row input { flex: 1; background: #2a2a2a; border: 1px solid #3e3e3e; border-radius: 4px; padding: 4px 8px; color: #e2e8f0; font-size: 11px; }
+  .ws-icon {
+    font-size: 14px;
+  }
+  .ws-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .devices-box {
     background: #121212; border: 1px solid #2e2e2e; border-radius: 8px; padding: 10px;
@@ -526,12 +604,94 @@
   .icon-btn { background: transparent; border: none; color: #8e8e8e; cursor: pointer; font-size: 16px; padding: 0 4px; }
   .icon-btn:hover { color: white; }
 
-  .manual input { width: 100%; background: #121212; border: 1px solid #2e2e2e; border-radius: 6px; color: white; font-size: 11px; padding: 6px 10px; outline: none; margin-bottom: 6px; }
-  .pin { letter-spacing: 4px; text-align: center; font-weight: bold; }
-  .manual-row { display: flex; gap: 6px; }
-  .manual-row input { width: 60px; margin-bottom: 0; }
-  .manual-row button { flex: 1; }
-  .err { color: #f87171; font-size: 10px; margin-top: 4px; }
+  /* New Manual Connect Form UI styling */
+  .manual-connect-card {
+    background: #151515;
+    border-radius: 8px;
+    border: 1px solid #252525;
+    margin: 12px 14px;
+    padding: 12px;
+  }
+  .manual-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .form-row {
+    display: flex;
+    gap: 8px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .form-group.flex-2 { flex: 2; }
+  .form-group.flex-1 { flex: 1; }
+  .form-group label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-group input {
+    background: #1e1e1e !important;
+    border: 1px solid #2e2e2e !important;
+    border-radius: 6px !important;
+    color: #e2e8f0 !important;
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    outline: none !important;
+    margin-bottom: 0 !important;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus {
+    border-color: #818cf8 !important;
+  }
+  .pin-input {
+    letter-spacing: 6px !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+  }
+  .connect-btn {
+    width: 100%;
+    background: #818cf8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.15s;
+  }
+  .connect-btn:hover {
+    background: #6366f1;
+  }
+  .connection-error-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  .err-icon {
+    font-size: 12px;
+  }
+  .err-msg {
+    color: #f87171;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
 
   /* Buttons */
   .btn-sm {
@@ -589,12 +749,25 @@
     display: flex; align-items: center; gap: 10px;
     padding: 12px 24px 0; flex-shrink: 0;
   }
-  .emoji-input {
-    width: 36px; height: 36px; text-align: center; font-size: 20px;
-    background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 8px;
-    color: #e2e8f0; cursor: pointer; flex-shrink: 0;
+  .emoji-input-btn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: #1e1e1e;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    color: #e2e8f0;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.12s;
   }
-  .emoji-input:hover { border-color: #818cf8; }
+  .emoji-input-btn:hover {
+    border-color: #818cf8;
+    background: rgba(129, 140, 248, 0.05);
+  }
   .title-input {
     flex: 1; background: transparent; border: none; outline: none;
     font-size: 22px; font-weight: 700; color: #e2e8f0;
@@ -635,4 +808,195 @@
   }
   .insert-slot:hover .insert-btn { opacity: 1; }
   .insert-btn:hover { border-color: #818cf8; color: #818cf8; }
+
+  /* Notion-style Block Selector Modal Styles */
+  .block-selector-modal {
+    width: 440px;
+    max-width: 90%;
+  }
+  .block-options-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px !important;
+  }
+  .block-option-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #1e1e1e;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: left;
+    cursor: pointer;
+    color: #e2e8f0;
+    transition: all 0.15s ease;
+    width: 100%;
+  }
+  .block-option-row:hover {
+    background: rgba(129, 140, 248, 0.08);
+    border-color: #818cf8;
+    transform: translateY(-1px);
+  }
+  .block-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  .block-desc {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .block-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .block-subtitle {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.3;
+  }
+
+  /* Emoji Picker Modal Styles */
+  .emoji-picker-modal {
+    width: 480px;
+    max-width: 95%;
+    height: 450px;
+    max-height: 85vh;
+  }
+  .emoji-picker-tabs {
+    display: flex;
+    gap: 4px;
+    background: #121212;
+    border-bottom: 1px solid #2e2e2e;
+    padding: 6px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .emoji-picker-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .emoji-tab-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .emoji-tab-btn:hover {
+    color: #94a3b8;
+    background: #1a1a1a;
+  }
+  .emoji-tab-btn.active {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.1);
+  }
+  .emoji-picker-body {
+    padding: 12px !important;
+    overflow-y: auto !important;
+  }
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+  }
+  .emoji-select-btn {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .emoji-select-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Modal Base Backdrop / Container Shared Styles */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    cursor: default;
+  }
+  .modal-container {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    animation: modal-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes modal-fade-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid #2e2e2e;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: #8e8e8e;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .close-btn:hover {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.1);
+  }
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+  }
 </style>
+
+<script context="module">
+  import { default as TreeRender } from './TreeRender.svelte';
+  import { default as CardBlock } from './CardBlock.svelte';
+  import { default as RightSidebar } from './RightSidebar.svelte';
+</script>
