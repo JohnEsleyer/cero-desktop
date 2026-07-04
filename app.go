@@ -58,6 +58,13 @@ type App struct {
 	wsConn     *websocket.Conn
 	connStatus string
 	connMutex  sync.Mutex
+	writeMutex sync.Mutex // protects concurrent WebSocket writes
+
+	// Reconnect state
+	reconnectIP    string
+	reconnectPort  int
+	reconnectPin   string
+	reconnectTimer *time.Timer
 
 	// Database state cache
 	dbPages      []DbPage
@@ -329,6 +336,9 @@ func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 
 	a.connMutex.Lock()
 	a.wsConn = conn
+	a.reconnectIP = ip
+	a.reconnectPort = port
+	a.reconnectPin = pin
 	a.connMutex.Unlock()
 	a.setConnectionStatus("connecting")
 
@@ -337,9 +347,95 @@ func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 	return nil
 }
 
+// scheduleReconnect attempts to reconnect after a delay
+func (a *App) scheduleReconnect() {
+	a.connMutex.Lock()
+	ip := a.reconnectIP
+	port := a.reconnectPort
+	pin := a.reconnectPin
+	a.connMutex.Unlock()
+
+	if ip == "" {
+		return
+	}
+
+	if a.reconnectTimer != nil {
+		a.reconnectTimer.Stop()
+	}
+
+	a.reconnectTimer = time.AfterFunc(3*time.Second, func() {
+		fmt.Printf("Auto-reconnecting to %s:%d...\n", ip, port)
+		a.setConnectionStatus("reconnecting")
+
+		wsURL := fmt.Sprintf("ws://%s:%d/ws?pin=%s", ip, port, pin)
+		dialer := websocket.Dialer{
+			HandshakeTimeout: 5 * time.Second,
+		}
+
+		conn, _, err := dialer.Dial(wsURL, nil)
+		if err != nil {
+			fmt.Printf("Reconnect failed: %v, retrying in 5s...\n", err)
+			a.scheduleReconnectRetry()
+			return
+		}
+
+		a.connMutex.Lock()
+		a.wsConn = conn
+		a.connMutex.Unlock()
+		a.setConnectionStatus("connecting")
+
+		go a.readWebSocketLoop(conn)
+	})
+}
+
+// scheduleReconnectRetry uses longer backoff for repeated failures
+func (a *App) scheduleReconnectRetry() {
+	a.connMutex.Lock()
+	ip := a.reconnectIP
+	port := a.reconnectPort
+	pin := a.reconnectPin
+	a.connMutex.Unlock()
+
+	if ip == "" {
+		return
+	}
+
+	a.reconnectTimer = time.AfterFunc(5*time.Second, func() {
+		fmt.Printf("Auto-reconnecting to %s:%d...\n", ip, port)
+		a.setConnectionStatus("reconnecting")
+
+		wsURL := fmt.Sprintf("ws://%s:%d/ws?pin=%s", ip, port, pin)
+		dialer := websocket.Dialer{
+			HandshakeTimeout: 5 * time.Second,
+		}
+
+		conn, _, err := dialer.Dial(wsURL, nil)
+		if err != nil {
+			fmt.Printf("Reconnect failed: %v, retrying in 5s...\n", err)
+			a.scheduleReconnectRetry()
+			return
+		}
+
+		a.connMutex.Lock()
+		a.wsConn = conn
+		a.connMutex.Unlock()
+		a.setConnectionStatus("connecting")
+
+		go a.readWebSocketLoop(conn)
+	})
+}
+
 func (a *App) Disconnect() {
 	a.connMutex.Lock()
 	defer a.connMutex.Unlock()
+
+	if a.reconnectTimer != nil {
+		a.reconnectTimer.Stop()
+		a.reconnectTimer = nil
+	}
+	a.reconnectIP = ""
+	a.reconnectPort = 0
+	a.reconnectPin = ""
 
 	if a.wsConn != nil {
 		a.wsConn.WriteControl(
@@ -366,6 +462,7 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 			a.wsConn = nil
 			a.connMutex.Unlock()
 			a.setConnectionStatus("disconnected")
+			a.scheduleReconnect()
 		} else {
 			a.connMutex.Unlock()
 		}
@@ -676,6 +773,8 @@ func (a *App) sendToServer(message interface{}) error {
 		return err
 	}
 
+	a.writeMutex.Lock()
+	defer a.writeMutex.Unlock()
 	return conn.WriteMessage(websocket.TextMessage, payload)
 }
 
@@ -710,32 +809,16 @@ func (a *App) AddPage(parentID string, relationType string, title string, emoji 
 	return a.sendToServer(message)
 }
 
-// UpdatePage requests the Flutter server to update a page
+// UpdatePage sends partial title/emoji updates to mobile
 func (a *App) UpdatePage(id string, title string, emoji string) error {
-	a.dbPagesMutex.RLock()
-	currentRevision := 0
-	for _, p := range a.dbPages {
-		if p.ID == id {
-			currentRevision = p.Revision
-			break
-		}
-	}
-	a.dbPagesMutex.RUnlock()
-
-	page := DbPage{
-		ID:        id,
-		Title:     title,
-		Emoji:     emoji,
-		UpdatedAt: time.Now().Format(time.RFC3339),
-		Revision:  currentRevision,
-	}
-
-	message := map[string]interface{}{
+	return a.sendToServer(map[string]interface{}{
 		"type": "update",
-		"item": page,
-	}
-
-	return a.sendToServer(message)
+		"item": map[string]interface{}{
+			"id":    id,
+			"title": title,
+			"emoji": emoji,
+		},
+	})
 }
 
 func (a *App) DeletePage(id string) error {
@@ -771,13 +854,13 @@ func (a *App) FetchCards(pageID string) error {
 	})
 }
 
-func (a *App) AddCard(pageID string, cardType string, content string) error {
+func (a *App) AddCard(pageID string, cardType string, content string, sortOrder int) error {
 	card := Card{
 		ID:        uuid.New().String(),
 		PageID:    pageID,
 		Type:      cardType,
 		Content:   content,
-		SortOrder: 0,
+		SortOrder: sortOrder,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		UpdatedAt: time.Now().Format(time.RFC3339),
 	}
@@ -789,37 +872,20 @@ func (a *App) AddCard(pageID string, cardType string, content string) error {
 }
 
 func (a *App) UpdateCard(id string, pageID string, content string) error {
-	a.cardCacheMutex.RLock()
-	currentRevision := 0
-	if cards, ok := a.cardCache[pageID]; ok {
-		for _, c := range cards {
-			if c.ID == id {
-				currentRevision = c.Revision
-				break
-			}
-		}
-	}
-	a.cardCacheMutex.RUnlock()
-
-	card := Card{
-		ID:        id,
-		PageID:    pageID,
-		Content:   content,
-		UpdatedAt: time.Now().Format(time.RFC3339),
-		Revision:  currentRevision + 1,
-	}
-
 	return a.sendToServer(map[string]interface{}{
 		"type": "update_card",
-		"item": card,
+		"item": map[string]interface{}{
+			"id":      id,
+			"page_id": pageID,
+			"content": content,
+		},
 	})
 }
 
 func (a *App) DeleteCard(id string, pageID string) error {
 	return a.sendToServer(map[string]interface{}{
-		"type":     "delete_card",
-		"id":       id,
-		"page_id":  pageID,
+		"type": "delete_card",
+		"id":   id,
 	})
 }
 

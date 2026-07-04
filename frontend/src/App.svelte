@@ -465,9 +465,13 @@
   }
   .status-badge.disconnected { background: rgba(239,68,68,0.1); color: #f87171; }
   .status-badge.connected { background: rgba(34,197,94,0.1); color: #4ade80; }
+  .status-badge.connecting { background: rgba(251,191,36,0.1); color: #fbbf24; }
+  .status-badge.reconnecting { background: rgba(251,191,36,0.1); color: #fbbf24; }
   .dot { width: 5px; height: 5px; border-radius: 50%; }
   .disconnected .dot { background: #f87171; }
   .connected .dot { background: #4ade80; }
+  .connecting .dot, .reconnecting .dot { background: #fbbf24; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
   .sidebar-section { padding: 12px 14px; border-bottom: 1px solid #2e2e2e; }
   .sidebar-section.grow { flex: 1; overflow: hidden; display: flex; flex-direction: column; }

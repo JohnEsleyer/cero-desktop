@@ -30,7 +30,7 @@
   function stopEdit() {
     editing = false;
     if (editContent !== card.content) {
-      UpdateCard(card.id, editContent).then(() => {
+      UpdateCard(card.id, card.page_id, editContent).then(() => {
         card.content = editContent;
       }).catch(err => {
         console.error("Card save failed:", err);
@@ -45,7 +45,7 @@
   function deleteCard(e) {
     e.stopPropagation();
     if (confirm('Delete this card?')) {
-      DeleteCard(card.id).then(() => {
+      DeleteCard(card.id, card.page_id).then(() => {
         if (onDeleted) onDeleted(card.id);
       }).catch(err => {
         console.error("Card delete failed:", err);
@@ -61,7 +61,7 @@
     if (choice === '1') {
       const url = prompt('Enter image URL:', card.content || '');
       if (url !== null) {
-        UpdateCard(card.id, url).then(() => {
+        UpdateCard(card.id, card.page_id, url).then(() => {
           card.content = url;
         }).catch(err => {
           console.error("Card save failed:", err);
@@ -79,7 +79,7 @@
     reader.onload = () => {
       const base64 = reader.result;
       SaveImage(base64, file.name).then((filename) => {
-        UpdateCard(card.id, filename).then(() => {
+        UpdateCard(card.id, card.page_id, filename).then(() => {
           card.content = filename;
         }).catch(err => {
           console.error("Card save failed:", err);
@@ -111,7 +111,7 @@
   function unlinkImage(e) {
     e.stopPropagation();
     if (confirm('Remove image?')) {
-      UpdateCard(card.id, '').then(() => {
+      UpdateCard(card.id, card.page_id, '').then(() => {
         card.content = '';
       }).catch(err => {
         console.error("Card save failed:", err);
@@ -133,7 +133,7 @@
     const idx = parseInt(choice);
     if (idx > 0 && idx <= candidates.length) {
       const target = candidates[idx - 1];
-      UpdateCard(card.id, target.id).then(() => {
+      UpdateCard(card.id, card.page_id, target.id).then(() => {
         card.content = target.id;
       }).catch(err => {
         console.error("Card save failed:", err);
