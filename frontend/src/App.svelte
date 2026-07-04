@@ -3266,6 +3266,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    align-items: stretch; /* Stretch cards to full width */
+    text-align: left; /* Guarantee default left-alignment for all children */
   }
 
   .empty-cards {
@@ -3323,6 +3325,8 @@
 
   .card-slot {
     transition: opacity 0.15s;
+    width: 100%; /* Force full container width */
+    text-align: left; /* Re-enforce left-alignment */
   }
   .card-slot[draggable="true"] {
     cursor: grab;

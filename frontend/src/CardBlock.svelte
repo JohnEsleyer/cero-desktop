@@ -362,6 +362,7 @@
     padding: 14px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left; /* Explicitly align texts inside all block cards from the left */
   }
   .card-block:hover {
     border-color: rgba(255, 255, 255, 0.08);
@@ -377,7 +378,9 @@
     font-size: 13px;
     line-height: 1.6;
     color: #d4d4d8;
+    text-align: left; /* Left-align the main card body previews */
   }
+
   .card-preview:hover {
     background: rgba(255, 255, 255, 0.01);
     border-radius: 4px;
