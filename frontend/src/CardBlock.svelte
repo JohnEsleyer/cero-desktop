@@ -11,6 +11,8 @@
 
   let editing = false;
   let editContent = card.content || '';
+  let showLinkModal = false;
+  let pageSearchQuery = '';
 
   // Sync editContent when card changes externally
   $: if (card.id && !editing) {
@@ -121,24 +123,17 @@
 
   function selectSubpage(e) {
     e.stopPropagation();
-    const candidates = allPages.filter(p => p.id !== card.page_id);
-    if (candidates.length === 0) {
-      alert('No other pages to link to.');
-      return;
-    }
-    // Build a simple selection prompt
-    const lines = candidates.map((p, i) => `${i + 1}: ${p.emoji} ${p.title || 'Untitled'}`);
-    const choice = prompt('Select a page to link:\n' + lines.join('\n'));
-    if (choice == null) return;
-    const idx = parseInt(choice);
-    if (idx > 0 && idx <= candidates.length) {
-      const target = candidates[idx - 1];
-      UpdateCard(card.id, card.page_id, target.id).then(() => {
-        card.content = target.id;
-      }).catch(err => {
-        console.error("Card save failed:", err);
-      });
-    }
+    pageSearchQuery = '';
+    showLinkModal = true;
+  }
+
+  function selectPageToLink(target) {
+    showLinkModal = false;
+    UpdateCard(card.id, card.page_id, target.id).then(() => {
+      card.content = target.id;
+    }).catch(err => {
+      console.error("Card save failed:", err);
+    });
   }
 
   function navigateToSubpage(e) {
@@ -154,6 +149,14 @@
   })();
 
   $: renderedMarkdown = marked.parse(editing ? editContent : (card.content || ''));
+
+  $: filteredCandidates = allPages
+    .filter(p => p.id !== card.page_id && p.relation_type !== 'sidepage')
+    .filter(p => {
+      if (!pageSearchQuery) return true;
+      const query = pageSearchQuery.toLowerCase();
+      return (p.title || '').toLowerCase().includes(query) || (p.emoji || '').includes(query);
+    });
 </script>
 
 <div class="card-block {card.type}" class:selected={isSelected} on:click={handleClick} role="button" tabindex="0">
@@ -241,6 +244,48 @@
     </div>
   {/if}
 </div>
+
+{#if showLinkModal}
+  <div class="modal-backdrop" on:click|self={() => showLinkModal = false} role="button" tabindex="-1">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Link a Subpage</h3>
+        <button class="close-btn" on:click={() => showLinkModal = false}>&times;</button>
+      </div>
+
+      <div class="modal-search">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          bind:value={pageSearchQuery}
+          placeholder="Search pages..."
+          autofocus
+        />
+        {#if pageSearchQuery}
+          <button class="clear-btn" on:click={() => pageSearchQuery = ''}>&times;</button>
+        {/if}
+      </div>
+
+      <div class="modal-body">
+        {#if filteredCandidates.length === 0}
+          <div class="empty-results">
+            <span>📭</span>
+            <p>{pageSearchQuery ? 'No matching pages' : 'No pages available to link'}</p>
+          </div>
+        {:else}
+          <div class="candidates-list">
+            {#each filteredCandidates as p}
+              <button class="candidate-row" on:click={() => selectPageToLink(p)}>
+                <span class="cand-emoji">{p.emoji}</span>
+                <span class="cand-title">{p.title || 'Untitled'}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .card-block {
@@ -412,4 +457,191 @@
   .markdown-rendered :global(pre) { background: #1a1a1a; padding: 10px; border-radius: 6px; overflow-x: auto; }
   .markdown-rendered :global(ul), .markdown-rendered :global(ol) { padding-left: 18px; }
   .markdown-rendered :global(li) { margin-bottom: 3px; }
+
+  /* Modal Backdrop */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    cursor: default;
+  }
+
+  /* Modal Container */
+  .modal-container {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 12px;
+    width: 420px;
+    max-width: 90%;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    animation: modal-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes modal-fade-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  /* Modal Header */
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid #2e2e2e;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: #8e8e8e;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .close-btn:hover {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  /* Search input */
+  .modal-search {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #121212;
+    border-bottom: 1px solid #2e2e2e;
+    position: relative;
+  }
+
+  .search-icon {
+    font-size: 14px;
+    color: #64748b;
+  }
+
+  .modal-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    font-size: 13px;
+    outline: none;
+    padding: 4px 0;
+  }
+
+  .modal-search input::placeholder {
+    color: #4a4a4a;
+  }
+
+  .clear-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 50%;
+  }
+
+  .clear-btn:hover {
+    color: #cbd5e1;
+  }
+
+  /* Modal Body */
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .candidates-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    color: #e2e8f0;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s ease;
+    width: 100%;
+  }
+
+  .candidate-row:hover {
+    background: rgba(129, 140, 248, 0.08);
+    color: #a5b4fc;
+  }
+
+  .cand-emoji {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .cand-title {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .empty-results {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+    color: #64748b;
+  }
+
+  .empty-results span {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .empty-results p {
+    font-size: 12px;
+    margin: 0;
+  }
 </style>
