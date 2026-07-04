@@ -22,9 +22,6 @@
 
   const dispatch = createEventDispatcher();
 
-  let showLinkModal = false;
-  let pageSearchQuery = "";
-
   let codeLang = "javascript";
   let codeContent = "";
 
@@ -139,17 +136,8 @@
 
   function selectSubpage(e) {
     e.stopPropagation();
-    pageSearchQuery = "";
-    showLinkModal = true;
-  }
-
-  function selectPageToLink(target) {
-    showLinkModal = false;
-    UpdateCard(card.id, card.page_id, target.id)
-      .then(() => {
-        card.content = target.id;
-      })
-      .catch((err) => console.error(err));
+    // Dispatch event to open the modal globally at the root level (App.svelte)
+    dispatch("openLinkModal", { card });
   }
 
   function navigateToSubpage(e) {
@@ -200,7 +188,7 @@
         '<span style="color: #f472b6; font-weight: bold;">$1</span>',
       )
       .replace(
-        /("(.*?)"|\'([^\']*)\')/g,
+        /("(.*?)"|'([^']*)')/g,
         '<span style="color: #34d399;">$1</span>',
       )
       .replace(
@@ -209,41 +197,12 @@
       );
   }
 
-  async function handleCreateNewPageAndLink() {
-    showLinkModal = false;
-    try {
-      const res = await AddPage(
-        card.page_id,
-        "subpage",
-        "New Subpage Link",
-        "📝",
-      );
-      if (res && res.id) {
-        await UpdateCard(card.id, card.page_id, res.id);
-        card.content = res.id;
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   $: linkedPage = (() => {
     if (card.type !== "subpage_link" || !card.content) return null;
     return allPages.find((p) => p.id === card.content) || null;
   })();
 
   $: renderedMarkdown = marked.parse(card.content || "");
-
-  $: filteredCandidates = allPages
-    .filter((p) => p.id !== card.page_id && p.relation_type !== "sidepage")
-    .filter((p) => {
-      if (!pageSearchQuery) return true;
-      const query = pageSearchQuery.toLowerCase();
-      return (
-        (p.title || "").toLowerCase().includes(query) ||
-        (p.emoji || "").includes(query)
-      );
-    });
 </script>
 
 <div
@@ -393,79 +352,6 @@
     </div>
   {/if}
 </div>
-
-{#if showLinkModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-  <div
-    class="modal-backdrop"
-    on:click|self={() => (showLinkModal = false)}
-    role="button"
-    tabindex="-1"
-  >
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3>Link a Subpage</h3>
-        <button class="close-btn" on:click={() => (showLinkModal = false)}
-          >&times;</button
-        >
-      </div>
-
-      <div class="modal-search">
-        <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          bind:value={pageSearchQuery}
-          placeholder="Search pages..."
-          autofocus
-        />
-        {#if pageSearchQuery}
-          <button class="clear-btn" on:click={() => (pageSearchQuery = "")}
-            >&times;</button
-          >
-        {/if}
-      </div>
-
-      <div
-        class="modal-create-action-row"
-        style="padding: 10px 16px; border-bottom: 1px solid #2e2e2e; display: flex;"
-      >
-        <button
-          class="btn primary"
-          style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px;"
-          on:click|stopPropagation={handleCreateNewPageAndLink}
-        >
-          <span>+</span> Create New Page & Link
-        </button>
-      </div>
-
-      <div class="modal-body">
-        {#if filteredCandidates.length === 0}
-          <div class="empty-results">
-            <span>📭</span>
-            <p>
-              {pageSearchQuery
-                ? "No matching pages"
-                : "No pages available to link"}
-            </p>
-          </div>
-        {:else}
-          <div class="candidates-list">
-            {#each filteredCandidates as p}
-              <button
-                class="candidate-row"
-                on:click={() => selectPageToLink(p)}
-              >
-                <span class="cand-emoji">{p.emoji}</span>
-                <span class="cand-title">{p.title || "Untitled"}</span>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .card-block {

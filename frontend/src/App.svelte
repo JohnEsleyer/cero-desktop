@@ -67,6 +67,11 @@
   let pinModalError = "";
   let isConnecting = false;
 
+  // Link a Subpage Modal States (Moved to root level)
+  let showLinkPageModal = false;
+  let linkingCard = null;
+  let pageSearchQuery = "";
+
   // Immersive Fullscreen States at App Level
   let editingCard = null;
   let showMarkdownFullscreenModal = false;
@@ -1036,8 +1041,8 @@
         "🗒️",
         "🗓️",
         "🪪",
-        "🗃️",
-        "🗄️",
+        "𗃏",
+        "𗄀",
         "📋",
         "📌",
         "📍",
@@ -1130,6 +1135,23 @@
     const cat = emojiCategories.find((c) => c.id === selectedCategory);
     return cat ? cat.emojis : [];
   })();
+
+  // Filter nested subpages candidates globally for the link modal
+  $: filteredLinkCandidates = allPages
+    .filter(
+      (p) =>
+        linkingCard &&
+        p.id !== linkingCard.page_id &&
+        p.relation_type !== "sidepage",
+    )
+    .filter((p) => {
+      if (!pageSearchQuery) return true;
+      const query = pageSearchQuery.toLowerCase();
+      return (
+        (p.title || "").toLowerCase().includes(query) ||
+        (p.emoji || "").includes(query)
+      );
+    });
 
   onMount(async () => {
     try {
@@ -1534,6 +1556,74 @@
       }
     }
   }
+
+  // Link Subpage Selection Handlers at Root Level
+  function selectPageToLink(target) {
+    if (!linkingCard) return;
+    UpdateCard(linkingCard.id, linkingCard.page_id, target.id)
+      .then(() => {
+        const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
+        if (idx !== -1) {
+          pageCards[idx].content = target.id;
+          pageCards = pageCards; // trigger updates
+        }
+        showLinkPageModal = false;
+        linkingCard = null;
+      })
+      .catch((err) => console.error(err));
+  }
+
+  async function handleCreateNewPageAndLink() {
+    if (!linkingCard) return;
+    try {
+      const res = await AddPage(
+        linkingCard.page_id, // parent_id
+        "subpage", // relation_type
+        "New Subpage Link", // default title
+        "📝", // default emoji
+      );
+
+      let newPageId = "";
+      if (res) {
+        if (typeof res === "string") {
+          newPageId = res;
+        } else if (res.id) {
+          newPageId = res.id;
+        }
+      }
+
+      if (!newPageId) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const subpages = allPages.filter(
+          (p) => p.parent_id === linkingCard.page_id,
+        );
+        if (subpages.length > 0) {
+          subpages.sort((a, b) => {
+            const dateA = new Date(a.created_at || a.updated_at || 0);
+            const dateB = new Date(b.created_at || b.updated_at || 0);
+            return dateB - dateA;
+          });
+          newPageId = subpages[0].id;
+        }
+      }
+
+      if (newPageId) {
+        await UpdateCard(linkingCard.id, linkingCard.page_id, newPageId);
+        const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
+        if (idx !== -1) {
+          pageCards[idx].content = newPageId;
+          pageCards = pageCards;
+        }
+        showLinkPageModal = false;
+        linkingCard = null;
+      } else {
+        console.warn("Failed to automatically match the generated subpage.");
+      }
+    } catch (err) {
+      console.error("Failed to create new page & link:", err);
+      alert("Could not create and link subpage: " + err);
+    }
+  }
 </script>
 
 <main class="app-layout" class:dragging>
@@ -1792,6 +1882,11 @@
                   e.detail.description,
                   e.detail.html,
                 )}
+              on:openLinkModal={(e) => {
+                linkingCard = e.detail.card;
+                pageSearchQuery = "";
+                showLinkPageModal = true;
+              }}
             />
           </div>
           <div
@@ -2414,6 +2509,88 @@
                 </div>
               {/if}
             </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Link Subpage Modal (Rendered Globally at Root Level) -->
+{#if showLinkPageModal && linkingCard}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click|self={() => (showLinkPageModal = false)}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="modal-container command-palette-modal">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3>Link a Subpage</h3>
+          <span class="modal-subtitle"
+            >Search or instantly generate nested references</span
+          >
+        </div>
+        <button class="close-btn" on:click={() => (showLinkPageModal = false)}
+          >&times;</button
+        >
+      </div>
+
+      <div class="modal-search">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          bind:value={pageSearchQuery}
+          placeholder="Type to filter journal pages..."
+          autofocus
+        />
+        {#if pageSearchQuery}
+          <button class="clear-btn" on:click={() => (pageSearchQuery = "")}
+            >&times;</button
+          >
+        {/if}
+      </div>
+
+      <!-- Linear/Raycast-style Command Trigger -->
+      <button
+        class="cmd-action-btn"
+        on:click|stopPropagation={handleCreateNewPageAndLink}
+      >
+        <span class="cmd-plus-icon">+</span>
+        <div class="cmd-meta">
+          <span class="cmd-title">Create New Page & Link</span>
+          <span class="cmd-subtitle"
+            >Instantly instantiate and point this card to a new workspace note</span
+          >
+        </div>
+        <span class="cmd-kbd">Enter ↵</span>
+      </button>
+
+      <div class="modal-body list-body">
+        {#if filteredLinkCandidates.length === 0}
+          <div class="empty-results">
+            <span>📭</span>
+            <p>
+              {pageSearchQuery
+                ? "No matching pages found"
+                : "No other pages available to link"}
+            </p>
+          </div>
+        {:else}
+          <div class="candidates-list">
+            {#each filteredLinkCandidates as p}
+              <button
+                class="candidate-row"
+                on:click={() => selectPageToLink(p)}
+              >
+                <span class="cand-emoji">{p.emoji}</span>
+                <span class="cand-title">{p.title || "Untitled"}</span>
+                <span class="cand-action-hint">Link Page ➔</span>
+              </button>
+            {/each}
           </div>
         {/if}
       </div>
@@ -4001,5 +4178,161 @@
 
   :global(.tok-function) {
     color: #60a5fa !important;
+  }
+
+  /* Redesigned Sleek Command Palette Modal */
+  .command-palette-modal {
+    background: #18181b !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    width: 440px !important;
+    max-width: 95% !important;
+    max-height: 480px !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .modal-subtitle {
+    font-size: 10px;
+    color: #71717a;
+    font-weight: 500;
+  }
+
+  .modal-search {
+    background: #09090b !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 12px 16px !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-search input {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: #f4f4f5 !important;
+    font-size: 12px !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* Linear-style Action Row Button */
+  .cmd-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(129, 140, 248, 0.02);
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 12px 16px;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.15s ease;
+  }
+
+  .cmd-action-btn:hover {
+    background: rgba(129, 140, 248, 0.08);
+  }
+
+  .cmd-plus-icon {
+    font-size: 16px;
+    font-weight: 700;
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.1);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    flex-shrink: 0;
+  }
+
+  .cmd-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cmd-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #818cf8;
+  }
+
+  .cmd-subtitle {
+    font-size: 10px;
+    color: #71717a;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cmd-kbd {
+    font-size: 9px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #52525b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .cmd-action-btn:hover .cmd-kbd {
+    color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.2);
+  }
+
+  .list-body {
+    padding: 6px !important;
+  }
+
+  /* Interactive Row Hint Styling */
+  .candidate-row {
+    position: relative;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .candidate-row:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    padding-right: 80px !important; /* Make room for the sliding hint */
+  }
+
+  .cand-action-hint {
+    position: absolute;
+    right: 12px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #818cf8;
+    opacity: 0;
+    transform: translateX(4px);
+    transition: all 0.15s ease;
+    pointer-events: none;
+  }
+
+  .candidate-row:hover .cand-action-hint {
+    opacity: 1;
+    transform: translateX(0);
   }
 </style>
