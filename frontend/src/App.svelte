@@ -24,6 +24,7 @@
     SwitchWorkspace,
     GetActiveWorkspace
   } from '../wailsjs/go/main/App.js';
+
   // Network State
   let connectionStatus = 'disconnected';
   let discoveredDevices = [];
@@ -43,14 +44,14 @@
   // Pages State
   let allPages = [];
   let selectedPage = null;
-  let navigationHistory = []; // Stack to track page selection history
+  let navigationHistory = [];
 
-  // Cards State (per selected page)
+  // Cards State
   let pageCards = [];
   let selectedCardId = null;
 
-  // Tab State (main page or side page)
-  let activeTab = 'main'; // 'main' or side page ID
+  // Tab State
+  let activeTab = 'main';
 
   // Editor State
   let editorTitle = '';
@@ -119,10 +120,8 @@
       const targetPageId = activeTab === 'main' ? selectedPage?.id : activeTab;
       if (targetPageId && data.pageId === targetPageId) {
         pageCards = data.cards || [];
-        // If selected card was removed, deselect
         if (selectedCardId && !pageCards.find(c => c.id === selectedCardId)) {
           selectedCardId = null;
-          cardEditorContent = '';
         }
       }
     });
@@ -239,7 +238,6 @@
     editorEmoji = page.emoji;
     showEmojiPicker = false;
     selectedCardId = null;
-    cardEditorContent = '';
     pageCards = [];
     activeTab = 'main';
   }
@@ -371,7 +369,7 @@
   }
 
   function movePage(id) {
-    const pages = allPages.filter(p => p.id !== id);
+    const pages = allPages.filter(p => p.id !== id && p.relation_type !== 'sidepage');
     const options = pages.map((p, i) => `${i + 1}: ${p.emoji} ${p.title || 'Untitled'}`);
     options.unshift('0: 📂 Root Level');
     
@@ -392,14 +390,31 @@
     savePage();
   }
 
-  // Only subpages go in left sidebar tree; sidepages appear contextually on right
+  function getPagePath(page) {
+    if (!page) return [];
+    let path = [page];
+    let parentId = page.parent_id;
+    let depth = 0;
+    while (parentId && depth < 20) {
+      let parent = allPages.find(p => p.id === parentId);
+      if (parent) {
+        path.unshift(parent);
+        parentId = parent.parent_id;
+      } else {
+        break;
+      }
+      depth++;
+    }
+    return path;
+  }
+
+  $: currentPath = getPagePath(selectedPage);
   $: rootPages = allPages.filter(p => !p.parent_id && p.relation_type !== 'sidepage');
   $: getChildrenOf = (parentId) => allPages.filter(p => p.parent_id === parentId && p.relation_type !== 'sidepage');
   $: sidePages = allPages.filter(p => p.parent_id === selectedPage?.id && p.relation_type === 'sidepage');
 </script>
 
 <main class="app-layout">
-  <!-- LEFT COLUMN: Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-section">
@@ -412,7 +427,6 @@
       </div>
     </div>
 
-    <!-- Workspace Selector -->
     <div class="sidebar-section workspace-section">
       <div class="section-title">
         <span>Workspace</span>
@@ -438,7 +452,6 @@
       {/if}
     </div>
 
-    <!-- Sync Server Discovered list -->
     <div class="sidebar-section">
       <div class="section-title">
         <span>Link Devices</span>
@@ -477,7 +490,6 @@
       </div>
     </div>
 
-    <!-- Page Tree Navigation -->
     <div class="sidebar-section flex-grow">
       <div class="section-title">
         <span>Journal Pages</span>
@@ -492,11 +504,9 @@
         {:else if rootPages.length === 0}
           <div class="tree-placeholder">No pages yet. Create one!</div>
         {:else}
-          <!-- Render root tree nodes -->
           <div class="tree-list">
             {#each rootPages as page}
               <div class="tree-node-wrapper">
-                <!-- Recursive tree render via svelte:self -->
                 <svelte:component this={TreeRender} {page} {allPages} {selectedPage} {expandedPageIds} {selectPage} {createPage} {deletePage} {toggleExpand} {getChildrenOf} />
               </div>
             {/each}
@@ -505,7 +515,6 @@
       </div>
     </div>
 
-    <!-- Manual Connection Fallback -->
     {#if connectionStatus !== 'connected'}
       <div class="sidebar-section manual-section">
         <span class="section-title">Manual Link</span>
@@ -524,10 +533,8 @@
     {/if}
   </aside>
 
-  <!-- RIGHT COLUMN: Main Editor -->
   <section class="editor-workspace">
     {#if connectionStatus !== 'connected'}
-      <!-- Disconnected Welcome Screen -->
       <div class="welcome-container">
         <div class="welcome-card">
           <div class="pulse-ring">
@@ -555,7 +562,6 @@
         </div>
       </div>
     {:else if !selectedPage}
-      <!-- Connected Empty State -->
       <div class="welcome-container">
         <div class="connected-placeholder">
           <span class="placeholder-emoji">📝</span>
@@ -565,7 +571,6 @@
         </div>
       </div>
     {:else}
-      <!-- Page Header -->
       <div class="editor-header">
         <div class="breadcrumbs">
           {#if navigationHistory.length > 0}
@@ -573,8 +578,12 @@
             <span class="divider">|</span>
           {/if}
           <span class="breadcrumb-root">{activeWorkspace}</span>
-          <span class="divider">/</span>
-          <span class="breadcrumb-page">{editorTitle || 'Untitled'}</span>
+          {#each currentPath as step, i}
+            <span class="divider">/</span>
+            <span class="breadcrumb-page" class:active-step={i === currentPath.length - 1}>
+              {step.emoji} {step.title || 'Untitled'}
+            </span>
+          {/each}
         </div>
 
         <div class="header-controls">
@@ -583,7 +592,6 @@
         </div>
       </div>
 
-      <!-- Tabs Bar (main page + side pages) -->
       <SidePages
         {sidePages}
         {activeTab}
@@ -593,7 +601,6 @@
         mainPageEmoji={editorEmoji}
       />
 
-      <!-- Card Column -->
       <div class="card-column">
         {#each pageCards as card, index (card.id)}
           <div class="card-slot"
@@ -618,8 +625,21 @@
         {/each}
 
         {#if pageCards.length === 0}
-          <div class="empty-cards">
-            <span>No cards yet. Add one to start writing.</span>
+          <div class="empty-cards-container">
+            <span class="empty-icon">📂</span>
+            <h3>This page is empty</h3>
+            <p>Add block elements to start drafting content, embeds, or linking other pages.</p>
+            <div class="empty-actions">
+              <button class="btn btn-secondary" on:click={() => addCard('markdown')}>
+                📝 Add Markdown Block
+              </button>
+              <button class="btn btn-secondary" on:click={() => addCard('image')}>
+                🖼️ Add Image Block
+              </button>
+              <button class="btn btn-secondary" on:click={() => addCard('subpage_link')}>
+                🔗 Add Subpage Link
+              </button>
+            </div>
           </div>
         {/if}
 
@@ -629,7 +649,6 @@
   </section>
 </main>
 
-<!-- HELPER RECURSIVE COMPONENT FOR SIDEBAR TREE (Rendered Inline as a helper subcomponent) -->
 <script context="module">
   import { default as TreeRender } from './TreeRender.svelte';
   import { default as CardBlock } from './CardBlock.svelte';
@@ -647,7 +666,6 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
-  /* SIDEBAR STYLES */
   .sidebar {
     width: 290px;
     background-color: #1a1a1a;
@@ -673,9 +691,7 @@
     font-weight: 700;
   }
 
-  .logo-icon {
-    font-size: 20px;
-  }
+  .logo-icon { font-size: 20px; }
 
   .logo-text {
     font-size: 15px;
@@ -825,11 +841,8 @@
     padding: 0 4px;
   }
 
-  .add-btn:hover {
-    color: white;
-  }
+  .add-btn:hover { color: white; }
 
-  /* MANUAL CONNECTION */
   .manual-section {
     border-bottom: none;
     background-color: #151515;
@@ -857,9 +870,7 @@
     gap: 6px;
   }
 
-  .manual-fields .row input {
-    width: 60px;
-  }
+  .manual-fields .row input { width: 60px; }
 
   .pin-input {
     letter-spacing: 4px;
@@ -881,7 +892,6 @@
     word-break: break-all;
   }
 
-  /* MAIN WORKSPACE */
   .editor-workspace {
     flex-grow: 1;
     display: flex;
@@ -890,7 +900,6 @@
     height: 100%;
   }
 
-  /* WELCOME INTERFACE */
   .welcome-container {
     flex-grow: 1;
     display: flex;
@@ -921,9 +930,7 @@
     margin: 0 auto 20px;
   }
 
-  .pulse-icon {
-    font-size: 32px;
-  }
+  .pulse-icon { font-size: 32px; }
 
   .welcome-card h1 {
     font-size: 24px;
@@ -975,10 +982,7 @@
     margin: 0;
   }
 
-  .connected-placeholder {
-    text-align: center;
-    color: #6c6c6c;
-  }
+  .connected-placeholder { text-align: center; color: #6c6c6c; }
 
   .placeholder-emoji {
     font-size: 48px;
@@ -998,7 +1002,6 @@
     max-width: 320px;
   }
 
-  /* EDITOR WORKSPACE ACTIVE */
   .editor-header {
     background-color: #1a1a1a;
     border-bottom: 1px solid #2e2e2e;
@@ -1017,7 +1020,8 @@
 
   .breadcrumb-root { color: #8e8e8e; }
   .divider { color: #444; }
-  .breadcrumb-page { color: white; font-weight: 600; }
+  .breadcrumb-page { color: #94a3b8; font-weight: 500; }
+  .breadcrumb-page.active-step { color: #818cf8; font-weight: 700; }
 
   .header-controls {
     display: flex;
@@ -1025,185 +1029,51 @@
     gap: 16px;
   }
 
-  .view-mode-tabs {
-    background-color: #121212;
-    border: 1px solid #2e2e2e;
-    border-radius: 6px;
-    padding: 2px;
-    display: flex;
-  }
-
-  .tab-btn {
-    background: transparent;
-    border: none;
-    color: #8e8e8e;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 12px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-  }
-
-  .tab-btn.active {
-    background-color: #2e2e2e;
-    color: white;
-  }
-
-  .editor-body {
-    flex-grow: 1;
-    display: flex;
-    height: calc(100% - 60px);
-    overflow: hidden;
-  }
-
-  .editor-pane, .preview-pane {
-    height: 100%;
+  .empty-cards-container {
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .pane-content-wrapper {
-    padding: 40px;
-    max-width: 720px;
-    width: 100%;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 100%;
-    box-sizing: border-box;
-  }
-
-  .format-toolbar {
-    background-color: #151515;
-    border-bottom: 1px solid #2e2e2e;
-    padding: 4px 20px;
-    display: flex;
-    gap: 4px;
-  }
-
-  .tool-btn {
-    background: transparent;
-    border: none;
-    color: #8e8e8e;
-    font-size: 11px;
-    padding: 4px 8px;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-
-  .tool-btn:hover {
-    background-color: #2e2e2e;
-    color: white;
-  }
-
-  .emoji-container {
-    position: relative;
-    margin-bottom: 16px;
-    align-self: flex-start;
-  }
-
-  .emoji-trigger {
-    background: transparent;
-    border: none;
-    font-size: 48px;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 12px;
-    transition: background-color 0.2s ease;
-  }
-
-  .emoji-trigger:hover {
-    background-color: #222;
-  }
-
-  .emoji-dropdown {
-    position: absolute;
-    top: 60px;
-    left: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 40px;
+    text-align: center;
     background-color: #1a1a1a;
-    border: 1px solid #2e2e2e;
-    border-radius: 8px;
-    padding: 10px;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 6px;
-    width: 220px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    z-index: 20;
+    border: 1px dashed #2e2e2e;
+    border-radius: 12px;
+    margin: 20px 24px;
   }
 
-  .emoji-picker-btn {
-    background: transparent;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-  }
-
-  .emoji-picker-btn:hover {
-    background-color: #2e2e2e;
-  }
-
-  .title-input {
-    background: transparent;
-    border: none;
-    font-size: 28px;
-    font-weight: 800;
-    color: white;
-    width: 100%;
-    outline: none;
-    margin-bottom: 20px;
-  }
-
-  .textarea-editor {
-    background: transparent;
-    border: none;
-    resize: none;
-    flex-grow: 1;
-    width: 100%;
-    outline: none;
-    color: #e2e8f0;
-    font-size: 14.5px;
-    line-height: 1.6;
-    font-family: "Fira Code", monospace;
-  }
-
-  /* PREVIEW PANE STYLES */
-  .preview-pane {
-    background-color: #0d0d0d;
-  }
-
-  .preview-emoji-header {
+  .empty-icon {
     font-size: 48px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
-  .preview-title {
-    font-size: 28px;
-    font-weight: 800;
-    margin: 0 0 20px 0;
+  .empty-cards-container h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: white;
   }
 
-  .markdown-rendered {
-    font-size: 14.5px;
-    line-height: 1.65;
-    color: #cbd5e1;
+  .empty-cards-container p {
+    font-size: 13px;
+    color: #8e8e8e;
+    margin: 0 0 24px 0;
+    max-width: 380px;
+    line-height: 1.5;
   }
 
-  .markdown-rendered :global(h1) { font-size: 20px; border-bottom: 1px solid #2e2e2e; padding-bottom: 6px; margin: 24px 0 12px 0; color: white; }
-  .markdown-rendered :global(h2) { font-size: 17px; margin: 20px 0 10px 0; color: white; }
-  .markdown-rendered :global(h3) { font-size: 15px; margin: 16px 0 8px 0; color: white; }
-  .markdown-rendered :global(code) { background-color: #1a1a1a; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 12px; }
-  .markdown-rendered :global(pre) { background-color: #1a1a1a; padding: 12px; border-radius: 8px; overflow-x: auto; }
-  .markdown-rendered :global(pre code) { background-color: transparent; padding: 0; }
-  .markdown-rendered :global(ul), .markdown-rendered :global(ol) { padding-left: 20px; }
-  .markdown-rendered :global(li) { margin-bottom: 4px; }
+  .empty-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 
-  /* FETCH CONTENT PROMPT */
-  /* UNIVERSAL BUTTONS */
+  .empty-actions .btn {
+    font-size: 12px;
+    padding: 8px 16px;
+  }
+
   .btn {
     border-radius: 6px;
     font-size: 12px;
@@ -1248,7 +1118,6 @@
 
   .w-full { width: 100%; }
 
-  /* WORKSPACE SELECTOR */
   .workspace-section { border-bottom: 1px solid #2e2e2e; }
   .workspace-current { padding: 0 12px 8px; }
   .workspace-selector {
@@ -1265,9 +1134,7 @@
     font-size: 12px;
   }
   .workspace-selector:hover { background: #333; }
-  .workspace-dropdown {
-    padding: 0 12px 8px;
-  }
+  .workspace-dropdown { padding: 0 12px 8px; }
   .workspace-option {
     display: block;
     width: 100%;
@@ -1298,7 +1165,6 @@
   }
   .workspace-create .btn { padding: 4px 8px; font-size: 11px; }
 
-  /* CARD COLUMN */
   .card-column {
     flex: 1;
     overflow-y: auto;
@@ -1353,11 +1219,4 @@
   }
   .insert-slot:hover .insert-btn { opacity: 1; }
   .insert-btn:hover { border-color: #818cf8; color: #818cf8; }
-
-  .empty-cards {
-    text-align: center;
-    color: #4a4a4a;
-    font-size: 13px;
-    padding: 24px;
-  }
 </style>
