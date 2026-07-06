@@ -63,6 +63,26 @@
   let emojiSearchQuery = "";
   let recentEmojis = JSON.parse(localStorage.getItem("recent_emojis") || "[]");
 
+  let showScrollToBottom = false;
+
+  function handleCardColumnScroll() {
+    if (!cardColumnContainer) return;
+    const { scrollTop, scrollHeight, clientHeight } = cardColumnContainer;
+    const maxScroll = scrollHeight - clientHeight;
+    const threshold = 200;
+    const shouldShow = maxScroll > 400 && (maxScroll - scrollTop) > threshold;
+    showScrollToBottom = shouldShow;
+  }
+
+  function scrollToBottom() {
+    if (cardColumnContainer) {
+      cardColumnContainer.scrollTo({
+        top: cardColumnContainer.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }
+
   // PIN Entry Modal States
   let showPinModal = false;
   let pinInput = "";
@@ -1854,7 +1874,7 @@
         />
       </div>
 
-      <div class="card-column" bind:this={cardColumnContainer}>
+      <div class="card-column" bind:this={cardColumnContainer} on:scroll={handleCardColumnScroll}>
         {#each pageCards as card, index (card.id)}
           <div
             class="card-slot"
@@ -1951,6 +1971,12 @@
             showBlockSelectorModal = true;
           }}>+ Add Card</button
         >
+
+        {#if showScrollToBottom}
+          <button class="scroll-to-bottom-btn" on:click={scrollToBottom}>
+            ↓
+          </button>
+        {/if}
       </div>
     {/if}
   </section>
@@ -3368,6 +3394,34 @@
     border-color: rgba(129, 140, 248, 0.25);
     color: #818cf8;
     background: rgba(129, 140, 248, 0.01);
+  }
+
+  .scroll-to-bottom-btn {
+    position: sticky;
+    bottom: 16px;
+    align-self: flex-end;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #818cf8;
+    color: white;
+    border: none;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
+    transition: all 0.15s;
+    z-index: 10;
+    margin-top: -56px;
+    flex-shrink: 0;
+  }
+  .scroll-to-bottom-btn:hover {
+    background: #6366f1;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(129, 140, 248, 0.4);
   }
 
   .card-slot {
