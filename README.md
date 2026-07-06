@@ -37,6 +37,10 @@ Desktop companion for [Cero Journal](https://github.com/JohnEsleyer/pocketdataba
 - Markdown toolbar (bold, italic, headers, lists, code)
 - Soft-delete archive with restore option
 
+## Known Issues
+
+See the [root README (Known Issues)](../README.md#10-known-issues--planned-solutions) for the full list. Desktop-specific issues: configure button for subpage links (#10.2), and searchable emoji picker with recent history (#10.8).
+
 ## Getting Started
 
 Requires [Wails CLI v2](https://wails.io/docs/gettingstarted/installation) and [Go 1.23+](https://go.dev/dl/).

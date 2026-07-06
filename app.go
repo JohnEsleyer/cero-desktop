@@ -785,7 +785,7 @@ func (a *App) sendToServer(message interface{}) error {
 }
 
 // AddPage requests the Flutter server to add a new page
-func (a *App) AddPage(parentID string, relationType string, title string, emoji string) error {
+func (a *App) AddPage(parentID string, relationType string, title string, emoji string) (string, error) {
 	var parentPtr *string
 	if parentID != "" {
 		parentPtr = &parentID
@@ -795,8 +795,9 @@ func (a *App) AddPage(parentID string, relationType string, title string, emoji 
 		relationType = "subpage"
 	}
 
+	pageID := uuid.New().String()
 	page := DbPage{
-		ID:           uuid.New().String(),
+		ID:           pageID,
 		ParentID:     parentPtr,
 		RelationType: relationType,
 		Title:        title,
@@ -812,7 +813,11 @@ func (a *App) AddPage(parentID string, relationType string, title string, emoji 
 		"item": page,
 	}
 
-	return a.sendToServer(message)
+	err := a.sendToServer(message)
+	if err != nil {
+		return "", err
+	}
+	return pageID, nil
 }
 
 // UpdatePage sends partial title/emoji updates to mobile

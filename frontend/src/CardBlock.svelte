@@ -11,6 +11,7 @@
 
   export let card;
   export let isSelected = false;
+  export let index = 0;
   export let allPages = [];
   export let onSelect;
   export let onDeleted;
@@ -212,6 +213,9 @@
   role="button"
   tabindex="0"
 >
+  {#if index > 0}
+    <div class="card-order-badge">#{index}</div>
+  {/if}
   <!-- Markdown Card -->
   {#if card.type === "markdown"}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -363,6 +367,20 @@
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: left; /* Explicitly align texts inside all block cards from the left */
+  }
+  .card-order-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(129, 140, 248, 0.1);
+    color: #818cf8;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    line-height: 1.4;
+    z-index: 1;
+    pointer-events: none;
   }
   .card-block:hover {
     border-color: rgba(255, 255, 255, 0.08);

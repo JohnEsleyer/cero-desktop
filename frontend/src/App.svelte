@@ -5,7 +5,7 @@
 </script>
 
 <script>
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { EventsOn } from "../wailsjs/runtime/runtime.js";
   import { marked } from "marked"; // Restored for immersive markdown preview
   import {
@@ -56,9 +56,12 @@
   // Custom Modal States
   let showBlockSelectorModal = false;
   let blockInsertIndex = null;
+  let cardColumnContainer;
 
   let showEmojiPickerModal = false;
   let selectedCategory = "smileys";
+  let emojiSearchQuery = "";
+  let recentEmojis = JSON.parse(localStorage.getItem("recent_emojis") || "[]");
 
   // PIN Entry Modal States
   let showPinModal = false;
@@ -1136,22 +1139,45 @@
     return cat ? cat.emojis : [];
   })();
 
+  $: allEmojisFiltered = (() => {
+    if (!emojiSearchQuery) return [];
+    const q = emojiSearchQuery.toLowerCase();
+    const results = [];
+    for (const cat of emojiCategories) {
+      for (const e of cat.emojis) {
+        if (e.toLowerCase().includes(q)) results.push(e);
+      }
+    }
+    return results;
+  })();
+
   // Filter nested subpages candidates globally for the link modal
-  $: filteredLinkCandidates = allPages
-    .filter(
-      (p) =>
-        linkingCard &&
-        p.id !== linkingCard.page_id &&
-        p.relation_type !== "sidepage",
-    )
-    .filter((p) => {
-      if (!pageSearchQuery) return true;
-      const query = pageSearchQuery.toLowerCase();
-      return (
-        (p.title || "").toLowerCase().includes(query) ||
-        (p.emoji || "").includes(query)
-      );
+  $: filteredLinkCandidates = (() => {
+    if (!linkingCard) return [];
+    const currentPageId = linkingCard.page_id;
+    const currentPage = allPages.find(p => p.id === currentPageId);
+    if (!currentPage) return [];
+
+    const directChildrenIds = new Set(
+      allPages
+        .filter((p) => p.parent_id === currentPage.id && p.relation_type !== "sidepage")
+        .map((p) => p.id),
+    );
+
+    const candidates = allPages.filter((p) => {
+      if (p.id === currentPageId || p.relation_type === "sidepage") return false;
+      if (p.parent_id === currentPage.id) return true;
+      return directChildrenIds.has(p.parent_id);
     });
+
+    if (!pageSearchQuery) return candidates;
+    const query = pageSearchQuery.toLowerCase();
+    return candidates.filter(
+      (p) =>
+        (p.title || "").toLowerCase().includes(query) ||
+        (p.emoji || "").includes(query),
+    );
+  })();
 
   onMount(async () => {
     try {
@@ -1379,6 +1405,13 @@
       }
 
       await AddCard(selectedPage.id, type, defaultContent, sortOrder);
+      await tick();
+      if (cardColumnContainer) {
+        cardColumnContainer.scrollTo({
+          top: cardColumnContainer.scrollHeight,
+          behavior: "smooth",
+        });
+      }
     } catch (e) {
       alert("Failed: " + e);
     }
@@ -1576,36 +1609,12 @@
   async function handleCreateNewPageAndLink() {
     if (!linkingCard) return;
     try {
-      const res = await AddPage(
-        linkingCard.page_id, // parent_id
-        "subpage", // relation_type
-        "New Subpage Link", // default title
-        "📝", // default emoji
+      const newPageId = await AddPage(
+        linkingCard.page_id,
+        "subpage",
+        "New Subpage Link",
+        "📝",
       );
-
-      let newPageId = "";
-      if (res) {
-        if (typeof res === "string") {
-          newPageId = res;
-        } else if (res.id) {
-          newPageId = res.id;
-        }
-      }
-
-      if (!newPageId) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        const subpages = allPages.filter(
-          (p) => p.parent_id === linkingCard.page_id,
-        );
-        if (subpages.length > 0) {
-          subpages.sort((a, b) => {
-            const dateA = new Date(a.created_at || a.updated_at || 0);
-            const dateB = new Date(b.created_at || b.updated_at || 0);
-            return dateB - dateA;
-          });
-          newPageId = subpages[0].id;
-        }
-      }
 
       if (newPageId) {
         await UpdateCard(linkingCard.id, linkingCard.page_id, newPageId);
@@ -1616,8 +1625,6 @@
         }
         showLinkPageModal = false;
         linkingCard = null;
-      } else {
-        console.warn("Failed to automatically match the generated subpage.");
       }
     } catch (err) {
       console.error("Failed to create new page & link:", err);
@@ -1847,7 +1854,7 @@
         />
       </div>
 
-      <div class="card-column">
+      <div class="card-column" bind:this={cardColumnContainer}>
         {#each pageCards as card, index (card.id)}
           <div
             class="card-slot"
@@ -1864,6 +1871,7 @@
             <CardBlock
               {card}
               isSelected={selectedCardId === card.id}
+              index={index + 1}
               {allPages}
               {activeLiveCardId}
               {activeSitesLocalUrl}
@@ -2076,25 +2084,64 @@
           on:click={() => (showEmojiPickerModal = false)}>&times;</button
         >
       </div>
-      <div class="emoji-picker-tabs">
-        {#each emojiCategories as category}
-          <button
-            class="emoji-tab-btn"
-            class:active={selectedCategory === category.id}
-            on:click={() => (selectedCategory = category.id)}
+      <div class="emoji-search-bar">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          bind:value={emojiSearchQuery}
+          placeholder="Search emojis..."
+          autofocus
+        />
+        {#if emojiSearchQuery}
+          <button class="clear-btn" on:click={() => (emojiSearchQuery = "")}
+            >&times;</button
           >
-            {category.label.split(" ")[0]}
-          </button>
-        {/each}
+        {/if}
       </div>
+      {#if !emojiSearchQuery && recentEmojis.length > 0}
+        <div class="emoji-recent-row">
+          <span class="recent-label">Recent</span>
+          {#each recentEmojis as e}
+            <button
+              class="emoji-select-btn"
+              on:click={() => {
+                editorEmoji = e;
+                showEmojiPickerModal = false;
+                savePageImmediate();
+              }}
+            >
+              {e}
+            </button>
+          {/each}
+          <button class="clear-recent-btn" on:click={() => {
+            recentEmojis = [];
+            localStorage.setItem("recent_emojis", "[]");
+          }}>×</button>
+        </div>
+      {/if}
+      {#if !emojiSearchQuery}
+        <div class="emoji-picker-tabs">
+          {#each emojiCategories as category}
+            <button
+              class="emoji-tab-btn"
+              class:active={selectedCategory === category.id}
+              on:click={() => (selectedCategory = category.id)}
+            >
+              {category.label.split(" ")[0]}
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="modal-body emoji-picker-body">
         <div class="emoji-grid">
-          {#each currentCategoryEmojis as emoji}
+          {#each emojiSearchQuery ? allEmojisFiltered : currentCategoryEmojis as emoji}
             <button
               class="emoji-select-btn"
               on:click={() => {
                 editorEmoji = emoji;
                 showEmojiPickerModal = false;
+                recentEmojis = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, 8);
+                localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
                 savePageImmediate();
               }}
             >
