@@ -1178,8 +1178,9 @@
   ];
 
   // Sidebar widths (pixels)
-  let leftSidebarWidth = 260;
-  let rightSidebarWidth = 260;
+let leftSidebarWidth = 260;
+let rightSidebarWidth = 260;
+let showRightSidebar = true;
   let dragging = null; // 'left' | 'right' | null
   let dragStartX = 0;
   let dragStartWidth = 0;
@@ -1913,6 +1914,13 @@
             class="btn-sm danger"
             on:click={() => deletePage(selectedPage.id)}>Archive</button
           >
+          <button
+            class="btn-sm sidebar-toggle"
+            title="{showRightSidebar ? 'Hide' : 'Show'} context panel"
+            on:click={() => (showRightSidebar = !showRightSidebar)}
+          >
+            {showRightSidebar ? '▸' : '◂'}
+          </button>
         </div>
       </div>
 
@@ -2041,29 +2049,38 @@
     {/if}
   </section>
 
-  <!-- RIGHT DRAG HANDLE -->
-  <div
-    class="drag-handle right-handle"
-    on:mousedown={(e) => onDragStart("right", e)}
-    class:active={dragging === "right"}
-  >
-    <div class="handle-line"></div>
-  </div>
+  {#if showRightSidebar}
+    <!-- RIGHT DRAG HANDLE -->
+    <div
+      class="drag-handle right-handle"
+      on:mousedown={(e) => onDragStart("right", e)}
+      class:active={dragging === "right"}
+    >
+      <div class="handle-line"></div>
+    </div>
 
-  <!-- RIGHT SIDEBAR -->
-  <aside
-    class="sidebar right-sidebar"
-    style="width: {rightSidebarWidth}px; min-width: {rightSidebarWidth}px;"
-  >
-    <RightSidebar
-      {sidePages}
-      {selectedPage}
-      onSelectPage={selectPage}
-      onCreateSidePage={createSidePage}
-      onDeletePage={deletePage}
-    />
-  </aside>
+    <!-- RIGHT SIDEBAR -->
+    <aside
+      class="sidebar right-sidebar"
+      style="width: {rightSidebarWidth}px; min-width: {rightSidebarWidth}px;"
+    >
+      <RightSidebar
+        {sidePages}
+        {selectedPage}
+        onSelectPage={selectPage}
+        onCreateSidePage={createSidePage}
+        onDeletePage={deletePage}
+      />
+    </aside>
+  {/if}
 </main>
+
+<svelte:window on:keydown={(e) => {
+  if (e.key === '\\' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    showRightSidebar = !showRightSidebar;
+  }
+}} />
 
 <!-- Block Selector Modal -->
 {#if showBlockSelectorModal}
