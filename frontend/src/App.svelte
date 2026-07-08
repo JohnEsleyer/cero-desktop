@@ -160,6 +160,8 @@
     ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length
     : 0;
 
+  $: parentPage = selectedPage && selectedPage.parent_id ? allPages.find(p => p.id === selectedPage.parent_id) : null;
+
   function insertMarkdownSymbol(prefix, suffix = "") {
     if (!markdownTextarea) return;
     const start = markdownTextarea.selectionStart;
@@ -1436,6 +1438,15 @@ let showRightSidebar = false;
             <input type="text" bind:value={customIconUrl} placeholder="https://example.com/icon.png" />
             <button class="btn primary" on:click={applyCustomIconUrl}>Apply</button>
           </div>
+          {#if parentPage}
+            <button class="btn secondary" style="width:100%; margin-bottom: 12px; color: #818cf8;" on:click={() => {
+              editorEmoji = parentPage.emoji || "";
+              showEmojiPickerModal = false;
+              savePageImmediate();
+            }}>
+              Inherit Parent Icon ({parentPage.title || "Untitled"})
+            </button>
+          {/if}
           <button class="btn secondary" style="width:100%; color: #f87171;" on:click={() => {
             editorEmoji = "";
             showEmojiPickerModal = false;
