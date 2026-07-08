@@ -50,7 +50,7 @@
   let selectedCardId = null;
 
   let editorTitle = "";
-  let editorEmoji = "📓";
+  let editorEmoji = "";
   let saveTimeout;
 
   let expandedPageIds = {};
@@ -61,9 +61,6 @@
   let cardColumnContainer;
 
   let showEmojiPickerModal = false;
-  let selectedCategory = "smileys";
-  let emojiSearchQuery = "";
-  let recentEmojis = JSON.parse(localStorage.getItem("recent_emojis") || "[]");
 
   let showScrollToBottom = false;
 
@@ -248,6 +245,16 @@
       "true",
       "false",
       "null",
+      "fn",
+      "mut",
+      "match",
+      "impl",
+      "struct",
+      "enum",
+      "pub",
+      "use",
+      "mod",
+      "type",
     ];
     const builtins = [
       "console",
@@ -261,6 +268,16 @@
       "Boolean",
       "Math",
       "JSON",
+      "Option",
+      "Result",
+      "Some",
+      "None",
+      "Ok",
+      "Err",
+      "Box",
+      "Vec",
+      "Self",
+      "self",
     ];
 
     const stringRegex =
@@ -324,855 +341,33 @@
     fullscreenCodeLang,
   );
 
-  // Rich Keyboard-Matching Emojis Catalog grouped by category
   const emojiCategories = [
     {
       id: "custom_image",
-      label: "🖼️ Custom Image",
+      label: "🖼️ Custom",
     },
     {
-      id: "smileys",
-      label: "😀 Smileys & People",
+      id: "general",
+      label: "✨ Base",
       emojis: [
-        "😀",
-        "😃",
-        "😄",
-        "😁",
-        "😆",
-        "😅",
-        "😂",
-        "🤣",
-        "😊",
-        "😇",
-        "🙂",
-        "🙃",
-        "😉",
-        "😌",
-        "😍",
-        "🥰",
-        "😘",
-        "😗",
-        "😙",
-        "😚",
-        "😋",
-        "😛",
-        "😝",
-        "😜",
-        "🤪",
-        "🤨",
-        "🧐",
-        "🤓",
-        "😎",
-        "🥸",
-        "🤩",
-        "🥳",
-        "😏",
-        "😒",
-        "😞",
-        "😔",
-        "😟",
-        "😕",
-        "🙁",
-        "☹️",
-        "😣",
-        "😖",
-        "😫",
-        "😩",
-        "🥺",
-        "😢",
-        "😭",
-        "😤",
-        "😠",
-        "😡",
-        "🤬",
-        "🤯",
-        "😳",
-        "🥵",
-        "🥶",
-        "😱",
-        "😨",
-        "😰",
-        "😥",
-        "😓",
-        "🤔",
-        "🫣",
-        "🤭",
-        "🫢",
-        "🫡",
-        "🤫",
-        "🫠",
-        "🤥",
-        "😶",
-        "😐",
-        "😑",
-        "😬",
-        "🫨",
-        "😴",
-        "🤤",
-        "😪",
-        "😵",
-        "😵💫",
-        "🤐",
-        "🥴",
-        "🤢",
-        "🤮",
-        "🤧",
-        "😷",
-        "🤒",
-        "🤕",
-        "😈",
-        "👿",
-        "👹",
-        "👺",
-        "💀",
-        "☠️",
-        "👻",
-        "👽",
-        "👾",
-        "🤖",
-        "🎃",
-        "😺",
-        "😸",
-        "😹",
-        "😻",
-        "😼",
-        "😽",
-        "😾",
-        "😿",
-        "🙀",
-        "👋",
-        "🤚",
-        "🖐️",
-        "✋",
-        "🖖",
-        "👌",
-        "🤌",
-        "🤏",
-        "✌️",
-        "🤞",
-        "🫰",
-        "🤟",
-        "🤘",
-        "🤙",
-        "👈",
-        "👉",
-        "👆",
-        "🖕",
-        "👇",
-        "☝️",
-        "👍",
-        "👎",
-        "✊",
-        "👊",
-        "🤛",
-        "🤜",
-        "👏",
-        "🙌",
-        "🫶",
-        "👐",
-        "🤲",
-        "🤝",
-        "🙏",
-        "✍️",
-        "💅",
-        "🤳",
-        "💪",
-        "🦾",
-        "🦿",
-        "🦵",
-        "🦶",
-        "👂",
-        "🦻",
-        "👃",
-        "🧠",
-        "🫀",
-        "🫁",
-        "🦷",
-        "🦴",
-        "👀",
-        "👁️",
-        "👅",
-        "👄",
-        "💋",
-        "🩸",
-        "👤",
-        "👥",
-        "🫂",
+        "file-text",
+        "book-open",
+        "folder",
+        "link",
+        "settings",
+        "archive"
       ],
     },
     {
-      id: "animals",
-      label: "🐱 Animals & Nature",
+      id: "dev",
+      label: "💻 Tech",
       emojis: [
-        "🐶",
-        "🐱",
-        "🐭",
-        "🐹",
-        "🐰",
-        "🦊",
-        "🐻",
-        "🐼",
-        "🐨",
-        "🐯",
-        "🦁",
-        "🐮",
-        "🐷",
-        "🐽",
-        "🐸",
-        "🐵",
-        "🙈",
-        "🙉",
-        "🙊",
-        "🐒",
-        "🐔",
-        "🐧",
-        "🐦",
-        "🐤",
-        "🐣",
-        "🐥",
-        "🦆",
-        "🦅",
-        "🦉",
-        "🪱",
-        "🐛",
-        "🦋",
-        "🐌",
-        "🐞",
-        "🐜",
-        "🪰",
-        "🪲",
-        "🪳",
-        "🦗",
-        "🕷️",
-        "🕸️",
-        "🐢",
-        "🐍",
-        "🦎",
-        "🐙",
-        "🦑",
-        "🦞",
-        "🦀",
-        "🐡",
-        "🐠",
-        "🐟",
-        "🐬",
-        "🐳",
-        "🐋",
-        "🦈",
-        "🐊",
-        "🐅",
-        "🐆",
-        "🦓",
-        "🦍",
-        "🦧",
-        "🦣",
-        "🐘",
-        "🦛",
-        "🦏",
-        "🐪",
-        "🐫",
-        "🦒",
-        "🦘",
-        "🦬",
-        "🐃",
-        "🐂",
-        "🐄",
-        "🐎",
-        "🐖",
-        "🐏",
-        "🐑",
-        "🦙",
-        "🐐",
-        "🦌",
-        "🐕",
-        "🐩",
-        "🦮",
-        "🐈",
-        "🐓",
-        "🦃",
-        "🦚",
-        "🦜",
-        "🕊️",
-        "🐇",
-        "🦝",
-        "🦨",
-        "🦡",
-        "🦦",
-        "🦥",
-        "🐿️",
-        "🦔",
-        "🐾",
-        "🐉",
-        "🐲",
-        "🌵",
-        "🎄",
-        "🌲",
-        "🌳",
-        "🌴",
-        "🪵",
-        "🌱",
-        "🌿",
-        "☘️",
-        "🍀",
-        "🍁",
-        "🍂",
-        "🍃",
-        "🍄",
-        "🐚",
-        "🪸",
-        "🪨",
-        "🌾",
-        "💐",
-        "🌷",
-        "🌹",
-        "🥀",
-        "🌺",
-        "🌸",
-        "🌼",
-        "🌻",
-        "🌞",
-        "🌝",
-        "🌛",
-        "🌜",
-        "🌚",
-        "🌕",
-        "🌖",
-        "🌗",
-        "🌘",
-        "🌑",
-        "🌒",
-        "🌓",
-        "🌔",
-        "🌙",
-        "🌎",
-        "🌍",
-        "🌏",
-        "🪐",
-        "💫",
-        "⭐️",
-        "🌟",
-        "✨",
-        "⚡️",
-        "☄️",
-        "💥",
-        "🔥",
-        "🌪️",
-        "🌈",
-        "☀️",
-        "🌤️",
-        "⛅️",
-        "🌥️",
-        "🌦️",
-        "☁️",
-        "🌧️",
-        "⛈️",
-        "🌩️",
-        "🌨️",
-        "❄️",
-        "☃️",
-        "⛄️",
-        "🌬️",
-        "💨",
-        "💧",
-        "💦",
-        "🫧",
-        "☔️",
-        "🌊",
-        "🌫️",
-      ],
-    },
-    {
-      id: "food",
-      label: "🍏 Food & Drink",
-      emojis: [
-        "🍏",
-        "🍎",
-        "🍐",
-        "🍊",
-        "🍋",
-        "🍌",
-        "🍉",
-        "🍇",
-        "🍓",
-        "🫐",
-        "🍈",
-        "🍒",
-        "🍑",
-        "🥭",
-        "🍍",
-        "🥥",
-        "🥝",
-        "🍅",
-        "🍆",
-        "🥑",
-        "🥦",
-        "🥬",
-        "🥒",
-        "🌶️",
-        "🫑",
-        "🌽",
-        "🥕",
-        "🫒",
-        "🧄",
-        "🧅",
-        "🥔",
-        "🍠",
-        "🥐",
-        "🍞",
-        "🥖",
-        "🥨",
-        "🧀",
-        "🍳",
-        "🥞",
-        "🥓",
-        "🥩",
-        "🍗",
-        "🍖",
-        "🌭",
-        "🍔",
-        "🍟",
-        "🍕",
-        "🥪",
-        "🥙",
-        "🫓",
-        "🌮",
-        "🌯",
-        "🫔",
-        "🥗",
-        "🥘",
-        "🍲",
-        "🫕",
-        "🥫",
-        "🍝",
-        "🍜",
-        "🍛",
-        "🍣",
-        "🍱",
-        "🥟",
-        "🍤",
-        "🍙",
-        "🍘",
-        "🍥",
-        "🥠",
-        "🥮",
-        "🍢",
-        "🍡",
-        "🍧",
-        "🍨",
-        "🍦",
-        "🥧",
-        "🍰",
-        "🎂",
-        "🧁",
-        "🍮",
-        "🍭",
-        "🍬",
-        "🍫",
-        "🍿",
-        "🍩",
-        "🍪",
-        "🌰",
-        "🥜",
-        "🫘",
-        "🍯",
-        "🥛",
-        "🍼",
-        "☕️",
-        "🍵",
-        "🧃",
-        "🥤",
-        "🧋",
-        "🍶",
-        "🍺",
-        "🍻",
-        "🥂",
-        "🍷",
-        "🥃",
-        "🍸",
-        "🍹",
-        "🧉",
-        "🍾",
-        "🧊",
-        "🥢",
-        "🍽️",
-        "🍴",
-        "🥄",
-      ],
-    },
-    {
-      id: "activity",
-      label: "⚽️ Activity & Travel",
-      emojis: [
-        "⚽️",
-        "🏀",
-        "🏈",
-        "⚾️",
-        "🥎",
-        "🎾",
-        "🏐",
-        "🏉",
-        "🥏",
-        "🎱",
-        "🪀",
-        "🏸",
-        "🏒",
-        "🥍",
-        "🏹",
-        "🤿",
-        "🥊",
-        "🥋",
-        "🥅",
-        "⛳️",
-        "⛸️",
-        "🎽",
-        "🎿",
-        "🛷",
-        "🥌",
-        "🎯",
-        "🪗",
-        "🪘",
-        "🎮",
-        "🕹️",
-        "🎰",
-        "🎲",
-        "🧩",
-        "🧸",
-        "🪅",
-        "🪩",
-        "🎨",
-        "🖼️",
-        "🧵",
-        "🪡",
-        "🧶",
-        "🎸",
-        "🎹",
-        "🎺",
-        "🎻",
-        "🥁",
-        "🪕",
-        "🎧",
-        "🎤",
-        "🎬",
-        "🎟️",
-        "🎫",
-        "🎭",
-        "🎪",
-        "🧗",
-        "🏋️",
-        "🚴",
-        "🏃",
-        "🚶",
-        "🚗",
-        "🚕",
-        "🚙",
-        "🚌",
-        "🚎",
-        "🏎️",
-        "🚓",
-        "🚑",
-        "🚒",
-        "🚐",
-        "🛻",
-        "🚚",
-        "🚛",
-        "🚜",
-        "🛵",
-        "🏍️",
-        "🛺",
-        "🚲",
-        "🛴",
-        "🛼",
-        "🚏",
-        "🛣️",
-        "🛤️",
-        "🚢",
-        "⛵️",
-        "🚤",
-        "🛥️",
-        "🛳️",
-        "⛴️",
-        "🛶",
-        "🛸",
-        "🚁",
-        "🛩️",
-        "✈️",
-        "🛫",
-        "🛬",
-        "🚀",
-        "🛰️",
-        "⚓️",
-        "🗺️",
-        "🧭",
-        "🏔️",
-        "⛰️",
-        "🌋",
-        "🗻",
-        "🏕️",
-        "🏖️",
-        "🏜️",
-        "🏝️",
-        "🏞️",
-        "🏛️",
-        "🏗️",
-        "🧱",
-        "🏘️",
-        "🏚️",
-        "🏠",
-        "🏡",
-        "🏢",
-        "🏣",
-        "🏤",
-        "🏥",
-        "🏦",
-        "🏨",
-        "🏩",
-        "🏪",
-        "🏫",
-        "🏬",
-        "🏭",
-        "🏯",
-        "🏰",
-        "💒",
-        "🗼",
-        "🗽",
-        "🕌",
-        "⛪️",
-        "🛕",
-        " synagogues",
-        "⛩️",
-        "🕋",
-        "⛲️",
-        "⛺️",
-        "🌁",
-        "🌃",
-        "🏙️",
-        "🌅",
-        "🌄",
-        "🌇",
-        "🌆",
-        "🌉",
-        "🎠",
-        "🎡",
-        "🎢",
-        "💈",
-      ],
-    },
-    {
-      id: "objects",
-      label: "💡 Objects & Symbols",
-      emojis: [
-        "⌚️",
-        "📱",
-        "📲",
-        "💻",
-        "⌨️",
-        "🖥️",
-        "🖨️",
-        "🖱️",
-        "🖲️",
-        "💽",
-        "💾",
-        "💿",
-        "📀",
-        "📼",
-        "📷",
-        "📸",
-        "📹",
-        "🎥",
-        "📽️",
-        "🎞️",
-        "📞",
-        "☎️",
-        "📟",
-        "📠",
-        "📺",
-        "📻",
-        "🎙️",
-        "🎚️",
-        "🎛️",
-        "🧭",
-        "⏰",
-        "⌛️",
-        "⏳",
-        "🔋",
-        "🔌",
-        "💡",
-        "🕯️",
-        "🪔",
-        "🗑️",
-        "🛢️",
-        "💸",
-        "💵",
-        "💴",
-        "💶",
-        "💷",
-        "🪙",
-        "💰",
-        "💳",
-        "💎",
-        "⚖️",
-        "🪜",
-        "🔧",
-        "🔨",
-        "⚒️",
-        "🛠️",
-        "⛏️",
-        "🪚",
-        "🔩",
-        "⚙️",
-        "🧱",
-        "⛓️",
-        "🧲",
-        "🧯",
-        "🔫",
-        "bomb",
-        "🧨",
-        "🪓",
-        "🔪",
-        "🗡️",
-        "⚔️",
-        "🛡️",
-        "🚬",
-        "⚰️",
-        "⚱️",
-        "🏺",
-        "🔮",
-        "📿",
-        "🧿",
-        "💈",
-        "🧫",
-        "🧪",
-        "🔬",
-        "🔭",
-        "📡",
-        "💉",
-        "💊",
-        "🩹",
-        "🩺",
-        "🚪",
-        "🛗",
-        "🪞",
-        "🪟",
-        "🛏️",
-        "🛋️",
-        "🪑",
-        "🚽",
-        "🪠",
-        "🚿",
-        "🛁",
-        "🧼",
-        "🪥",
-        "🪮",
-        "🧴",
-        "🧹",
-        "🧺",
-        "🧻",
-        "🪣",
-        "🪟",
-        "🗝️",
-        "🔑",
-        "🪤",
-        "📦",
-        "🏷️",
-        "✉️",
-        "📩",
-        "📨",
-        "📧",
-        "📤",
-        "📥",
-        "📪",
-        "📫",
-        "📬",
-        "📭",
-        "📮",
-        "🗳️",
-        "✏️",
-        "✒️",
-        "🖋️",
-        "🖊️",
-        "🖌️",
-        "🖍️",
-        "📝",
-        "📁",
-        "📂",
-        "🗂️",
-        "📅",
-        "📆",
-        "🗒️",
-        "🗓️",
-        "🪪",
-        "𗃏",
-        "𗄀",
-        "📋",
-        "📌",
-        "📍",
-        "📎",
-        "🖇️",
-        "📏",
-        "📐",
-        "🧮",
-        "🔐",
-        "🔏",
-        "🔒",
-        "🔓",
-        "❤️",
-        "🧡",
-        "💛",
-        "💚",
-        "💙",
-        "💜",
-        "🖤",
-        "🤍",
-        "🤎",
-        "💔",
-        "❣️",
-        "💕",
-        "💞",
-        "💓",
-        "💗",
-        "💖",
-        "💘",
-        "💝",
-        "💟",
-        "☮️",
-        "✝️",
-        "☪️",
-        "🕉️",
-        "☸️",
-        "✡️",
-        "🔯",
-        "🕎",
-        "☯️",
-        "☦️",
-        "🛐",
-        "♈️",
-        "♉️",
-        "♊️",
-        "♋️",
-        "♌️",
-        "♍️",
-        "♎️",
-        "♏️",
-        "♐️",
-        "♑️",
-        "♒️",
-        "♓️",
-        "🆔",
-        "📯",
-        "🔔",
-        "🔕",
-        "📣",
-        "📢",
-        "💬",
-        "💭",
-        "🗯️",
-        "🏁",
-        "🚩",
-        "🎌",
-        "🏴",
-        "🏳️",
-        "🏳️🌈",
-        "🏴☠️",
+        "code",
+        "terminal",
+        "globe",
+        "activity",
+        "hash",
+        "heading"
       ],
     },
   ];
@@ -1191,24 +386,6 @@ let showRightSidebar = false;
   $: sidePages = allPages.filter(
     (p) => p.parent_id === selectedPage?.id && p.relation_type === "sidepage",
   );
-
-  $: currentCategoryEmojis = (() => {
-    const cat = emojiCategories.find((c) => c.id === selectedCategory);
-    return cat ? (cat.emojis || []) : [];
-  })();
-
-  $: allEmojisFiltered = (() => {
-    if (!emojiSearchQuery) return [];
-    const q = emojiSearchQuery.toLowerCase();
-    const results = [];
-    for (const cat of emojiCategories) {
-      if (!cat.emojis) continue;
-      for (const e of cat.emojis) {
-        if (e.toLowerCase().includes(q)) results.push(e);
-      }
-    }
-    return results;
-  })();
 
   // Filter nested subpages candidates globally for the link modal
   $: filteredLinkCandidates = (() => {
@@ -1424,12 +601,30 @@ let showRightSidebar = false;
     selectedCardId = card.id;
   }
 
-  function createPage(parentId = "", relationType = "subpage") {
-    AddPage(parentId, relationType, "New Page", "📝")
-      .then(() => {
-        if (parentId) expandedPageIds[parentId] = true;
-      })
-      .catch((err) => alert("Failed: " + err));
+  async function createPage(parentId = "", relationType = "subpage") {
+    let parentIcon = "";
+    if (parentId) {
+      const parent = allPages.find((p) => p.id === parentId);
+      if (parent) {
+        parentIcon = parent.emoji || "";
+      }
+    }
+    try {
+      const newPageId = await AddPage(parentId, relationType, "New Page", parentIcon);
+      if (parentId) {
+        expandedPageIds[parentId] = true;
+        const parentCards = await GetCards(parentId);
+        const nextOrder = parentCards.length > 0
+          ? Math.max(...parentCards.map(c => c.sort_order)) + 1
+          : 0;
+        await AddCard(parentId, "subpage_link", newPageId, nextOrder);
+        if (selectedPage && selectedPage.id === parentId) {
+          FetchCards(parentId);
+        }
+      }
+    } catch (err) {
+      alert("Failed: " + err);
+    }
   }
 
   function createSidePage() {
@@ -1455,6 +650,8 @@ let showRightSidebar = false;
       if (type === "code") {
         defaultContent =
           'javascript\nconsole.log("Hello from Cero Code Block!");\n';
+      } else if (type === "section") {
+        defaultContent = "New Section";
       } else if (type === "sites") {
         defaultContent = JSON.stringify({
           name: "Interactive Site Card",
@@ -1474,6 +671,22 @@ let showRightSidebar = false;
     } catch (e) {
       alert("Failed: " + e);
     }
+  }
+
+  function moveCard(fromIndex, direction) {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= pageCards.length || !selectedPage) return;
+    const reordered = [...pageCards];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    ReorderCards(
+      selectedPage.id,
+      reordered.map((c) => c.id),
+    )
+      .then(() => {
+        pageCards = reordered;
+      })
+      .catch(() => {});
   }
 
   function handleCardDrop(e, toIndex) {
@@ -1668,11 +881,13 @@ let showRightSidebar = false;
   async function handleCreateNewPageAndLink() {
     if (!linkingCard) return;
     try {
+      const parentPage = allPages.find((p) => p.id === linkingCard.page_id);
+      const inheritedEmoji = parentPage?.emoji || "";
       const newPageId = await AddPage(
         linkingCard.page_id,
         "subpage",
         "New Subpage Link",
-        "📝",
+        inheritedEmoji,
       );
 
       if (newPageId) {
@@ -1884,7 +1099,7 @@ let showRightSidebar = false;
     {:else if !selectedPage}
       <div class="welcome">
         <div class="empty-page">
-          <span class="big-icon">📝</span>
+          <span class="big-icon"><PageIcon emoji="" size={38} /></span>
           <h2>Select or Create a Page</h2>
           <p>Choose from sidebar or create a new page.</p>
           <button class="btn primary" on:click={() => createPage("")}
@@ -1930,7 +1145,7 @@ let showRightSidebar = false;
           class="emoji-input-btn"
           on:click={() => (showEmojiPickerModal = true)}
         >
-          <PageIcon emoji={editorEmoji || "📓"} size={44} />
+          <PageIcon emoji={editorEmoji || ""} size={44} />
         </button>
         <input
           id="editor-title-input"
@@ -1983,6 +1198,8 @@ let showRightSidebar = false;
                 pageSearchQuery = "";
                 showLinkPageModal = true;
               }}
+              on:moveUp={() => moveCard(index, -1)}
+              on:moveDown={() => moveCard(index, 1)}
             />
           </div>
           <div
@@ -2002,7 +1219,7 @@ let showRightSidebar = false;
 
         {#if pageCards.length === 0}
           <div class="empty-cards">
-            <span class="empty-icon">📂</span>
+            <span class="empty-icon"><PageIcon emoji="folder" size={24} /></span>
             <h3>This page is empty</h3>
             <p>Add blocks to start writing.</p>
             <div class="empty-actions">
@@ -2027,6 +1244,11 @@ let showRightSidebar = false;
               <button
                 class="btn secondary"
                 on:click={() => handleAddCardType("sites")}>🌐 HTML Site</button
+              >
+              <button
+                class="btn secondary"
+                on:click={() => handleAddCardType("section")}
+                >📋 Section</button
               >
             </div>
           </div>
@@ -2105,7 +1327,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("markdown")}
         >
-          <span class="block-icon">📝</span>
+          <span class="block-icon"><PageIcon emoji="" size={16} /></span>
           <div class="block-desc">
             <span class="block-title">Markdown</span>
             <span class="block-subtitle"
@@ -2117,7 +1339,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("image")}
         >
-          <span class="block-icon">🖼️</span>
+          <span class="block-icon"><PageIcon emoji="image" size={16} /></span>
           <div class="block-desc">
             <span class="block-title">Image</span>
             <span class="block-subtitle"
@@ -2130,7 +1352,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("subpage_link")}
         >
-          <span class="block-icon">🔗</span>
+          <span class="block-icon"><PageIcon emoji="link" size={16} /></span>
           <div class="block-desc">
             <span class="block-title">Subpage Link</span>
             <span class="block-subtitle"
@@ -2142,7 +1364,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("code")}
         >
-          <span class="block-icon">💻</span>
+          <span class="block-icon"><PageIcon emoji="code" size={16} /></span>
           <div class="block-desc">
             <span class="block-title">Code Block</span>
             <span class="block-subtitle"
@@ -2155,7 +1377,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("sites")}
         >
-          <span class="block-icon">🌐</span>
+          <span class="block-icon"><PageIcon emoji="globe" size={16} /></span>
           <div class="block-desc">
             <span class="block-title">HTML Site block</span>
             <span class="block-subtitle"
@@ -2164,12 +1386,24 @@ let showRightSidebar = false;
             >
           </div>
         </button>
+        <button
+          class="block-option-row"
+          on:click={() => handleAddCardType("section")}
+        >
+          <span class="block-icon"><PageIcon emoji="heading" size={16} /></span>
+          <div class="block-desc">
+            <span class="block-title">Section Divider</span>
+            <span class="block-subtitle"
+              >Clean typography header spanning full page width to segment content areas.</span
+            >
+          </div>
+        </button>
       </div>
     </div>
   </div>
 {/if}
 
-<!-- Keyboard Emoji Picker Modal -->
+<!-- Page Icon Picker Modal -->
 {#if showEmojiPickerModal}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -2179,99 +1413,37 @@ let showRightSidebar = false;
     role="button"
     tabindex="-1"
   >
-    <div class="modal-container emoji-picker-modal">
+    <div class="modal-container emoji-picker-modal" style="height: auto; max-height: 90vh; width: 400px;">
       <div class="modal-header">
-        <h3>Select Icon</h3>
+        <h3>Select Page Icon</h3>
         <button
           class="close-btn"
           on:click={() => (showEmojiPickerModal = false)}>&times;</button
         >
       </div>
-      <div class="emoji-search-bar">
-        <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          bind:value={emojiSearchQuery}
-          placeholder="Search emojis..."
-          autofocus
-        />
-        {#if emojiSearchQuery}
-          <button class="clear-btn" on:click={() => (emojiSearchQuery = "")}
-            >&times;</button
-          >
-        {/if}
-      </div>
       <input type="file" bind:this={iconImageInput} accept="image/*" style="display:none" on:change={handleIconUpload} />
-      {#if !emojiSearchQuery && recentEmojis.length > 0}
-        <div class="emoji-recent-row">
-          <span class="recent-label">Recent</span>
-          {#each recentEmojis as e}
-            <button
-              class="emoji-select-btn"
-              on:click={() => {
-                editorEmoji = e;
-                showEmojiPickerModal = false;
-                recentEmojis = [e, ...recentEmojis.filter(em => em !== e)].slice(0, 8);
-                localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
-                savePageImmediate();
-              }}
-            >
-              <PageIcon {emoji} size={20} />
-            </button>
-          {/each}
-          <button class="clear-recent-btn" on:click={() => {
-            recentEmojis = [];
-            localStorage.setItem("recent_emojis", "[]");
-          }}>×</button>
-        </div>
-      {/if}
-      {#if !emojiSearchQuery}
-        <div class="emoji-picker-tabs">
-          {#each emojiCategories as category}
-            <button
-              class="emoji-tab-btn"
-              class:active={selectedCategory === category.id}
-              on:click={() => (selectedCategory = category.id)}
-            >
-              {category.label.split(" ")[0]}
-            </button>
-          {/each}
-        </div>
-      {/if}
-      <div class="modal-body emoji-picker-body">
-        {#if selectedCategory === "custom_image" && !emojiSearchQuery}
-          <div class="custom-icon-section">
-            <div class="custom-icon-header">
-              <span class="custom-icon-icon">🖼️</span>
-              <h4>Use Custom Page Icon</h4>
-              <p>Import an image from your computer or use an online URL.</p>
-            </div>
-            <button class="btn primary" style="width:100%; margin-bottom: 8px;" on:click={() => iconImageInput.click()}>
-              Pick Image from Computer
-            </button>
-            <div class="custom-icon-url-row">
-              <input type="text" bind:value={customIconUrl} placeholder="https://example.com/icon.png" />
-              <button class="btn primary" on:click={applyCustomIconUrl}>Apply</button>
-            </div>
+      <div class="modal-body">
+        <div class="custom-icon-section">
+          <div class="custom-icon-header">
+            <span class="custom-icon-icon">🖼️</span>
+            <h4>Use Custom Page Icon</h4>
+            <p>Import an image from your computer or use an online URL.</p>
           </div>
-        {:else}
-          <div class="emoji-grid">
-            {#each emojiSearchQuery ? allEmojisFiltered : currentCategoryEmojis as emoji}
-              <button
-                class="emoji-select-btn"
-                on:click={() => {
-                  editorEmoji = emoji;
-                  showEmojiPickerModal = false;
-                  recentEmojis = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, 8);
-                  localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
-                  savePageImmediate();
-                }}
-              >
-                <PageIcon {emoji} size={20} />
-              </button>
-            {/each}
+          <button class="btn primary" style="width:100%; margin-bottom: 12px;" on:click={() => iconImageInput.click()}>
+            Pick Image from Computer
+          </button>
+          <div class="custom-icon-url-row" style="margin-bottom: 12px;">
+            <input type="text" bind:value={customIconUrl} placeholder="https://example.com/icon.png" />
+            <button class="btn primary" on:click={applyCustomIconUrl}>Apply</button>
           </div>
-        {/if}
+          <button class="btn secondary" style="width:100%; color: #f87171;" on:click={() => {
+            editorEmoji = "";
+            showEmojiPickerModal = false;
+            savePageImmediate();
+          }}>
+            Remove Custom Icon
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2471,6 +1643,7 @@ let showRightSidebar = false;
         <div class="custom-select-wrapper">
           <select bind:value={fullscreenCodeLang} class="lang-dropdown-select">
             <option value="javascript">JAVASCRIPT</option>
+            <option value="rust">RUST</option>
             <option value="python">PYTHON</option>
             <option value="html">HTML</option>
             <option value="css">CSS</option>
@@ -3473,7 +2646,6 @@ let showRightSidebar = false;
     margin: 8px 0;
   }
   .empty-cards .empty-icon {
-    font-size: 32px;
     margin-bottom: 12px;
     opacity: 0.8;
   }
@@ -3620,7 +2792,6 @@ let showRightSidebar = false;
     transform: translateY(-0.5px);
   }
   .block-icon {
-    font-size: 20px;
     flex-shrink: 0;
   }
   .block-desc {

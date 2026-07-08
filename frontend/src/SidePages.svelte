@@ -5,7 +5,7 @@
   export let onCreateSidePage;
   export let mainPageTitle = "Main";
   import PageIcon from "./PageIcon.svelte";
-  export let mainPageEmoji = "📝";
+  export let mainPageEmoji = "";
 
   function handleTabClick(tabId) {
     if (onSelectTab) onSelectTab(tabId);

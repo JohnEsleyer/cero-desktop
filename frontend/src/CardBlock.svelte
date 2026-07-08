@@ -18,7 +18,6 @@
   export let onDeleted;
   export let onNavigate;
 
-  // External live-serving tracking props passed from App.svelte
   export let activeLiveCardId = null;
   export let activeSitesLocalUrl = "";
 
@@ -68,8 +67,16 @@
   }
 
   function startEdit() {
-    if (card.type !== "markdown") return;
-    dispatch("editMarkdown", { content: card.content || "" });
+    if (card.type === "markdown") {
+      dispatch("editMarkdown", { content: card.content || "" });
+    } else if (card.type === "section") {
+      const newTitle = prompt("Edit Section Header:", card.content || "");
+      if (newTitle !== null) {
+        UpdateCard(card.id, card.page_id, newTitle.trim(), card.comment || "")
+          .then(() => { card.content = newTitle.trim(); })
+          .catch((err) => console.error(err));
+      }
+    }
   }
 
   function deleteCard(e) {
@@ -138,7 +145,6 @@
 
   function selectSubpage(e) {
     e.stopPropagation();
-    // Dispatch event to open the modal globally at the root level (App.svelte)
     dispatch("openLinkModal", { card });
   }
 
@@ -165,23 +171,9 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
     const keywords = [
-      "function",
-      "return",
-      "if",
-      "else",
-      "for",
-      "while",
-      "const",
-      "let",
-      "var",
-      "import",
-      "class",
-      "void",
-      "final",
-      "def",
-      "package",
-      "func",
-      "interface",
+      "function", "return", "if", "else", "for", "while", "const", "let", "var",
+      "import", "class", "void", "final", "def", "package", "func", "interface",
+      "fn", "mut", "match", "impl", "struct", "enum", "pub", "use", "mod", "as", "type"
     ];
     const keywordsRegex = new RegExp(`\\b(${keywords.join("|")})\\b`, "g");
     return escaped
@@ -194,7 +186,7 @@
         '<span style="color: #34d399;">$1</span>',
       )
       .replace(
-        /(\/\/[^\n]*)/g,
+        /(\/\/[^\n]*|#[^\n]*)/g,
         '<span style="color: #94a3b8; font-style: italic;">$1</span>',
       );
   }
@@ -288,9 +280,28 @@
   {#if index > 0}
     <div class="card-order-badge">#{index}</div>
   {/if}
-  <!-- Markdown Card -->
-  {#if card.type === "markdown"}
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
+
+  {#if card.type === "section"}
+    <div class="section-card-content" on:dblclick={startEdit}>
+      <div class="section-header-wrap">
+        <PageIcon emoji="heading" size={14} />
+        <h2 class="section-title-text">{card.content || "Untitled Section"}</h2>
+        <div class="section-controls">
+          <button class="section-ctrl-btn" title="Move up" on:click|stopPropagation={() => dispatch("moveUp")}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+          <button class="section-ctrl-btn" title="Move down" on:click|stopPropagation={() => dispatch("moveDown")}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="section-ctrl-btn delete" title="Delete" on:click|stopPropagation={() => { DeleteCard(card.id, card.page_id); onDeleted(card.id); }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="section-divider-line"></div>
+    </div>
+
+  {:else if card.type === "markdown"}
     <div class="card-preview markdown-rendered" on:dblclick={startEdit}>
       {#if card.content}
         {@html renderedMarkdown}
@@ -299,7 +310,6 @@
       {/if}
     </div>
 
-    <!-- Image Card -->
   {:else if card.type === "image"}
     <div class="image-card-content">
       <input
@@ -319,57 +329,41 @@
           />
         </div>
         <div class="image-actions">
-          <button class="img-action-btn" on:click|stopPropagation={setImage}
-            >Change</button
-          >
-          <button
-            class="img-action-btn danger"
-            on:click|stopPropagation={unlinkImage}>Remove</button
-          >
+          <button class="img-action-btn" on:click|stopPropagation={setImage}>Change</button>
+          <button class="img-action-btn danger" on:click|stopPropagation={unlinkImage}>Remove</button>
         </div>
       {:else}
-        <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="image-placeholder" on:click|stopPropagation={setImage}>
-          <span class="placeholder-icon">🖼️</span>
+          <PageIcon emoji="image" size={18} />
           <span class="placeholder-text">Click to add image (URL or file)</span>
         </div>
       {/if}
     </div>
 
-    <!-- Subpage Link Card -->
   {:else if card.type === "subpage_link"}
     {#if linkedPage}
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <div
-        class="subpage-link-card"
-        on:click|stopPropagation={navigateToSubpage}
-      >
-        <span class="link-emoji"><PageIcon emoji={linkedPage.emoji} size={18} /></span>
+      <div class="subpage-link-card" on:click|stopPropagation={navigateToSubpage}>
+        <span class="link-emoji"><PageIcon emoji={linkedPage.emoji} size={14} /></span>
         <div class="link-info">
           <span class="link-title">{linkedPage.title || "Untitled"}</span>
           <span class="link-hint">Open subpage →</span>
         </div>
-        <button class="link-action-btn" on:click|stopPropagation={selectSubpage}
-          >Change</button
-        >
+        <button class="link-action-btn" on:click|stopPropagation={selectSubpage}>Change</button>
       </div>
     {:else}
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="subpage-empty" on:click|stopPropagation={selectSubpage}>
-        <PageIcon emoji={"🔗"} size={16} />
+        <PageIcon emoji="link" size={14} />
         <span>Click to link a subpage...</span>
       </div>
     {/if}
 
-    <!-- Syntax Code Block Card -->
   {:else if card.type === "code"}
     <div class="code-card-content">
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div
         class="code-preview-container"
         on:dblclick|stopPropagation={() =>
           dispatch("editCode", { content: card.content || "" })}
-        style="position: relative; background: #131313; border: 1px solid #2a2a2a; border-radius: 6px; padding: 14px; font-family: monospace; cursor: pointer;"
+        style="position: relative; background: #0c0c0e; border: 1px solid #1c1c1f; border-radius: 6px; padding: 14px; font-family: monospace; cursor: pointer;"
       >
         <div
           class="code-lang-tag"
@@ -377,33 +371,21 @@
         >
           {codeLang}
         </div>
-        <pre
-          style="margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.5; overflow-x: auto;">{@html getCodeHighlightHtml(
-            codeContent,
-            codeLang,
-          )}</pre>
-        <span
-          class="empty-hint"
-          style="font-size: 10px; color: #4a4a4a; display: block; margin-top: 6px;"
-          >Double-click code block to edit in immersive fullscreen...</span
-        >
+        <pre style="margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.5; overflow-x: auto;">{@html getCodeHighlightHtml(codeContent, codeLang)}</pre>
+        <span class="empty-hint" style="font-size: 10px; color: #4a4a4a; display: block; margin-top: 6px;">Double-click code block to edit in immersive fullscreen...</span>
       </div>
     </div>
 
-    <!-- HTML Sites Sandbox Card -->
   {:else if card.type === "sites"}
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="sites-card" on:click|stopPropagation={openSitesModal}>
       <div class="sites-card-inner">
         <div class="sites-card-icon-container">
-          <span class="sites-emoji">🌐</span>
+          <PageIcon emoji="globe" size={14} />
         </div>
         <div class="sites-card-details">
           <span class="sites-card-name">{sitesName}</span>
           <span class="sites-card-desc">
-            {isSitesLive && sitesLocalUrl
-              ? `Serving on ${sitesLocalUrl}`
-              : sitesDesc}
+            {isSitesLive && sitesLocalUrl ? `Serving on ${sitesLocalUrl}` : sitesDesc}
           </span>
         </div>
         <div class="sites-card-status">
@@ -412,32 +394,55 @@
       </div>
     </div>
 
-    <!-- File Card -->
   {:else}
     <div class="file-card">
       <span>📎 {card.content || "(attach file)"}</span>
     </div>
   {/if}
 
-  <!-- Card Comments Toggle & Panel -->
-  <div class="card-comment-section">
-    <button
-      class="comment-toggle-btn"
-      on:click|stopPropagation={toggleComment}
-      class:has-comment={commentsList.length > 0}
-    >
-      <span class="comment-toggle-icon">💬</span>
-      <span class="comment-toggle-label">
-        {commentsList.length > 0 ? `${commentsList.length} Comment${commentsList.length > 1 ? 's' : ''}` : "Add comment"}
-      </span>
-      <span class="comment-toggle-arrow">{showComment ? "▲" : "▼"}</span>
-    </button>
+  {#if card.type !== "section"}
+    <div class="card-comment-section">
+      <button
+        class="comment-toggle-btn"
+        on:click|stopPropagation={toggleComment}
+        class:has-comment={commentsList.length > 0}
+      >
+        <span class="comment-toggle-icon">💬</span>
+        <span class="comment-toggle-label">
+          {commentsList.length > 0 ? `${commentsList.length} Comment${commentsList.length > 1 ? 's' : ''}` : "Add comment"}
+        </span>
+        <span class="comment-toggle-arrow">{showComment ? "▲" : "▼"}</span>
+      </button>
 
-    {#if showComment}
-      <div class="comment-dropdown">
-        {#each commentsList as c}
-          <div class="comment-row">
-            {#if editingCommentId === c.id}
+      {#if showComment}
+        <div class="comment-dropdown">
+          {#each commentsList as c}
+            <div class="comment-row">
+              {#if editingCommentId === c.id}
+                <div class="comment-input-wrap">
+                  <span class="comment-bubble-icon">💬</span>
+                  <input
+                    type="text"
+                    class="comment-input"
+                    bind:value={commentInputVal}
+                    on:blur={saveComment}
+                    on:keydown={handleCommentKeydown}
+                    placeholder="Write a comment..."
+                    autofocus
+                  />
+                </div>
+              {:else}
+                <span class="comment-bubble-icon">💬</span>
+                <span class="comment-text" on:dblclick|stopPropagation={() => startEditComment(c.id, c.text)}>
+                  {c.text}
+                </span>
+                <button class="comment-edit-btn" on:click|stopPropagation={() => startEditComment(c.id, c.text)}>edit</button>
+                <button class="comment-delete-btn" on:click|stopPropagation={() => deleteComment(c.id)}>&times;</button>
+              {/if}
+            </div>
+          {/each}
+          {#if editingCommentId === "new"}
+            <div class="comment-row">
               <div class="comment-input-wrap">
                 <span class="comment-bubble-icon">💬</span>
                 <input
@@ -450,48 +455,20 @@
                   autofocus
                 />
               </div>
-            {:else}
-              <span class="comment-bubble-icon">💬</span>
-              <!-- svelte-ignore a11y-click-events-have-key-events -->
-              <!-- svelte-ignore a11y-no-static-element-interactions -->
-              <span class="comment-text" on:dblclick|stopPropagation={() => startEditComment(c.id, c.text)}>
-                {c.text}
-              </span>
-              <button class="comment-edit-btn" on:click|stopPropagation={() => startEditComment(c.id, c.text)}>edit</button>
-              <button class="comment-delete-btn" on:click|stopPropagation={() => deleteComment(c.id)}>&times;</button>
-            {/if}
-          </div>
-        {/each}
-        {#if editingCommentId === "new"}
-          <div class="comment-row">
-            <div class="comment-input-wrap">
-              <span class="comment-bubble-icon">💬</span>
-              <input
-                type="text"
-                class="comment-input"
-                bind:value={commentInputVal}
-                on:blur={saveComment}
-                on:keydown={handleCommentKeydown}
-                placeholder="Write a comment..."
-                autofocus
-              />
             </div>
-          </div>
-        {:else if editingCommentId === null}
-          <button class="add-comment-trigger" on:click|stopPropagation={startNewComment}>
-            + Add comment
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
+          {:else if editingCommentId === null}
+            <button class="add-comment-trigger" on:click|stopPropagation={startNewComment}>
+              + Add comment
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
-  <!-- Actions (visible when selected) -->
   {#if isSelected}
     <div class="card-actions">
-      <button class="action-btn" title="Delete card" on:click={deleteCard}
-        >×</button
-      >
+      <button class="action-btn" title="Delete card" on:click={deleteCard}>×</button>
     </div>
   {/if}
 </div>
@@ -499,14 +476,74 @@
 <style>
   .card-block {
     position: relative;
-    background: #18181b;
+    background: #09090b;
     border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 8px;
     padding: 14px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    text-align: left; /* Explicitly align texts inside all block cards from the left */
+    text-align: left;
   }
+
+  .card-block.markdown { border-left: 3px solid #71717a; }
+  .card-block.image { border-left: 3px solid #a855f7; }
+  .card-block.subpage_link { border-left: 3px solid #3b82f6; }
+  .card-block.code { border-left: 3px solid #ec4899; }
+  .card-block.sites { border-left: 3px solid #10b981; }
+  .card-block.section {
+    border: none;
+    background: transparent;
+    padding: 8px 0;
+    margin: 16px 0 8px 0;
+    cursor: default;
+  }
+  .card-block.section:hover { background: transparent; }
+
+  .section-card-content { width: 100%; user-select: none; }
+  .section-header-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a1a1aa;
+    margin-bottom: 4px;
+  }
+  .section-controls {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .card-block.section:hover .section-controls { opacity: 1; }
+  .section-ctrl-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: #71717a;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .section-ctrl-btn:hover { color: #e4e4e7; background: rgba(255,255,255,0.06); }
+  .section-ctrl-btn.delete:hover { color: #f87171; }
+  .section-title-text {
+    font-size: 15px;
+    font-weight: 800;
+    color: #f4f4f5;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+  }
+  .section-divider-line {
+    height: 1px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    margin-top: 4px;
+  }
+
   .card-order-badge {
     position: absolute;
     top: 6px;
@@ -523,7 +560,7 @@
   }
   .card-block:hover {
     border-color: rgba(255, 255, 255, 0.08);
-    background: #1c1c20;
+    background: rgba(255, 255, 255, 0.01);
   }
   .card-block.selected {
     border-color: rgba(129, 140, 248, 0.5);
@@ -535,36 +572,17 @@
     font-size: 13px;
     line-height: 1.6;
     color: #d4d4d8;
-    text-align: left; /* Left-align the main card body previews */
+    text-align: left;
   }
-
   .card-preview:hover {
     background: rgba(255, 255, 255, 0.01);
     border-radius: 4px;
   }
-  .empty-hint {
-    color: #52525b;
-    font-style: italic;
-    font-size: 12px;
-  }
+  .empty-hint { color: #52525b; font-style: italic; font-size: 12px; }
 
-  .image-card-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .image-wrapper {
-    display: flex;
-    justify-content: center;
-    border-radius: 6px;
-    overflow: hidden;
-    background: rgba(0, 0, 0, 0.1);
-  }
-  .card-image {
-    max-width: 100%;
-    max-height: 320px;
-    object-fit: contain;
-  }
+  .image-card-content { display: flex; flex-direction: column; gap: 8px; }
+  .image-wrapper { display: flex; justify-content: center; border-radius: 6px; overflow: hidden; background: rgba(0, 0, 0, 0.1); }
+  .card-image { max-width: 100%; max-height: 320px; object-fit: contain; }
   .image-placeholder {
     display: flex;
     flex-direction: column;
@@ -576,26 +594,12 @@
     cursor: pointer;
     transition: all 0.15s ease;
     background: rgba(255, 255, 255, 0.005);
-  }
-  .image-placeholder:hover {
-    border-color: rgba(129, 140, 248, 0.3);
-    background: rgba(129, 140, 248, 0.01);
-  }
-  .placeholder-icon {
-    font-size: 20px;
-    margin-bottom: 6px;
-    opacity: 0.8;
-  }
-  .placeholder-text {
     color: #71717a;
-    font-size: 11px;
-    font-weight: 500;
-  }
-  .image-actions {
-    display: flex;
     gap: 6px;
-    justify-content: flex-end;
   }
+  .image-placeholder:hover { border-color: rgba(129, 140, 248, 0.3); background: rgba(129, 140, 248, 0.01); color: #818cf8; }
+  .placeholder-text { font-size: 11px; font-weight: 500; }
+  .image-actions { display: flex; gap: 6px; justify-content: flex-end; }
   .img-action-btn {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -607,15 +611,8 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .img-action-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #f4f4f5;
-  }
-  .img-action-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: rgba(239, 68, 68, 0.2);
-    color: #f87171;
-  }
+  .img-action-btn:hover { background: rgba(255, 255, 255, 0.06); color: #f4f4f5; }
+  .img-action-btn.danger:hover { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: #f87171; }
 
   .subpage-link-card {
     display: flex;
@@ -628,32 +625,10 @@
     border: 1px solid rgba(255, 255, 255, 0.03);
     transition: all 0.15s ease;
   }
-  .subpage-link-card:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.06);
-  }
-  .link-emoji {
-    font-size: 18px;
-  }
-  .link-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .link-title {
-    color: #e4e4e7;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .link-hint {
-    color: #52525b;
-    font-size: 10px;
-    margin-top: 1px;
-  }
+  .subpage-link-card:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.06); }
+  .link-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .link-title { color: #e4e4e7; font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .link-hint { color: #52525b; font-size: 10px; margin-top: 1px; }
   .link-action-btn {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -665,10 +640,7 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .link-action-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #f4f4f5;
-  }
+  .link-action-btn:hover { background: rgba(255, 255, 255, 0.06); color: #f4f4f5; }
 
   .subpage-empty {
     display: flex;
@@ -682,15 +654,9 @@
     font-size: 12px;
     transition: all 0.15s ease;
   }
-  .subpage-empty:hover {
-    border-color: rgba(129, 140, 248, 0.3);
-    color: #818cf8;
-  }
+  .subpage-empty:hover { border-color: rgba(129, 140, 248, 0.3); color: #818cf8; }
 
-  .file-card {
-    color: #a1a1aa;
-    font-size: 12px;
-  }
+  .file-card { color: #a1a1aa; font-size: 12px; }
 
   .card-actions {
     position: absolute;
@@ -713,55 +679,16 @@
     border-radius: 4px;
     transition: all 0.12s;
   }
-  .action-btn:hover {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: rgba(239, 68, 68, 0.2);
-    color: #f87171;
-  }
+  .action-btn:hover { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: #f87171; }
 
-  .markdown-rendered :global(h1) {
-    font-size: 16px;
-    margin: 12px 0 6px 0;
-    color: #ffffff;
-    font-weight: 700;
-  }
-  .markdown-rendered :global(h2) {
-    font-size: 14px;
-    margin: 10px 0 4px 0;
-    color: #ffffff;
-    font-weight: 700;
-  }
-  .markdown-rendered :global(h3) {
-    font-size: 12px;
-    margin: 8px 0 2px 0;
-    color: #ffffff;
-    font-weight: 700;
-  }
-  .markdown-rendered :global(code) {
-    background: rgba(255, 255, 255, 0.03);
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-family: monospace;
-    color: #f472b6;
-  }
-  .markdown-rendered :global(pre) {
-    background: rgba(0, 0, 0, 0.2);
-    padding: 10px;
-    border-radius: 6px;
-    overflow-x: auto;
-    border: 1px solid rgba(255, 255, 255, 0.03);
-  }
-  .markdown-rendered :global(ul),
-  .markdown-rendered :global(ol) {
-    padding-left: 16px;
-    margin: 6px 0;
-  }
-  .markdown-rendered :global(li) {
-    margin-bottom: 2px;
-  }
+  .markdown-rendered :global(h1) { font-size: 16px; margin: 12px 0 6px 0; color: #ffffff; font-weight: 700; }
+  .markdown-rendered :global(h2) { font-size: 14px; margin: 10px 0 4px 0; color: #ffffff; font-weight: 700; }
+  .markdown-rendered :global(h3) { font-size: 12px; margin: 8px 0 2px 0; color: #ffffff; font-weight: 700; }
+  .markdown-rendered :global(code) { background: rgba(255, 255, 255, 0.03); padding: 2px 4px; border-radius: 4px; font-size: 11px; font-family: monospace; color: #f472b6; }
+  .markdown-rendered :global(pre) { background: rgba(0, 0, 0, 0.2); padding: 10px; border-radius: 6px; overflow-x: auto; border: 1px solid rgba(255, 255, 255, 0.03); }
+  .markdown-rendered :global(ul), .markdown-rendered :global(ol) { padding-left: 16px; margin: 6px 0; }
+  .markdown-rendered :global(li) { margin-bottom: 2px; }
 
-  /* Smooth Site Cards styling */
   .sites-card {
     background: rgba(255, 255, 255, 0.005);
     border: 1px solid rgba(255, 255, 255, 0.04);
@@ -770,68 +697,25 @@
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .sites-card:hover {
-    border-color: rgba(129, 140, 248, 0.3);
-    background: rgba(129, 140, 248, 0.01);
-  }
-  .sites-card-inner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-  }
+  .sites-card:hover { border-color: rgba(129, 140, 248, 0.3); background: rgba(129, 140, 248, 0.01); }
+  .sites-card-inner { display: flex; align-items: center; gap: 12px; width: 100%; }
   .sites-card-icon-container {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 6px;
     transition: all 0.2s ease;
     flex-shrink: 0;
   }
-  .sites-card:hover .sites-card-icon-container {
-    background: rgba(129, 140, 248, 0.08);
-    border-color: rgba(129, 140, 248, 0.2);
-  }
-  .sites-emoji {
-    font-size: 16px;
-  }
-  .sites-card-details {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-  .sites-card-name {
-    font-weight: 600;
-    color: #ffffff;
-    font-size: 12px;
-    margin-bottom: 1px;
-  }
-  .sites-card-desc {
-    color: #71717a;
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .sites-card:hover .sites-card-desc {
-    color: #a1a1aa;
-  }
-  .sites-card-status {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding-left: 6px;
-    flex-shrink: 0;
-  }
+  .sites-card:hover .sites-card-icon-container { background: rgba(129, 140, 248, 0.08); border-color: rgba(129, 140, 248, 0.2); }
+  .sites-card-details { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .sites-card-name { font-weight: 600; color: #ffffff; font-size: 12px; margin-bottom: 1px; }
+  .sites-card-desc { color: #71717a; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sites-card:hover .sites-card-desc { color: #a1a1aa; }
+  .sites-card-status { display: flex; align-items: center; justify-content: center; padding-left: 6px; flex-shrink: 0; }
   .status-indicator-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
     background: #52525b;
     transition: all 0.3s ease;
   }
@@ -840,163 +724,37 @@
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
     animation: pulse-active-dot 2s infinite;
   }
-
   @keyframes pulse-active-dot {
-    0% {
-      box-shadow: 0 0 4px rgba(16, 185, 129, 0.3);
-    }
-    50% {
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-    }
-    100% {
-      box-shadow: 0 0 4px rgba(16, 185, 129, 0.3);
-    }
+    0% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.3); }
+    50% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+    100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.3); }
   }
 
-  .emoji-tab-btn {
-    background: transparent;
-    border: none;
-    color: #71717a;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.12s;
-  }
-  .emoji-tab-btn:hover {
-    color: #a1a1aa;
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .emoji-tab-btn.active {
-    color: #818cf8;
-    background: rgba(129, 140, 248, 0.08);
-  }
-
-  /* Card comment toggle and dropdown */
-  .card-comment-section {
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-  }
+  .card-comment-section { margin-top: 8px; display: flex; flex-direction: column; width: 100%; }
   .comment-toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
-    color: #52525b;
-    font-size: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 5px 10px;
-    transition: all 0.12s;
-    align-self: flex-start;
+    display: flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px; color: #52525b; font-size: 10px; font-weight: 600;
+    cursor: pointer; padding: 5px 10px; transition: all 0.12s; align-self: flex-start;
   }
-  .comment-toggle-btn:hover {
-    border-color: rgba(129, 140, 248, 0.2);
-    color: #818cf8;
-    background: rgba(129, 140, 248, 0.03);
-  }
-  .comment-toggle-btn.has-comment {
-    color: #818cf8;
-    border-color: rgba(129, 140, 248, 0.15);
-    background: rgba(129, 140, 248, 0.03);
-  }
-  .comment-toggle-icon {
-    font-size: 10px;
-  }
-  .comment-toggle-arrow {
-    font-size: 7px;
-    margin-left: 2px;
-  }
+  .comment-toggle-btn:hover { border-color: rgba(129, 140, 248, 0.2); color: #818cf8; background: rgba(129, 140, 248, 0.03); }
+  .comment-toggle-btn.has-comment { color: #818cf8; border-color: rgba(129, 140, 248, 0.15); background: rgba(129, 140, 248, 0.03); }
+  .comment-toggle-icon { font-size: 10px; }
+  .comment-toggle-arrow { font-size: 7px; margin-left: 2px; }
   .comment-dropdown {
-    margin-top: 6px;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
-    padding: 6px 10px;
-    gap: 2px;
+    margin-top: 6px; display: flex; flex-direction: column; width: 100%;
+    background: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px; padding: 6px 10px; gap: 2px;
   }
-  .comment-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 3px 0;
-  }
-  .comment-row:hover .comment-edit-btn,
-  .comment-row:hover .comment-delete-btn {
-    opacity: 1;
-  }
-  .comment-bubble-icon {
-    font-size: 10px;
-    color: #818cf8;
-    opacity: 0.8;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-  .comment-text {
-    flex: 1;
-    cursor: text;
-    line-height: 1.4;
-    word-break: break-word;
-    color: #a1a1aa;
-    font-size: 11px;
-  }
-  .comment-input-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-  }
-  .comment-input {
-    flex: 1;
-    background: transparent !important;
-    border: none !important;
-    outline: none !important;
-    color: #f4f4f5 !important;
-    font-size: 11px !important;
-    padding: 0 !important;
-    margin-bottom: 0 !important;
-  }
-  .comment-edit-btn,
-  .comment-delete-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 9px;
-    font-weight: 600;
-    color: #52525b;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: all 0.12s;
-    opacity: 0;
-  }
-  .comment-edit-btn:hover {
-    color: #818cf8;
-    background: rgba(129, 140, 248, 0.08);
-  }
-  .comment-delete-btn:hover {
-    color: #f87171;
-    background: rgba(239, 68, 68, 0.08);
-  }
-  .add-comment-trigger {
-    background: transparent;
-    border: none;
-    color: #818cf8;
-    font-size: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 4px 0;
-    text-align: left;
-    transition: all 0.12s;
-  }
-  .add-comment-trigger:hover {
-    color: #a5b4fc;
-  }
+  .comment-row { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+  .comment-row:hover .comment-edit-btn, .comment-row:hover .comment-delete-btn { opacity: 1; }
+  .comment-bubble-icon { font-size: 10px; color: #818cf8; opacity: 0.8; flex-shrink: 0; margin-top: 2px; }
+  .comment-text { flex: 1; cursor: text; line-height: 1.4; word-break: break-word; color: #a1a1aa; font-size: 11px; }
+  .comment-input-wrap { display: flex; align-items: center; gap: 6px; flex: 1; }
+  .comment-input { flex: 1; background: transparent !important; border: none !important; outline: none !important; color: #f4f4f5 !important; font-size: 11px !important; padding: 0 !important; margin-bottom: 0 !important; }
+  .comment-edit-btn, .comment-delete-btn { background: transparent; border: none; cursor: pointer; font-size: 9px; font-weight: 600; color: #52525b; padding: 2px 4px; border-radius: 4px; transition: all 0.12s; opacity: 0; }
+  .comment-edit-btn:hover { color: #818cf8; background: rgba(129, 140, 248, 0.08); }
+  .comment-delete-btn:hover { color: #f87171; background: rgba(239, 68, 68, 0.08); }
+  .add-comment-trigger { background: transparent; border: none; color: #818cf8; font-size: 10px; font-weight: 600; cursor: pointer; padding: 4px 0; text-align: left; transition: all 0.12s; }
+  .add-comment-trigger:hover { color: #a5b4fc; }
 </style>
