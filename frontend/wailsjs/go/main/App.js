@@ -106,8 +106,8 @@ export function SwitchWorkspace(arg1) {
   return window['go']['main']['App']['SwitchWorkspace'](arg1);
 }
 
-export function UpdateCard(arg1, arg2, arg3) {
-  return window['go']['main']['App']['UpdateCard'](arg1, arg2, arg3);
+export function UpdateCard(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UpdateCard'](arg1, arg2, arg3, arg4);
 }
 
 export function UpdatePage(arg1, arg2, arg3) {

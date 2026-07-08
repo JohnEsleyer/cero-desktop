@@ -54,6 +54,6 @@ export function StopUdpDiscovery():Promise<void>;
 
 export function SwitchWorkspace(arg1:string):Promise<void>;
 
-export function UpdateCard(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function UpdateCard(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function UpdatePage(arg1:string,arg2:string,arg3:string):Promise<void>;

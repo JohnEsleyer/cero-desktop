@@ -5,6 +5,7 @@ export namespace main {
 	    page_id: string;
 	    type: string;
 	    content: string;
+	    comment: string;
 	    sort_order: number;
 	    created_at: string;
 	    updated_at: string;
@@ -20,6 +21,7 @@ export namespace main {
 	        this.page_id = source["page_id"];
 	        this.type = source["type"];
 	        this.content = source["content"];
+	        this.comment = source["comment"];
 	        this.sort_order = source["sort_order"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];

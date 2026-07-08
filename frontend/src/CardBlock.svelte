@@ -8,6 +8,7 @@
     GetImage,
     AddPage,
   } from "../wailsjs/go/main/App.js";
+  import PageIcon from "./PageIcon.svelte";
 
   export let card;
   export let isSelected = false;
@@ -91,7 +92,7 @@
     if (choice === "1") {
       const url = prompt("Enter image URL:", card.content || "");
       if (url !== null) {
-        UpdateCard(card.id, card.page_id, url)
+        UpdateCard(card.id, card.page_id, url, card.comment || "")
           .then(() => {
             card.content = url;
           })
@@ -110,7 +111,7 @@
       const base64 = reader.result;
       SaveImage(base64, file.name)
         .then((filename) => {
-          UpdateCard(card.id, card.page_id, filename)
+          UpdateCard(card.id, card.page_id, filename, card.comment || "")
             .then(() => {
               card.content = filename;
             })
@@ -125,7 +126,7 @@
   function unlinkImage(e) {
     e.stopPropagation();
     if (confirm("Remove image?")) {
-      UpdateCard(card.id, card.page_id, "")
+      UpdateCard(card.id, card.page_id, "", card.comment || "")
         .then(() => {
           card.content = "";
         })
@@ -204,6 +205,77 @@
   })();
 
   $: renderedMarkdown = marked.parse(card.content || "");
+
+  let showComment = false;
+  let editingCommentId = null;
+  let commentInputVal = "";
+
+  $: commentsList = (() => {
+    if (!card.comment) return [];
+    try {
+      const parsed = JSON.parse(card.comment);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  })();
+
+  function genId() {
+    return Math.random().toString(36).substring(2, 14);
+  }
+
+  function saveCommentsList(list) {
+    card.comment = JSON.stringify(list);
+    UpdateCard(card.id, card.page_id, card.content || "", card.comment)
+      .then(() => { card = card; })
+      .catch((err) => console.error(err));
+  }
+
+  function toggleComment() {
+    showComment = !showComment;
+    editingCommentId = null;
+    commentInputVal = "";
+  }
+
+  function startNewComment() {
+    editingCommentId = "new";
+    commentInputVal = "";
+  }
+
+  function startEditComment(id, text) {
+    editingCommentId = id;
+    commentInputVal = text || "";
+  }
+
+  function saveComment() {
+    const text = commentInputVal.trim();
+    if (!text) { editingCommentId = null; return; }
+    const list = [...commentsList];
+    if (editingCommentId === "new") {
+      list.unshift({ id: genId(), text, createdAt: new Date().toISOString() });
+    } else if (editingCommentId) {
+      const idx = list.findIndex((c) => c.id === editingCommentId);
+      if (idx !== -1) list[idx].text = text;
+    }
+    editingCommentId = null;
+    saveCommentsList(list);
+  }
+
+  function handleCommentKeydown(e) {
+    if (e.key === "Enter") {
+      saveComment();
+    } else if (e.key === "Escape") {
+      editingCommentId = null;
+      if (!commentsList.length) showComment = false;
+    }
+  }
+
+  function deleteComment(id) {
+    const list = commentsList.filter((c) => c.id !== id);
+    editingCommentId = null;
+    if (!list.length) showComment = false;
+    saveCommentsList(list);
+  }
 </script>
 
 <div
@@ -272,7 +344,7 @@
         class="subpage-link-card"
         on:click|stopPropagation={navigateToSubpage}
       >
-        <span class="link-emoji">{linkedPage.emoji}</span>
+        <span class="link-emoji"><PageIcon emoji={linkedPage.emoji} size={18} /></span>
         <div class="link-info">
           <span class="link-title">{linkedPage.title || "Untitled"}</span>
           <span class="link-hint">Open subpage →</span>
@@ -284,7 +356,7 @@
     {:else}
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="subpage-empty" on:click|stopPropagation={selectSubpage}>
-        <span>🔗</span>
+        <PageIcon emoji={"🔗"} size={16} />
         <span>Click to link a subpage...</span>
       </div>
     {/if}
@@ -346,6 +418,73 @@
       <span>📎 {card.content || "(attach file)"}</span>
     </div>
   {/if}
+
+  <!-- Card Comments Toggle & Panel -->
+  <div class="card-comment-section">
+    <button
+      class="comment-toggle-btn"
+      on:click|stopPropagation={toggleComment}
+      class:has-comment={commentsList.length > 0}
+    >
+      <span class="comment-toggle-icon">💬</span>
+      <span class="comment-toggle-label">
+        {commentsList.length > 0 ? `${commentsList.length} Comment${commentsList.length > 1 ? 's' : ''}` : "Add comment"}
+      </span>
+      <span class="comment-toggle-arrow">{showComment ? "▲" : "▼"}</span>
+    </button>
+
+    {#if showComment}
+      <div class="comment-dropdown">
+        {#each commentsList as c}
+          <div class="comment-row">
+            {#if editingCommentId === c.id}
+              <div class="comment-input-wrap">
+                <span class="comment-bubble-icon">💬</span>
+                <input
+                  type="text"
+                  class="comment-input"
+                  bind:value={commentInputVal}
+                  on:blur={saveComment}
+                  on:keydown={handleCommentKeydown}
+                  placeholder="Write a comment..."
+                  autofocus
+                />
+              </div>
+            {:else}
+              <span class="comment-bubble-icon">💬</span>
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <span class="comment-text" on:dblclick|stopPropagation={() => startEditComment(c.id, c.text)}>
+                {c.text}
+              </span>
+              <button class="comment-edit-btn" on:click|stopPropagation={() => startEditComment(c.id, c.text)}>edit</button>
+              <button class="comment-delete-btn" on:click|stopPropagation={() => deleteComment(c.id)}>&times;</button>
+            {/if}
+          </div>
+        {/each}
+        {#if editingCommentId === "new"}
+          <div class="comment-row">
+            <div class="comment-input-wrap">
+              <span class="comment-bubble-icon">💬</span>
+              <input
+                type="text"
+                class="comment-input"
+                bind:value={commentInputVal}
+                on:blur={saveComment}
+                on:keydown={handleCommentKeydown}
+                placeholder="Write a comment..."
+                autofocus
+              />
+            </div>
+          </div>
+        {:else if editingCommentId === null}
+          <button class="add-comment-trigger" on:click|stopPropagation={startNewComment}>
+            + Add comment
+          </button>
+        {/if}
+      </div>
+    {/if}
+  </div>
 
   <!-- Actions (visible when selected) -->
   {#if isSelected}
@@ -732,5 +871,132 @@
   .emoji-tab-btn.active {
     color: #818cf8;
     background: rgba(129, 140, 248, 0.08);
+  }
+
+  /* Card comment toggle and dropdown */
+  .card-comment-section {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .comment-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    color: #52525b;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 5px 10px;
+    transition: all 0.12s;
+    align-self: flex-start;
+  }
+  .comment-toggle-btn:hover {
+    border-color: rgba(129, 140, 248, 0.2);
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.03);
+  }
+  .comment-toggle-btn.has-comment {
+    color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.15);
+    background: rgba(129, 140, 248, 0.03);
+  }
+  .comment-toggle-icon {
+    font-size: 10px;
+  }
+  .comment-toggle-arrow {
+    font-size: 7px;
+    margin-left: 2px;
+  }
+  .comment-dropdown {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    padding: 6px 10px;
+    gap: 2px;
+  }
+  .comment-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 3px 0;
+  }
+  .comment-row:hover .comment-edit-btn,
+  .comment-row:hover .comment-delete-btn {
+    opacity: 1;
+  }
+  .comment-bubble-icon {
+    font-size: 10px;
+    color: #818cf8;
+    opacity: 0.8;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .comment-text {
+    flex: 1;
+    cursor: text;
+    line-height: 1.4;
+    word-break: break-word;
+    color: #a1a1aa;
+    font-size: 11px;
+  }
+  .comment-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+  }
+  .comment-input {
+    flex: 1;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: #f4f4f5 !important;
+    font-size: 11px !important;
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  .comment-edit-btn,
+  .comment-delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 600;
+    color: #52525b;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.12s;
+    opacity: 0;
+  }
+  .comment-edit-btn:hover {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+  }
+  .comment-delete-btn:hover {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.08);
+  }
+  .add-comment-trigger {
+    background: transparent;
+    border: none;
+    color: #818cf8;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: left;
+    transition: all 0.12s;
+  }
+  .add-comment-trigger:hover {
+    color: #a5b4fc;
   }
 </style>

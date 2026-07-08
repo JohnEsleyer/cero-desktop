@@ -39,6 +39,7 @@ type Card struct {
 	PageID    string `json:"page_id"`
 	Type      string `json:"type"` // "markdown", "image", "subpage_link", "file"
 	Content   string `json:"content"`
+	Comment   string `json:"comment"`
 	SortOrder int    `json:"sort_order"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
@@ -882,13 +883,14 @@ func (a *App) AddCard(pageID string, cardType string, content string, sortOrder 
 	})
 }
 
-func (a *App) UpdateCard(id string, pageID string, content string) error {
+func (a *App) UpdateCard(id string, pageID string, content string, comment string) error {
 	return a.sendToServer(map[string]interface{}{
 		"type": "update_card",
 		"item": map[string]interface{}{
 			"id":      id,
 			"page_id": pageID,
 			"content": content,
+			"comment": comment,
 		},
 	})
 }

@@ -10,6 +10,7 @@
   export var getChildrenOf;
 
   import { MovePage } from "../wailsjs/go/main/App.js";
+  import PageIcon from "./PageIcon.svelte";
 
   $: children = getChildrenOf(page.id);
   $: hasChildren = children.length > 0;
@@ -51,7 +52,7 @@
     </button>
 
     <button class="node-content" on:click={() => selectPage(page)}>
-      <span class="emoji">{page.emoji}</span>
+      <span class="emoji"><PageIcon emoji={page.emoji} size={13} /></span>
       <span class="title" title={page.title}>{page.title || "Untitled"}</span>
     </button>
 

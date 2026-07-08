@@ -4,6 +4,7 @@
   export let onSelectTab;
   export let onCreateSidePage;
   export let mainPageTitle = "Main";
+  import PageIcon from "./PageIcon.svelte";
   export let mainPageEmoji = "📝";
 
   function handleTabClick(tabId) {
@@ -17,7 +18,7 @@
     class:active={activeTab === "main"}
     on:click={() => handleTabClick("main")}
   >
-    <span class="tab-emoji">{mainPageEmoji}</span>
+    <span class="tab-emoji"><PageIcon emoji={mainPageEmoji} size={12} /></span>
     <span class="tab-label">{mainPageTitle || "Main"}</span>
   </button>
 
@@ -27,7 +28,7 @@
       class:active={activeTab === sp.id}
       on:click={() => handleTabClick(sp.id)}
     >
-      <span class="tab-emoji">{sp.emoji}</span>
+      <span class="tab-emoji"><PageIcon emoji={sp.emoji} size={12} /></span>
       <span class="tab-label">{sp.title || "Untitled"}</span>
     </button>
   {/each}

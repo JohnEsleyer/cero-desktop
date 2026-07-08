@@ -1,4 +1,5 @@
 <script>
+  import PageIcon from "./PageIcon.svelte";
   export let sidePages = [];
   export let selectedPage = null;
   export let onSelectPage;
@@ -39,7 +40,7 @@
       {#each sidePages as sp}
         <div class="page-card" class:selected={false}>
           <button class="page-btn" on:click={() => onSelectPage(sp)}>
-            <span class="page-emoji">{sp.emoji}</span>
+            <span class="page-emoji"><PageIcon emoji={sp.emoji} size={14} /></span>
             <div class="page-info">
               <span class="page-title">{sp.title || "Untitled"}</span>
             </div>

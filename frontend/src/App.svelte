@@ -7,7 +7,8 @@
 <script>
   import { onMount, tick } from "svelte";
   import { EventsOn } from "../wailsjs/runtime/runtime.js";
-  import { marked } from "marked"; // Restored for immersive markdown preview
+  import { marked } from "marked";
+  import PageIcon from "./PageIcon.svelte";
   import {
     GetConnectionStatus,
     GetDbPages,
@@ -28,6 +29,7 @@
     ReorderCards,
     StartHTMLServer,
     StopHTMLServer,
+    SaveImage,
   } from "../wailsjs/go/main/App.js";
 
   let connectionStatus = "disconnected";
@@ -64,6 +66,37 @@
   let recentEmojis = JSON.parse(localStorage.getItem("recent_emojis") || "[]");
 
   let showScrollToBottom = false;
+
+  let iconImageInput;
+  let customIconUrl = "";
+
+  function handleIconUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result;
+      if (typeof SaveImage === "function") {
+        SaveImage(base64, file.name)
+          .then((filename) => {
+            editorEmoji = filename;
+            showEmojiPickerModal = false;
+            savePageImmediate();
+          })
+          .catch((err) => alert("Failed to save icon image: " + err));
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function applyCustomIconUrl() {
+    if (customIconUrl.trim()) {
+      editorEmoji = customIconUrl.trim();
+      showEmojiPickerModal = false;
+      savePageImmediate();
+    }
+  }
 
   function handleCardColumnScroll() {
     if (!cardColumnContainer) return;
@@ -293,6 +326,10 @@
 
   // Rich Keyboard-Matching Emojis Catalog grouped by category
   const emojiCategories = [
+    {
+      id: "custom_image",
+      label: "🖼️ Custom Image",
+    },
     {
       id: "smileys",
       label: "😀 Smileys & People",
@@ -1156,7 +1193,7 @@
 
   $: currentCategoryEmojis = (() => {
     const cat = emojiCategories.find((c) => c.id === selectedCategory);
-    return cat ? cat.emojis : [];
+    return cat ? (cat.emojis || []) : [];
   })();
 
   $: allEmojisFiltered = (() => {
@@ -1164,6 +1201,7 @@
     const q = emojiSearchQuery.toLowerCase();
     const results = [];
     for (const cat of emojiCategories) {
+      if (!cat.emojis) continue;
       for (const e of cat.emojis) {
         if (e.toLowerCase().includes(q)) results.push(e);
       }
@@ -1495,7 +1533,7 @@
 
   function saveMarkdownFullscreen() {
     if (!editingCard) return;
-    UpdateCard(editingCard.id, editingCard.page_id, fullscreenEditContent)
+    UpdateCard(editingCard.id, editingCard.page_id, fullscreenEditContent, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
         if (idx !== -1) pageCards[idx].content = fullscreenEditContent;
@@ -1522,7 +1560,7 @@
   function saveCodeFullscreen() {
     if (!editingCard) return;
     const combined = `${fullscreenCodeLang}\n${fullscreenCodeContent}`;
-    UpdateCard(editingCard.id, editingCard.page_id, combined)
+    UpdateCard(editingCard.id, editingCard.page_id, combined, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
         if (idx !== -1) pageCards[idx].content = combined;
@@ -1555,7 +1593,7 @@
       description: sitesDesc,
       html: sitesHtml,
     });
-    UpdateCard(editingCard.id, editingCard.page_id, combined)
+    UpdateCard(editingCard.id, editingCard.page_id, combined, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
         if (idx !== -1) pageCards[idx].content = combined;
@@ -1613,7 +1651,7 @@
   // Link Subpage Selection Handlers at Root Level
   function selectPageToLink(target) {
     if (!linkingCard) return;
-    UpdateCard(linkingCard.id, linkingCard.page_id, target.id)
+    UpdateCard(linkingCard.id, linkingCard.page_id, target.id, linkingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
         if (idx !== -1) {
@@ -1637,7 +1675,7 @@
       );
 
       if (newPageId) {
-        await UpdateCard(linkingCard.id, linkingCard.page_id, newPageId);
+        await UpdateCard(linkingCard.id, linkingCard.page_id, newPageId, linkingCard.comment || "");
         const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
         if (idx !== -1) {
           pageCards[idx].content = newPageId;
@@ -1841,9 +1879,10 @@
           {/if}
           <span class="bc-root">{activeWorkspace}</span>
           <span class="sep">/</span>
-          <span class="bc-current"
-            >{selectedPage.emoji} {selectedPage.title || "Untitled"}</span
-          >
+          <span class="bc-current">
+            <PageIcon emoji={selectedPage.emoji} size={12} />
+            {selectedPage.title || "Untitled"}
+          </span>
         </div>
         <div class="header-actions">
           <button class="btn-sm" on:click={() => movePage(selectedPage.id)}
@@ -1862,7 +1901,7 @@
           class="emoji-input-btn"
           on:click={() => (showEmojiPickerModal = true)}
         >
-          {editorEmoji || "📓"}
+          <PageIcon emoji={editorEmoji || "📓"} size={44} />
         </button>
         <input
           id="editor-title-input"
@@ -2124,6 +2163,7 @@
           >
         {/if}
       </div>
+      <input type="file" bind:this={iconImageInput} accept="image/*" style="display:none" on:change={handleIconUpload} />
       {#if !emojiSearchQuery && recentEmojis.length > 0}
         <div class="emoji-recent-row">
           <span class="recent-label">Recent</span>
@@ -2133,10 +2173,12 @@
               on:click={() => {
                 editorEmoji = e;
                 showEmojiPickerModal = false;
+                recentEmojis = [e, ...recentEmojis.filter(em => em !== e)].slice(0, 8);
+                localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
                 savePageImmediate();
               }}
             >
-              {e}
+              <PageIcon {emoji} size={20} />
             </button>
           {/each}
           <button class="clear-recent-btn" on:click={() => {
@@ -2159,22 +2201,39 @@
         </div>
       {/if}
       <div class="modal-body emoji-picker-body">
-        <div class="emoji-grid">
-          {#each emojiSearchQuery ? allEmojisFiltered : currentCategoryEmojis as emoji}
-            <button
-              class="emoji-select-btn"
-              on:click={() => {
-                editorEmoji = emoji;
-                showEmojiPickerModal = false;
-                recentEmojis = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, 8);
-                localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
-                savePageImmediate();
-              }}
-            >
-              {emoji}
+        {#if selectedCategory === "custom_image" && !emojiSearchQuery}
+          <div class="custom-icon-section">
+            <div class="custom-icon-header">
+              <span class="custom-icon-icon">🖼️</span>
+              <h4>Use Custom Page Icon</h4>
+              <p>Import an image from your computer or use an online URL.</p>
+            </div>
+            <button class="btn primary" style="width:100%; margin-bottom: 8px;" on:click={() => iconImageInput.click()}>
+              Pick Image from Computer
             </button>
-          {/each}
-        </div>
+            <div class="custom-icon-url-row">
+              <input type="text" bind:value={customIconUrl} placeholder="https://example.com/icon.png" />
+              <button class="btn primary" on:click={applyCustomIconUrl}>Apply</button>
+            </div>
+          </div>
+        {:else}
+          <div class="emoji-grid">
+            {#each emojiSearchQuery ? allEmojisFiltered : currentCategoryEmojis as emoji}
+              <button
+                class="emoji-select-btn"
+                on:click={() => {
+                  editorEmoji = emoji;
+                  showEmojiPickerModal = false;
+                  recentEmojis = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, 8);
+                  localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis));
+                  savePageImmediate();
+                }}
+              >
+                <PageIcon {emoji} size={20} />
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -2659,7 +2718,9 @@
                 class="candidate-row"
                 on:click={() => selectPageToLink(p)}
               >
-                <span class="cand-emoji">{p.emoji}</span>
+                <span class="cand-emoji">
+                  <PageIcon emoji={p.emoji} size={14} />
+                </span>
                 <span class="cand-title">{p.title || "Untitled"}</span>
                 <span class="cand-action-hint">Link Page ➔</span>
               </button>
@@ -3290,28 +3351,30 @@
   .title-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 20px;
     padding: 24px 28px 12px;
     flex-shrink: 0;
   }
   .emoji-input-btn {
-    width: 36px;
-    height: 36px;
+    width: 64px;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
-    background: rgba(255, 255, 255, 0.01);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    font-size: 32px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
     color: #e2e8f0;
     cursor: pointer;
     flex-shrink: 0;
     transition: all 0.15s;
+    overflow: hidden;
+    padding: 0;
   }
   .emoji-input-btn:hover {
-    border-color: rgba(129, 140, 248, 0.3);
-    background: rgba(129, 140, 248, 0.04);
+    border-color: rgba(129, 140, 248, 0.5);
+    background: rgba(129, 140, 248, 0.06);
   }
   .title-input {
     flex: 1;
@@ -3580,6 +3643,56 @@
   }
   .emoji-select-btn:hover {
     background: rgba(255, 255, 255, 0.04);
+  }
+
+  .custom-icon-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    gap: 12px;
+    text-align: center;
+  }
+  .custom-icon-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .custom-icon-icon {
+    font-size: 36px;
+    opacity: 0.8;
+  }
+  .custom-icon-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #f4f4f5;
+  }
+  .custom-icon-header p {
+    margin: 0;
+    font-size: 11px;
+    color: #71717a;
+    line-height: 1.4;
+  }
+  .custom-icon-url-row {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+  }
+  .custom-icon-url-row input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    color: #f4f4f5;
+    font-size: 12px;
+    padding: 8px 10px;
+    outline: none;
+  }
+  .custom-icon-url-row input:focus {
+    border-color: rgba(129, 140, 248, 0.4);
   }
 
   /* PIN Modal Specific Styles */
