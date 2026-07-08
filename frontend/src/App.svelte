@@ -1180,7 +1180,7 @@
   // Sidebar widths (pixels)
 let leftSidebarWidth = 260;
 let rightSidebarWidth = 260;
-let showRightSidebar = true;
+let showRightSidebar = false;
   let dragging = null; // 'left' | 'right' | null
   let dragStartX = 0;
   let dragStartWidth = 0;
@@ -1916,10 +1916,10 @@ let showRightSidebar = true;
           >
           <button
             class="btn-sm sidebar-toggle"
-            title="{showRightSidebar ? 'Hide' : 'Show'} context panel"
+            title="{showRightSidebar ? 'Hide' : 'Show'} context panel (Ctrl+\)"
             on:click={() => (showRightSidebar = !showRightSidebar)}
           >
-            {showRightSidebar ? '▸' : '◂'}
+            {showRightSidebar ? '✕ Close Context' : '☰ Context'}
           </button>
         </div>
       </div>
@@ -3201,6 +3201,15 @@ let showRightSidebar = true;
   }
   .btn-sm.danger:hover {
     background: rgba(239, 68, 68, 0.1);
+  }
+  .sidebar-toggle {
+    background: #818cf8 !important;
+    border-color: rgba(129, 140, 248, 0.3) !important;
+    color: white !important;
+    margin-left: 4px;
+  }
+  .sidebar-toggle:hover {
+    background: #6366f1 !important;
   }
   .btn-sm.full {
     width: 100%;
