@@ -163,6 +163,13 @@
     });
   }
 
+  function openLivePreviewModal() {
+    dispatch("previewSites", {
+      name: sitesName,
+      html: sitesHtml,
+    });
+  }
+
   function getCodeHighlightHtml(code, lang) {
     if (!code)
       return '<span style="color: #64748b; font-style: italic;">// Empty code block...</span>';
@@ -377,19 +384,32 @@
     </div>
 
   {:else if card.type === "sites"}
-    <div class="sites-card" on:click|stopPropagation={openSitesModal}>
+    <div class="sites-card">
       <div class="sites-card-inner">
-        <div class="sites-card-icon-container">
+        <div class="sites-card-icon-container" on:click|stopPropagation={openLivePreviewModal}>
           <PageIcon emoji="globe" size={14} />
         </div>
-        <div class="sites-card-details">
+        <div class="sites-card-details" on:click|stopPropagation={openLivePreviewModal}>
           <span class="sites-card-name">{sitesName}</span>
           <span class="sites-card-desc">
             {isSitesLive && sitesLocalUrl ? `Serving on ${sitesLocalUrl}` : sitesDesc}
           </span>
         </div>
-        <div class="sites-card-status">
-          <span class="status-indicator-dot" class:live={isSitesLive}></span>
+        <div class="sites-card-actions" style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+          <button
+            class="img-action-btn"
+            style="color: #10b981; border-color: rgba(16, 185, 129, 0.15); background: rgba(16, 185, 129, 0.02);"
+            on:click|stopPropagation={openLivePreviewModal}
+          >
+            ▶ Preview
+          </button>
+          <button
+            class="img-action-btn"
+            style="color: #818cf8; border-color: rgba(129, 140, 248, 0.15); background: rgba(129, 140, 248, 0.02);"
+            on:click|stopPropagation={openSitesModal}
+          >
+            ⚙ Config
+          </button>
         </div>
       </div>
     </div>
@@ -710,7 +730,7 @@
   }
   .sites-card:hover .sites-card-icon-container { background: rgba(129, 140, 248, 0.08); border-color: rgba(129, 140, 248, 0.2); }
   .sites-card-details { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-  .sites-card-name { font-weight: 600; color: #ffffff; font-size: 12px; margin-bottom: 1px; }
+  .sites-card-name { font-weight: 600; color: #ffffff; font-size: 12px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sites-card-desc { color: #71717a; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sites-card:hover .sites-card-desc { color: #a1a1aa; }
   .sites-card-status { display: flex; align-items: center; justify-content: center; padding-left: 6px; flex-shrink: 0; }

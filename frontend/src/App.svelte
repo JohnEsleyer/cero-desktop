@@ -131,6 +131,16 @@
   let showCodeFullscreenModal = false;
   let showSitesModal = false;
 
+  let showSitesPreviewModal = false;
+  let previewSitesName = "";
+  let previewSitesHtml = "";
+
+  function openSitesPreview(name, html) {
+    previewSitesName = name;
+    previewSitesHtml = html;
+    showSitesPreviewModal = true;
+  }
+
   // Real-time server live tracking
   let activeLiveCardId = null;
   let activeSitesLocalUrl = "";
@@ -1195,6 +1205,8 @@ let showRightSidebar = false;
                   e.detail.description,
                   e.detail.html,
                 )}
+              on:previewSites={(e) =>
+                openSitesPreview(e.detail.name, e.detail.html)}
               on:openLinkModal={(e) => {
                 linkingCard = e.detail.card;
                 pageSearchQuery = "";
@@ -1865,6 +1877,41 @@ let showRightSidebar = false;
             </div>
           </div>
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Immersive Sites Sandbox Preview Modal (Consistent with Flutter separate preview) -->
+{#if showSitesPreviewModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click|self={() => (showSitesPreviewModal = false)}
+    role="button"
+    tabindex="-1"
+  >
+    <div
+      class="modal-container"
+      style="width: 800px; max-width: 95%; height: 600px; max-height: 90vh; display: flex; flex-direction: column;"
+    >
+      <div class="modal-header">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h3 style="margin:0;">🎬 Live Sandbox Preview - {previewSitesName}</h3>
+          <span style="font-size: 11px; color: #64748b;"
+            >Interacting in a secure sandbox webview container</span
+          >
+        </div>
+        <button class="close-btn" on:click={() => (showSitesPreviewModal = false)}>&times;</button>
+      </div>
+      <div class="modal-body" style="flex:1; overflow:hidden; padding: 12px; background: #09090b;">
+        <iframe
+          title="Sandbox Preview Webview"
+          srcdoc={previewSitesHtml || "<html><body><p style='color: grey; font-family: sans-serif; text-align: center; margin-top: 100px;'>Empty HTML Content</p></body></html>"}
+          style="width: 100%; height: 100%; border: none; background: transparent;"
+          sandbox="allow-scripts"
+        ></iframe>
       </div>
     </div>
   </div>
