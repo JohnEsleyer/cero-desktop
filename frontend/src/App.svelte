@@ -1699,7 +1699,17 @@
   >
     <div class="sidebar-header">
       <div class="logo-section">
-        <span class="logo-icon">📓</span><span class="logo-text">Cero</span>
+        <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#818cf8"/>
+              <stop offset="100%" stop-color="#c084fc"/>
+            </linearGradient>
+          </defs>
+          <circle cx="50" cy="50" r="32" stroke="url(#logo-grad)" stroke-width="12" stroke-linecap="round"/>
+          <path d="M41 28 L59 72" stroke="url(#logo-grad)" stroke-width="12" stroke-linecap="round"/>
+        </svg>
+        <span class="logo-text">Cero</span>
       </div>
       <div class="status-badge {connectionStatus}">
         <span class="dot"></span>{connectionStatus}
@@ -1840,7 +1850,18 @@
     {#if connectionStatus !== "connected"}
       <div class="welcome">
         <div class="welcome-card">
-          <div class="pulse"><span>📓</span></div>
+          <div class="pulse">
+            <svg class="logo-welcome-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="welcome-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#818cf8"/>
+                  <stop offset="100%" stop-color="#c084fc"/>
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="32" stroke="url(#welcome-logo-grad)" stroke-width="12" stroke-linecap="round"/>
+              <path d="M41 28 L59 72" stroke="url(#welcome-logo-grad)" stroke-width="12" stroke-linecap="round"/>
+            </svg>
+          </div>
           <h1>Cero Journal</h1>
           <p>Connect to your mobile phone to sync notes in real time.</p>
           <div class="steps">
@@ -2852,8 +2873,15 @@
     gap: 8px;
     font-weight: 700;
   }
-  .logo-icon {
-    font-size: 16px;
+  .logo-svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .logo-welcome-svg {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
   }
   .logo-text {
     font-size: 13px;
