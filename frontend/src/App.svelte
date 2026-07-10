@@ -1,11 +1,10 @@
 <script context="module">
-  import { default as TreeRender } from "./TreeRender.svelte";
   import { default as CardBlock } from "./CardBlock.svelte";
   import { default as RightSidebar } from "./RightSidebar.svelte";
 </script>
 
 <script>
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, setContext } from "svelte";
   import { EventsOn } from "../wailsjs/runtime/runtime.js";
   import { marked } from "marked";
   import PageIcon from "./PageIcon.svelte";
@@ -53,7 +52,98 @@
   let editorEmoji = "";
   let saveTimeout;
 
-  let expandedPageIds = {};
+  // Root Page search query state
+  let sidebarSearchQuery = "";
+
+  // Reactive filtration to only display filtered active root pages
+  $: filteredSidebarRootPages = rootPages.filter((p) => {
+    if (!sidebarSearchQuery) return true;
+    return (p.title || "").toLowerCase().includes(sidebarSearchQuery.toLowerCase());
+  });
+
+  // View state option for block-by-block pagination
+  let isPaginatedView = false;
+  let currentBlockIndex = 0;
+  let blockNumberInput = "1";
+  let pendingBlockIndex = null;
+
+  $: {
+    if (pageCards && pageCards.length > 0) {
+      if (currentBlockIndex >= pageCards.length) {
+        currentBlockIndex = pageCards.length - 1;
+      }
+      blockNumberInput = (currentBlockIndex + 1).toString();
+    } else {
+      currentBlockIndex = 0;
+      blockNumberInput = "1";
+    }
+  }
+
+  $: {
+    if (pageCards && pendingBlockIndex !== null) {
+      if (pendingBlockIndex >= 0 && pendingBlockIndex < pageCards.length) {
+        currentBlockIndex = pendingBlockIndex;
+        blockNumberInput = (currentBlockIndex + 1).toString();
+        pendingBlockIndex = null;
+      }
+    }
+  }
+
+  // Reusable Sleek Modal Dialog Configuration
+  let modalConfig = {
+    show: false,
+    title: "",
+    message: "",
+    type: "alert",
+    onConfirm: null,
+    onCancel: null,
+    confirmText: "OK",
+    cancelText: "Cancel"
+  };
+
+  function showAlert(title, message) {
+    return new Promise((resolve) => {
+      modalConfig = {
+        show: true,
+        title: title || "Notification",
+        message: message,
+        type: "alert",
+        confirmText: "OK",
+        cancelText: "",
+        onConfirm: () => {
+          modalConfig.show = false;
+          resolve(true);
+        },
+        onCancel: () => {
+          modalConfig.show = false;
+          resolve(false);
+        }
+      };
+    });
+  }
+
+  function showConfirm(title, message, confirmText = "Confirm", cancelText = "Cancel") {
+    return new Promise((resolve) => {
+      modalConfig = {
+        show: true,
+        title: title || "Confirm Action",
+        message: message,
+        type: "confirm",
+        confirmText: confirmText,
+        cancelText: cancelText,
+        onConfirm: () => {
+          modalConfig.show = false;
+          resolve(true);
+        },
+        onCancel: () => {
+          modalConfig.show = false;
+          resolve(false);
+        }
+      };
+    });
+  }
+
+  setContext("dialogs", { showAlert, showConfirm });
 
   // Custom Modal States
   let showBlockSelectorModal = false;
@@ -80,7 +170,7 @@
             showEmojiPickerModal = false;
             savePageImmediate();
           })
-          .catch((err) => alert("Failed to save icon image: " + err));
+          .catch((err) => showAlert("Upload Failed", "Failed to save icon image: " + err));
       }
     };
     reader.readAsDataURL(file);
@@ -571,10 +661,6 @@ let showRightSidebar = false;
     } catch (err) {}
   }
 
-  function toggleExpand(pageId) {
-    expandedPageIds[pageId] = !expandedPageIds[pageId];
-  }
-
   function selectPage(page, pushToHistory = true) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
@@ -588,6 +674,7 @@ let showRightSidebar = false;
     selectedCardId = null;
     pageCards = [];
     FetchCards(page.id);
+    pendingBlockIndex = null;
   }
 
   function goBack() {
@@ -624,18 +711,20 @@ let showRightSidebar = false;
     try {
       const newPageId = await AddPage(parentId, relationType, "New Page", parentIcon);
       if (parentId) {
-        expandedPageIds[parentId] = true;
         const parentCards = await GetCards(parentId);
         const nextOrder = parentCards.length > 0
           ? Math.max(...parentCards.map(c => c.sort_order)) + 1
           : 0;
+        if (selectedPage && selectedPage.id === parentId && isPaginatedView) {
+          pendingBlockIndex = pageCards.length;
+        }
         await AddCard(parentId, "subpage_link", newPageId, nextOrder);
         if (selectedPage && selectedPage.id === parentId) {
           FetchCards(parentId);
         }
       }
     } catch (err) {
-      alert("Failed: " + err);
+      showAlert("Action Failed", err.toString());
     }
   }
 
@@ -651,11 +740,17 @@ let showRightSidebar = false;
       let sortOrder = 0;
       if (blockInsertIndex !== null) {
         sortOrder = blockInsertIndex;
+        if (isPaginatedView) {
+          pendingBlockIndex = blockInsertIndex;
+        }
       } else {
         sortOrder =
           pageCards.length > 0
             ? Math.max(...pageCards.map((c) => c.sort_order)) + 1
             : 0;
+        if (isPaginatedView) {
+          pendingBlockIndex = pageCards.length;
+        }
       }
 
       let defaultContent = "";
@@ -681,7 +776,7 @@ let showRightSidebar = false;
         });
       }
     } catch (e) {
-      alert("Failed: " + e);
+      showAlert("Action Failed", e.toString());
     }
   }
 
@@ -717,8 +812,9 @@ let showRightSidebar = false;
       .catch(() => {});
   }
 
-  function deletePage(id) {
-    if (!confirm("Archive this page and all its subpages?")) return;
+  async function deletePage(id) {
+    const confirmed = await showConfirm("Archive Page", "Are you sure you want to archive this page and all its subpages?");
+    if (!confirmed) return;
     DeletePage(id)
       .then(() => {
         if (selectedPage?.id === id) {
@@ -742,12 +838,6 @@ let showRightSidebar = false;
     const idx = parseInt(choice);
     if (idx === 0) MovePage(id, "");
     else if (idx > 0 && idx <= pages.length) MovePage(id, pages[idx - 1].id);
-  }
-
-  function getChildrenOf(parentId) {
-    return allPages.filter(
-      (p) => p.parent_id === parentId && p.relation_type !== "sidepage",
-    );
   }
 
   // Immersive Modal Handlers at App Level
@@ -914,7 +1004,7 @@ let showRightSidebar = false;
       }
     } catch (err) {
       console.error("Failed to create new page & link:", err);
-      alert("Could not create and link subpage: " + err);
+      showAlert("Link Failed", "Could not create and link subpage: " + err);
     }
   }
 </script>
@@ -992,25 +1082,52 @@ let showRightSidebar = false;
           <button class="icon-btn" on:click={() => createPage("")}>+</button>
         {/if}
       </div>
+
+      <!-- Root Page Search Bar -->
+      {#if connectionStatus === "connected"}
+        <div class="sidebar-search-container">
+          <input
+            type="text"
+            bind:value={sidebarSearchQuery}
+            placeholder="Search root pages..."
+            class="sidebar-search-input"
+          />
+        </div>
+      {/if}
+
       <div class="tree-scroll">
         {#if connectionStatus !== "connected"}
           <div class="tree-empty">Connect to phone to view pages.</div>
-        {:else if rootPages.length === 0}
-          <div class="tree-empty">No pages yet.</div>
+        {:else if filteredSidebarRootPages.length === 0}
+          <div class="tree-empty">No matching pages found.</div>
         {:else}
-          {#each rootPages as page}
-            <svelte:component
-              this={TreeRender}
-              {page}
-              {allPages}
-              {selectedPage}
-              {expandedPageIds}
-              {selectPage}
-              {createPage}
-              {deletePage}
-              {toggleExpand}
-              {getChildrenOf}
-            />
+          {#each filteredSidebarRootPages as page}
+            <div class="tree-node">
+              <div class="node-row" class:active={selectedPage && selectedPage.id === page.id}>
+                <button class="node-content" on:click={() => selectPage(page)} style="padding-left: 4px;">
+                  <span class="emoji"><PageIcon emoji={page.emoji} size={13} /></span>
+                  <span class="title" title={page.title}>{page.title || "Untitled"}</span>
+                </button>
+
+                <div class="node-actions">
+                  <button
+                    class="action-btn"
+                    title="Add subpage"
+                    on:click|stopPropagation={() => createPage(page.id)}>+</button
+                  >
+                  <button
+                    class="action-btn"
+                    title="Move to..."
+                    on:click|stopPropagation={() => movePage(page.id)}>↗</button
+                  >
+                  <button
+                    class="action-btn delete"
+                    title="Archive page"
+                    on:click|stopPropagation={() => deletePage(page.id)}>×</button
+                  >
+                </div>
+              </div>
+            </div>
           {/each}
         {/if}
       </div>
@@ -1170,23 +1287,13 @@ let showRightSidebar = false;
       </div>
 
       <div class="card-column" bind:this={cardColumnContainer} on:scroll={handleCardColumnScroll}>
-        {#each pageCards as card, index (card.id)}
-          <div
-            class="card-slot"
-            draggable="true"
-            on:dragstart={(e) => {
-              e.dataTransfer.setData("text/plain", index.toString());
-              e.dataTransfer.effectAllowed = "move";
-            }}
-            on:dragover|preventDefault={(e) => {
-              e.dataTransfer.dropEffect = "move";
-            }}
-            on:drop|preventDefault={(e) => handleCardDrop(e, index)}
-          >
+        {#if isPaginatedView && pageCards.length > 0}
+          {@const card = pageCards[currentBlockIndex]}
+          <div class="card-slot">
             <CardBlock
               {card}
               isSelected={selectedCardId === card.id}
-              index={index + 1}
+              index={currentBlockIndex + 1}
               {allPages}
               {activeLiveCardId}
               {activeSitesLocalUrl}
@@ -1194,42 +1301,78 @@ let showRightSidebar = false;
               onNavigate={selectPage}
               onDeleted={(id) => {
                 pageCards = pageCards.filter((c) => c.id !== id);
+                if (currentBlockIndex >= pageCards.length) {
+                  currentBlockIndex = pageCards.length > 0 ? pageCards.length - 1 : 0;
+                  blockNumberInput = (currentBlockIndex + 1).toString();
+                }
               }}
-              on:editMarkdown={(e) =>
-                openMarkdownFullscreen(card, e.detail.content)}
+              on:editMarkdown={(e) => openMarkdownFullscreen(card, e.detail.content)}
               on:editCode={(e) => openCodeFullscreen(card, e.detail.content)}
-              on:editSites={(e) =>
-                openSitesFullscreen(
-                  card,
-                  e.detail.name,
-                  e.detail.description,
-                  e.detail.html,
-                )}
-              on:previewSites={(e) =>
-                openSitesPreview(e.detail.name, e.detail.html)}
+              on:editSites={(e) => openSitesFullscreen(card, e.detail.name, e.detail.description, e.detail.html)}
+              on:previewSites={(e) => openSitesPreview(e.detail.name, e.detail.html)}
               on:openLinkModal={(e) => {
                 linkingCard = e.detail.card;
                 pageSearchQuery = "";
                 showLinkPageModal = true;
               }}
-              on:moveUp={() => moveCard(index, -1)}
-              on:moveDown={() => moveCard(index, 1)}
+              on:moveUp={() => moveCard(currentBlockIndex, -1)}
+              on:moveDown={() => moveCard(currentBlockIndex, 1)}
             />
           </div>
-          <div
-            class="insert-slot"
-            on:dragover|preventDefault
-            on:drop|preventDefault={(e) => handleCardDrop(e, index + 1)}
-          >
-            <button
-              class="insert-btn"
-              on:click={() => {
-                blockInsertIndex = index + 1;
-                showBlockSelectorModal = true;
-              }}>+</button
+        {:else if pageCards.length > 0}
+          {#each pageCards as card, index (card.id)}
+            <div
+              class="card-slot"
+              draggable="true"
+              on:dragstart={(e) => {
+                e.dataTransfer.setData("text/plain", index.toString());
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              on:dragover|preventDefault={(e) => {
+                e.dataTransfer.dropEffect = "move";
+              }}
+              on:drop|preventDefault={(e) => handleCardDrop(e, index)}
             >
-          </div>
-        {/each}
+              <CardBlock
+                {card}
+                isSelected={selectedCardId === card.id}
+                index={index + 1}
+                {allPages}
+                {activeLiveCardId}
+                {activeSitesLocalUrl}
+                onSelect={selectCard}
+                onNavigate={selectPage}
+                onDeleted={(id) => {
+                  pageCards = pageCards.filter((c) => c.id !== id);
+                }}
+                on:editMarkdown={(e) => openMarkdownFullscreen(card, e.detail.content)}
+                on:editCode={(e) => openCodeFullscreen(card, e.detail.content)}
+                on:editSites={(e) => openSitesFullscreen(card, e.detail.name, e.detail.description, e.detail.html)}
+                on:previewSites={(e) => openSitesPreview(e.detail.name, e.detail.html)}
+                on:openLinkModal={(e) => {
+                  linkingCard = e.detail.card;
+                  pageSearchQuery = "";
+                  showLinkPageModal = true;
+                }}
+                on:moveUp={() => moveCard(index, -1)}
+                on:moveDown={() => moveCard(index, 1)}
+              />
+            </div>
+            <div
+              class="insert-slot"
+              on:dragover|preventDefault
+              on:drop|preventDefault={(e) => handleCardDrop(e, index + 1)}
+            >
+              <button
+                class="insert-btn"
+                on:click={() => {
+                  blockInsertIndex = index + 1;
+                  showBlockSelectorModal = true;
+                }}>+</button
+              >
+            </div>
+          {/each}
+        {/if}
 
         {#if pageCards.length === 0}
           <div class="empty-cards">
@@ -1237,49 +1380,135 @@ let showRightSidebar = false;
             <h3>This page is empty</h3>
             <p>Add blocks to start writing.</p>
             <div class="empty-actions">
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("markdown")}
-                >📝 Markdown</button
-              >
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("image")}>🖼️ Image</button
-              >
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("subpage_link")}
-                >🔗 Link</button
-              >
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("code")}>💻 Code Block</button
-              >
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("sites")}>🌐 HTML Site</button
-              >
-              <button
-                class="btn secondary"
-                on:click={() => handleAddCardType("section")}
-                >📋 Section</button
-              >
+              <button class="btn secondary" on:click={() => handleAddCardType("markdown")}>📝 Markdown</button>
+              <button class="btn secondary" on:click={() => handleAddCardType("image")}>🖼️ Image</button>
+              <button class="btn secondary" on:click={() => handleAddCardType("subpage_link")}>🔗 Link</button>
+              <button class="btn secondary" on:click={() => handleAddCardType("code")}>💻 Code Block</button>
+              <button class="btn secondary" on:click={() => handleAddCardType("sites")}>🌐 HTML Site</button>
+              <button class="btn secondary" on:click={() => handleAddCardType("section")}>📋 Section</button>
             </div>
           </div>
         {/if}
 
-        <button
-          class="add-card-btn"
-          on:click={() => {
-            blockInsertIndex = null;
-            showBlockSelectorModal = true;
-          }}>+ Add Card</button
-        >
+        {#if !isPaginatedView}
+          <button
+            class="add-card-btn"
+            on:click={() => {
+              blockInsertIndex = null;
+              showBlockSelectorModal = true;
+            }}>+ Add Card</button
+          >
+        {/if}
 
-        {#if showScrollToBottom}
+        {#if showScrollToBottom && !isPaginatedView}
           <button class="scroll-to-bottom-btn" on:click={scrollToBottom}>
             ↓
           </button>
+        {/if}
+      </div>
+
+      <!-- Persistent workspace-bottom-bar sits right here inside the workspace parent, below the card-column -->
+      <div class="workspace-bottom-bar">
+        <!-- Unified Mode Control (Left) -->
+        <button
+          class="mode-toggle-btn"
+          class:block-active={isPaginatedView}
+          on:click={() => {
+            isPaginatedView = !isPaginatedView;
+            if (isPaginatedView) {
+              currentBlockIndex = 0;
+              blockNumberInput = "1";
+            }
+          }}
+          title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
+        >
+          {#if isPaginatedView}
+            <span class="btn-icon">📖</span> <span class="lbl-text">Block View</span>
+          {:else}
+            <span class="btn-icon">🔀</span> <span class="lbl-text">Scroll View</span>
+          {/if}
+        </button>
+
+        <!-- Super Compact Pagination (Right) with Jump buttons -->
+        {#if isPaginatedView && pageCards.length > 0}
+          <div class="pagination-compact">
+            <!-- Jump to First Block Button -->
+            <button
+              class="nav-arrow-btn"
+              disabled={currentBlockIndex === 0}
+              on:click={() => {
+                currentBlockIndex = 0;
+                blockNumberInput = "1";
+              }}
+              title="First Block"
+            >
+              &laquo;
+            </button>
+
+            <!-- Previous Block Button -->
+            <button
+              class="nav-arrow-btn"
+              disabled={currentBlockIndex === 0}
+              on:click={() => {
+                currentBlockIndex = Math.max(0, currentBlockIndex - 1);
+                blockNumberInput = (currentBlockIndex + 1).toString();
+              }}
+              title="Previous Block"
+            >
+              &larr;
+            </button>
+            
+            <div class="pagination-info">
+              <input
+                type="number"
+                class="pagination-num-input"
+                min="1"
+                max={pageCards.length}
+                value={blockNumberInput}
+                on:change={(e) => {
+                  const parsed = parseInt(e.target.value);
+                  if (!isNaN(parsed) && parsed >= 1 && parsed <= pageCards.length) {
+                    currentBlockIndex = parsed - 1;
+                    blockNumberInput = parsed.toString();
+                  } else {
+                    blockNumberInput = (currentBlockIndex + 1).toString();
+                  }
+                }}
+              />
+              <span class="divider-slash">/</span>
+              <span class="total-blocks">{pageCards.length}</span>
+            </div>
+
+            <!-- Next Block Button -->
+            <button
+              class="nav-arrow-btn"
+              disabled={currentBlockIndex === pageCards.length - 1}
+              on:click={() => {
+                currentBlockIndex = Math.min(pageCards.length - 1, currentBlockIndex + 1);
+                blockNumberInput = (currentBlockIndex + 1).toString();
+              }}
+              title="Next Block"
+            >
+              &rarr;
+            </button>
+
+            <!-- Jump to Last Block Button -->
+            <button
+              class="nav-arrow-btn"
+              disabled={currentBlockIndex === pageCards.length - 1}
+              on:click={() => {
+                currentBlockIndex = pageCards.length - 1;
+                blockNumberInput = pageCards.length.toString();
+              }}
+              title="Last Block"
+            >
+              &raquo;
+            </button>
+          </div>
+        {:else}
+          <div class="continuous-scroll-lbl">
+            Continuous
+          </div>
         {/if}
       </div>
     {/if}
@@ -1317,6 +1546,38 @@ let showRightSidebar = false;
     showRightSidebar = !showRightSidebar;
   }
 }} />
+
+<!-- Reusable Sleek Dialog Portal (Alert & Confirm Modal) -->
+{#if modalConfig.show}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div 
+    class="modal-backdrop" 
+    on:click|self={() => { if (modalConfig.type === 'alert') modalConfig.onConfirm(); }} 
+    role="button" 
+    tabindex="-1"
+  >
+    <div class="modal-container alert-confirm-modal">
+      <div class="modal-header">
+        <h3>{modalConfig.title}</h3>
+        {#if modalConfig.type === 'alert'}
+          <button class="close-btn" on:click={modalConfig.onConfirm}>&times;</button>
+        {:else}
+          <button class="close-btn" on:click={modalConfig.onCancel}>&times;</button>
+        {/if}
+      </div>
+      <div class="modal-body alert-confirm-body">
+        <p>{modalConfig.message}</p>
+      </div>
+      <div class="modal-footer">
+        {#if modalConfig.type === 'confirm'}
+          <button class="btn secondary" on:click={modalConfig.onCancel}>{modalConfig.cancelText}</button>
+        {/if}
+        <button class="btn primary" on:click={modalConfig.onConfirm}>{modalConfig.confirmText}</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Block Selector Modal -->
 {#if showBlockSelectorModal}
@@ -1863,7 +2124,7 @@ let showRightSidebar = false;
                     on:click={() => {
                       if (sitesLocalUrl) {
                         navigator.clipboard.writeText(sitesLocalUrl);
-                        alert("Copied to clipboard!");
+                        showAlert("Copied", "Address copied to clipboard!");
                       }
                     }}
                   >
@@ -2296,6 +2557,111 @@ let showRightSidebar = false;
     font-size: 11px;
     color: #52525b;
     padding: 8px 4px;
+  }
+
+  /* Root Page Search Input */
+  .sidebar-search-container {
+    margin-bottom: 12px;
+  }
+  .sidebar-search-input {
+    width: 100%;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: white;
+    font-size: 11px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .sidebar-search-input:focus {
+    border-color: rgba(129,140,248,0.4);
+  }
+
+  /* Sidebar List Item Styles */
+  .tree-node {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .node-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  .node-row:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+  .node-row.active {
+    background-color: rgba(129, 140, 248, 0.06);
+    color: #818cf8;
+  }
+  .node-content {
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-grow: 1;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px;
+    overflow: hidden;
+  }
+  .emoji {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+  }
+  .title {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .node-actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    position: absolute;
+    right: 4px;
+    background-color: #121215;
+    padding-left: 6px;
+  }
+  .node-row:hover .node-actions {
+    display: flex;
+    background-color: rgba(24, 24, 27, 0.98);
+    border-radius: 4px;
+    padding: 1px 3px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .action-btn {
+    background: transparent;
+    border: none;
+    color: #71717a;
+    cursor: pointer;
+    font-size: 11px;
+    width: 15px;
+    height: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: all 0.12s;
+  }
+  .action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #f4f4f5;
+  }
+  .action-btn.delete:hover {
+    color: #f87171;
+    background-color: rgba(239, 68, 68, 0.08);
   }
 
   .icon-btn {
@@ -3835,5 +4201,178 @@ let showRightSidebar = false;
   .candidate-row:hover .cand-action-hint {
     opacity: 1;
     transform: translateX(0);
+  }
+
+  /* Compact Persistent Bottom Bar */
+  .workspace-bottom-bar {
+    background: #121215;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    height: 40px;
+  }
+
+  /* Segmented Control Pill styling */
+  .segmented-control {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .segment-btn {
+    background: transparent;
+    border: none;
+    color: #71717a;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.1s ease;
+  }
+
+  .segment-btn:hover {
+    color: #cbd5e1;
+  }
+
+  .segment-btn.active {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+  }
+
+  /* Hide label text on narrower screens */
+  @media (max-width: 600px) {
+    .lbl-text {
+      display: none;
+    }
+  }
+
+  /* Super Compact Pagination Control */
+  .pagination-compact {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 2px 4px;
+  }
+
+  .nav-arrow-btn {
+    background: transparent;
+    border: none;
+    color: #818cf8;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s ease;
+  }
+
+  .nav-arrow-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.04);
+    color: #a5b4fc;
+  }
+
+  .nav-arrow-btn:disabled {
+    color: #3f3f46;
+    cursor: not-allowed;
+  }
+
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 4px;
+  }
+
+  .pagination-num-input {
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    width: 28px !important;
+    padding: 0 !important;
+    outline: none !important;
+    margin-bottom: 0 !important;
+  }
+
+  .divider-slash {
+    color: #3f3f46;
+    font-size: 11px;
+    user-select: none;
+  }
+
+  .total-blocks {
+    font-size: 11px;
+    color: #71717a;
+    font-weight: 600;
+    user-select: none;
+  }
+
+  .continuous-scroll-lbl {
+    font-size: 10px;
+    color: #52525b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Unified View Mode Toggle Button */
+  .mode-toggle-btn {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+  }
+  .mode-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+  }
+  .mode-toggle-btn.block-active {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+    border-color: rgba(129, 140, 248, 0.2);
+  }
+  .mode-toggle-btn.block-active:hover {
+    background: rgba(129, 140, 248, 0.12);
+    border-color: rgba(129, 140, 248, 0.3);
+  }
+
+  .alert-confirm-modal {
+    max-width: 420px;
+    width: 90%;
+  }
+  .alert-confirm-body {
+    padding: 24px 20px;
+    text-align: center;
+  }
+  .alert-confirm-body p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #d4d4d8;
+    margin: 0;
   }
 </style>

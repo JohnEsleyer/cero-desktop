@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, getContext } from "svelte";
   import { marked } from "marked";
   import {
     UpdateCard,
@@ -22,6 +22,8 @@
   export let activeSitesLocalUrl = "";
 
   const dispatch = createEventDispatcher();
+
+  const { showAlert, showConfirm } = getContext("dialogs");
 
   let codeLang = "javascript";
   let codeContent = "";
@@ -79,17 +81,17 @@
     }
   }
 
-  function deleteCard(e) {
+  async function deleteCard(e) {
     e.stopPropagation();
-    if (confirm("Delete this card?")) {
-      DeleteCard(card.id, card.page_id)
-        .then(() => {
-          if (onDeleted) onDeleted(card.id);
-        })
-        .catch((err) => {
-          console.error("Card delete failed:", err);
-        });
-    }
+    const confirmed = await showConfirm("Delete Card", "Are you sure you want to delete this card?");
+    if (!confirmed) return;
+    DeleteCard(card.id, card.page_id)
+      .then(() => {
+        if (onDeleted) onDeleted(card.id);
+      })
+      .catch((err) => {
+        console.error("Card delete failed:", err);
+      });
   }
 
   let imageInput;
@@ -124,23 +126,23 @@
             })
             .catch((err) => console.error(err));
         })
-        .catch((err) => alert("Failed to save image: " + err));
+        .catch((err) => showAlert("Upload Failed", "Failed to save image: " + err));
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  function unlinkImage(e) {
+  async function unlinkImage(e) {
     e.stopPropagation();
-    if (confirm("Remove image?")) {
-      UpdateCard(card.id, card.page_id, "", card.comment || "")
-        .then(() => {
-          card.content = "";
-        })
-        .catch((err) => {
-          console.error("Card save failed:", err);
-        });
-    }
+    const confirmed = await showConfirm("Remove Image", "Are you sure you want to remove this image?");
+    if (!confirmed) return;
+    UpdateCard(card.id, card.page_id, "", card.comment || "")
+      .then(() => {
+        card.content = "";
+      })
+      .catch((err) => {
+        console.error("Card save failed:", err);
+      });
   }
 
   function selectSubpage(e) {
