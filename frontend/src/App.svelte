@@ -225,6 +225,11 @@
   let previewSitesName = "";
   let previewSitesHtml = "";
 
+  // Move Page Modal state
+  let showMovePageModal = false;
+  let movingPage = null;
+  let moveBrowsingId = null;
+
   function openSitesPreview(name, html) {
     previewSitesName = name;
     previewSitesHtml = html;
@@ -298,144 +303,119 @@
     }
   }
 
-  // Custom regex syntax highlighter supporting JS, Go, Python, HTML/CSS, Dart, etc.
+  // Custom robust Named Capture Groups syntax highlighter
   function highlightCode(code, lang) {
-    if (!code)
-      return '<span style="color: #4b5563; font-style: italic;">// Start writing your code here...</span>';
+    if (!code) return '<span class="tok-comment">// Start writing your code here...</span>';
 
-    let escaped = code
+    let html = code
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
     const keywords = [
-      "function",
-      "return",
-      "if",
-      "else",
-      "for",
-      "while",
-      "const",
-      "let",
-      "var",
-      "import",
-      "export",
-      "class",
-      "void",
-      "final",
-      "def",
-      "package",
-      "func",
-      "interface",
-      "from",
-      "default",
-      "as",
-      "new",
-      "this",
-      "extends",
-      "super",
-      "try",
-      "catch",
-      "finally",
-      "async",
-      "await",
-      "break",
-      "continue",
-      "switch",
-      "case",
-      "throw",
-      "true",
-      "false",
-      "null",
-      "fn",
-      "mut",
-      "match",
-      "impl",
-      "struct",
-      "enum",
-      "pub",
-      "use",
-      "mod",
-      "type",
+      "function", "return", "if", "else", "for", "while", "const", "let", "var",
+      "import", "export", "class", "void", "final", "def", "package", "func", "interface",
+      "fn", "mut", "match", "impl", "struct", "enum", "pub", "use", "mod", "as", "type",
+      "select", "from", "where", "insert", "into", "update", "delete", "create", "table", "alter"
     ];
     const builtins = [
-      "console",
-      "window",
-      "document",
-      "process",
-      "Object",
-      "Array",
-      "String",
-      "Number",
-      "Boolean",
-      "Math",
-      "JSON",
-      "Option",
-      "Result",
-      "Some",
-      "None",
-      "Ok",
-      "Err",
-      "Box",
-      "Vec",
-      "Self",
-      "self",
+      "console", "window", "document", "process", "Object", "Array", "String", "Number",
+      "Boolean", "Math", "JSON", "Option", "Result", "Some", "None", "Ok", "Err", "Box",
+      "Vec", "Self", "self", "map", "filter", "reduce", "print", "len", "range"
     ];
 
-    const stringRegex =
-      /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g;
-    const commentRegex = /(\/\/[^\n]*|#[^\n]*)/g;
-    const multiLineCommentRegex = /(\/\*[\s\S]*?\*\/)/g;
-
-    const tokens = [];
-    let counter = 0;
-    function saveToken(text, className) {
-      const placeholder = `___TOK_PLCHLDR_${counter++}___`;
-      tokens.push({
-        placeholder,
-        html: `<span class="${className}">${text}</span>`,
-      });
-      return placeholder;
-    }
-
-    // 1. Multi-line comments
-    escaped = escaped.replace(multiLineCommentRegex, (m) =>
-      saveToken(m, "tok-comment"),
-    );
-    // 2. Single-line comments
-    escaped = escaped.replace(commentRegex, (m) => saveToken(m, "tok-comment"));
-    // 3. Strings
-    escaped = escaped.replace(stringRegex, (m) => saveToken(m, "tok-string"));
-    // 4. Numbers
-    escaped = escaped.replace(/\b(\d+(?:\.\d+)?)\b/g, (m) =>
-      saveToken(m, "tok-number"),
-    );
-    // 5. Keywords
-    const keywordsRegex = new RegExp(`\\b(${keywords.join("|")})\\b`, "g");
-    escaped = escaped.replace(keywordsRegex, (m) =>
-      saveToken(m, "tok-keyword"),
-    );
-    // 6. Built-ins
-    const builtinsRegex = new RegExp(`\\b(${builtins.join("|")})\\b`, "g");
-    escaped = escaped.replace(builtinsRegex, (m) =>
-      saveToken(m, "tok-builtin"),
-    );
-    // 7. Functions
-    escaped = escaped.replace(/\b(\w+)(?=\s*\()/g, (m) =>
-      saveToken(m, "tok-function"),
+    const tokenRegex = new RegExp(
+      [
+        "(?<multilinecomment>\\/\\*[\\s\\S]*?\\*\\/)",
+        "(?<singlecomment>\\/\\/[^\\n]*|#[^\\n]*)",
+        "(?<string>\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`)",
+        "\\b(?<number>\\d+(?:\\.\\d+)?)\\b",
+        "\\b(?<function>\\w+)(?=\\s*\\()",
+        "\\b(?<identifier>\\w+)\\b",
+        "(?<operator>[{}()\\[\\].,:;+\\-*/%=&|^<>!~?])"
+      ].join("|"),
+      "g"
     );
 
-    // Restore placeholder tokens
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      escaped = escaped.replace(tokens[i].placeholder, tokens[i].html);
-    }
-
-    if (escaped.endsWith("\n") || escaped === "") {
-      escaped += " ";
-    }
-
-    return escaped;
+    return html.replace(tokenRegex, (...args) => {
+      const groups = args[args.length - 1];
+      if (typeof groups === 'object' && groups !== null) {
+        if (groups.multilinecomment || groups.singlecomment) {
+          return `<span class="tok-comment">${groups.multilinecomment || groups.singlecomment}</span>`;
+        }
+        if (groups.string) {
+          return `<span class="tok-string">${groups.string}</span>`;
+        }
+        if (groups.number) {
+          return `<span class="tok-number">${groups.number}</span>`;
+        }
+        if (groups.function) {
+          return `<span class="tok-function">${groups.function}</span>`;
+        }
+        if (groups.identifier) {
+          const word = groups.identifier;
+          if (keywords.includes(word)) {
+            return `<span class="tok-keyword">${word}</span>`;
+          }
+          if (builtins.includes(word)) {
+            return `<span class="tok-builtin">${word}</span>`;
+          }
+          return word;
+        }
+        if (groups.operator) {
+          return `<span class="tok-operator">${groups.operator}</span>`;
+        }
+      }
+      return args[0];
+    });
   }
+
+  // Configure marked for splitscreen preview
+  const appRenderer = new marked.Renderer();
+  
+  appRenderer.code = ({ text, lang }) => {
+    const langName = lang ? lang.trim().toLowerCase() : "";
+    const highlighted = highlightCode(text, langName);
+    return `<pre class="markdown-code-block"><div class="code-lang-badge">${langName.toUpperCase() || "CODE"}</div><code>${highlighted}</code></pre>`;
+  };
+
+  appRenderer.listitem = function ({ tokens, task, checked }) {
+    const text = this.parser.parse(tokens);
+    if (task) {
+      return `<li class="task-list-item">
+        <label class="task-list-label">
+          <input type="checkbox" class="task-list-checkbox" ${checked ? "checked" : ""} disabled />
+          <span class="task-list-text">${text}</span>
+        </label>
+      </li>`;
+    }
+    return `<li>${text}</li>`;
+  };
+
+  appRenderer.blockquote = function ({ tokens }) {
+    const quote = this.parser.parse(tokens);
+    return `<blockquote class="markdown-blockquote">${quote}</blockquote>`;
+  };
+
+  appRenderer.table = function (token) {
+    let headerHtml = "";
+    for (const cell of token.header) headerHtml += this.tablecell(cell);
+    headerHtml = this.tablerow({ text: headerHtml });
+    let bodyHtml = "";
+    for (const row of token.rows) {
+      let rowHtml = "";
+      for (const cell of row) rowHtml += this.tablecell(cell);
+      bodyHtml += this.tablerow({ text: rowHtml });
+    }
+    return `<div class="markdown-table-wrapper">
+      <table class="markdown-table">
+        <thead>${headerHtml}</thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>
+    </div>`;
+  };
+
+  marked.setOptions({ renderer: appRenderer });
 
   $: lineNumbers = (fullscreenCodeContent.match(/\n/g) || []).length + 1;
   $: highlightedCodeHtml = highlightCode(
@@ -826,18 +806,11 @@ let showRightSidebar = false;
   }
 
   function movePage(id) {
-    const pages = allPages.filter(
-      (p) => p.id !== id && p.relation_type !== "sidepage",
-    );
-    const options = pages.map(
-      (p, i) => `${i + 1}: ${p.emoji} ${p.title || "Untitled"}`,
-    );
-    options.unshift("0: 📂 Root Level");
-    const choice = prompt("Move to:\n" + options.join("\n"));
-    if (choice == null) return;
-    const idx = parseInt(choice);
-    if (idx === 0) MovePage(id, "");
-    else if (idx > 0 && idx <= pages.length) MovePage(id, pages[idx - 1].id);
+    const page = allPages.find((p) => p.id === id);
+    if (!page) return;
+    movingPage = page;
+    moveBrowsingId = page.parent_id || null;
+    showMovePageModal = true;
   }
 
   // Immersive Modal Handlers at App Level
@@ -1602,7 +1575,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("markdown")}
         >
-          <span class="block-icon"><PageIcon emoji="" size={16} /></span>
+          <span class="block-icon">📝</span>
           <div class="block-desc">
             <span class="block-title">Markdown</span>
             <span class="block-subtitle"
@@ -1614,7 +1587,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("image")}
         >
-          <span class="block-icon"><PageIcon emoji="image" size={16} /></span>
+          <span class="block-icon">🖼️</span>
           <div class="block-desc">
             <span class="block-title">Image</span>
             <span class="block-subtitle"
@@ -1627,7 +1600,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("subpage_link")}
         >
-          <span class="block-icon"><PageIcon emoji="link" size={16} /></span>
+          <span class="block-icon">🔗</span>
           <div class="block-desc">
             <span class="block-title">Subpage Link</span>
             <span class="block-subtitle"
@@ -1639,7 +1612,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("code")}
         >
-          <span class="block-icon"><PageIcon emoji="code" size={16} /></span>
+          <span class="block-icon">💻</span>
           <div class="block-desc">
             <span class="block-title">Code Block</span>
             <span class="block-subtitle"
@@ -1652,7 +1625,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("sites")}
         >
-          <span class="block-icon"><PageIcon emoji="globe" size={16} /></span>
+          <span class="block-icon">🌐</span>
           <div class="block-desc">
             <span class="block-title">HTML Site block</span>
             <span class="block-subtitle"
@@ -1665,7 +1638,7 @@ let showRightSidebar = false;
           class="block-option-row"
           on:click={() => handleAddCardType("section")}
         >
-          <span class="block-icon"><PageIcon emoji="heading" size={16} /></span>
+          <span class="block-icon">📋</span>
           <div class="block-desc">
             <span class="block-title">Section Divider</span>
             <span class="block-subtitle"
@@ -2257,6 +2230,87 @@ let showRightSidebar = false;
             {/each}
           </div>
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Stateful Parent-Browsing Move Page Modal -->
+{#if showMovePageModal && movingPage}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click|self={() => (showMovePageModal = false)}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="modal-container command-palette-modal" style="height: 380px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 style="margin:0;">Move Page</h3>
+          <span class="modal-subtitle">Moving "{movingPage.title || 'Untitled'}"</span>
+        </div>
+        <button class="close-btn" on:click={() => (showMovePageModal = false)}>&times;</button>
+      </div>
+
+      <div class="modal-search" style="background: #121215; justify-content: space-between; display: flex; align-items: center; padding: 12px 16px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="search-icon">📂</span>
+          <span style="font-size: 12px; font-weight: 700; color: #cbd5e1;">
+            {moveBrowsingId === null ? "Root Level (No Parent)" : (allPages.find(p => p.id === moveBrowsingId)?.title || "Untitled")}
+          </span>
+        </div>
+        {#if moveBrowsingId !== null}
+          <button
+            class="btn-sm"
+            on:click={() => {
+              const current = allPages.find(p => p.id === moveBrowsingId);
+              moveBrowsingId = current ? current.parent_id : null;
+            }}
+          >
+            ↑ Go Up
+          </button>
+        {/if}
+      </div>
+
+      <div class="modal-body list-body" style="overflow-y: auto; padding: 8px;">
+        {#if allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && p.parent_id === moveBrowsingId).length === 0}
+          <div style="padding: 24px; text-align: center; color: #52525b; font-size: 11px; line-height: 1.5;">
+            No subpages under this level.<br/>Click "Move Here" to choose this destination.
+          </div>
+        {:else}
+          <div class="candidates-list">
+            {#each allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && p.parent_id === moveBrowsingId) as candidate}
+              <button
+                class="candidate-row"
+                style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 6px 12px; border-radius: 6px;"
+                on:click={() => (moveBrowsingId = candidate.id)}
+              >
+                <span class="cand-emoji"><PageIcon emoji={candidate.emoji} size={14} /></span>
+                <span class="cand-title" style="flex:1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; text-align:left;">{candidate.title || "Untitled"}</span>
+                <span style="font-size: 10px; color: #52525b;">Open →</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.05); background: #121215; display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn secondary" on:click={() => (showMovePageModal = false)}>Cancel</button>
+        <button
+          class="btn primary"
+          on:click={() => {
+            MovePage(movingPage.id, moveBrowsingId || "")
+              .then(() => {
+                showMovePageModal = false;
+                movingPage = null;
+              })
+              .catch(err => showAlert("Move Failed", err.toString()));
+          }}
+        >
+          Move Here
+        </button>
       </div>
     </div>
   </div>
@@ -3217,6 +3271,8 @@ let showRightSidebar = false;
   }
   .block-icon {
     flex-shrink: 0;
+    font-size: 18px;
+    line-height: 1;
   }
   .block-desc {
     display: flex;
@@ -4374,5 +4430,239 @@ let showRightSidebar = false;
     line-height: 1.6;
     color: #d4d4d8;
     margin: 0;
+  }
+
+  /* Markdown Typography & Layout inside Fullscreen Split Preview */
+  .fullscreen-preview.markdown-rendered {
+    color: #e4e4e7;
+    font-size: 13.5px;
+    line-height: 1.65;
+    letter-spacing: -0.05px;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(p) {
+    margin: 0 0 12px 0;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .fullscreen-preview.markdown-rendered :global(h1) {
+    font-size: 1.35rem;
+    margin: 20px 0 10px 0;
+    color: #ffffff;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 4px;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(h2) {
+    font-size: 1.15rem;
+    margin: 18px 0 8px 0;
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(h3) {
+    font-size: 1rem;
+    margin: 14px 0 6px 0;
+    color: #818cf8;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(h4), 
+  .fullscreen-preview.markdown-rendered :global(h5), 
+  .fullscreen-preview.markdown-rendered :global(h6) {
+    font-size: 0.9rem;
+    margin: 12px 0 4px 0;
+    color: #cbd5e1;
+    font-weight: 600;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(code:not(pre code)) {
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-family: "Fira Code", Consolas, Monaco, monospace;
+    color: #f472b6;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-code-block) {
+    position: relative;
+    background: #09090b;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    margin: 14px 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-code-block pre) {
+    margin: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-code-block code) {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    color: #e4e4e7;
+    display: block;
+  }
+  .fullscreen-preview.markdown-rendered :global(.code-lang-badge) {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 8px;
+    font-weight: 800;
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 1px 5px;
+    border-radius: 4px;
+    user-select: none;
+    pointer-events: none;
+  }
+  .fullscreen-preview.markdown-rendered :global(ul), 
+  .fullscreen-preview.markdown-rendered :global(ol) {
+    padding-left: 20px;
+    margin: 0 0 12px 0;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(li) {
+    margin-bottom: 4px;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(li::marker) {
+    color: #818cf8;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-item) {
+    list-style-type: none;
+    margin-left: -20px;
+    margin-bottom: 4px;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-label) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: default;
+    user-select: none;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #52525b;
+    border-radius: 3px;
+    outline: none;
+    background-color: transparent;
+    cursor: default;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked) {
+    background-color: #818cf8;
+    border-color: #818cf8;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked::before) {
+    content: "✓";
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+  }
+  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked + .task-list-text) {
+    color: #71717a;
+    text-decoration: line-through;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-blockquote) {
+    border-left: 4px solid #818cf8;
+    background: rgba(129, 140, 248, 0.03);
+    padding: 8px 16px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+    color: #a1a1aa;
+    font-style: italic;
+    text-align: left !important;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-blockquote p) {
+    margin: 0;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table-wrapper) {
+    overflow-x: auto;
+    margin: 14px 0;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    background: #09090b;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table th) {
+    background: rgba(255, 255, 255, 0.02);
+    font-weight: 700;
+    color: #ffffff;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table td) {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table tbody tr:last-child td) {
+    border-bottom: none;
+  }
+  .fullscreen-preview.markdown-rendered :global(.markdown-table tbody tr:nth-child(even)) {
+    background: rgba(255, 255, 255, 0.005);
+  }
+  .fullscreen-preview.markdown-rendered :global(hr) {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin: 18px 0;
+  }
+  .fullscreen-preview.markdown-rendered :global(a) {
+    color: #818cf8;
+    text-decoration: none;
+    border-bottom: 1px dotted transparent;
+    transition: all 0.15s ease;
+  }
+  .fullscreen-preview.markdown-rendered :global(a:hover) {
+    color: #a5b4fc;
+    border-bottom-color: #a5b4fc;
+  }
+  .fullscreen-preview.markdown-rendered :global(img) {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 10px 0;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .fullscreen-preview.markdown-rendered :global(kbd) {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 10px;
+    font-family: inherit;
+    color: #e4e4e7;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  }
+  
+  :global(.tok-operator) {
+    color: #cbd5e1 !important;
+    opacity: 0.8;
   }
 </style>
