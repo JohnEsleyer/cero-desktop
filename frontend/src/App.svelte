@@ -230,6 +230,74 @@
   let movingPage = null;
   let moveBrowsingId = null;
 
+  // Comments Modal state
+  let showCommentsModal = false;
+  let commentCard = null;
+  let commentInput = "";
+
+  const colorPresets = {
+    default: { bg: "#09090b", text: "#e4e4e7", border: "rgba(255, 255, 255, 0.04)", textMuted: "#71717a", borderLeft: "#71717a" },
+    red: { bg: "#fee2e2", text: "#991b1b", border: "#fca5a5", textMuted: "#b91c1c", borderLeft: "#ef4444" },
+    orange: { bg: "#ffedd5", text: "#9a3412", border: "#fdba74", textMuted: "#c2410c", borderLeft: "#f97316" },
+    yellow: { bg: "#fef9c3", text: "#854d0e", border: "#fde047", textMuted: "#a16207", borderLeft: "#eab308" },
+    green: { bg: "#d1fae5", text: "#065f46", border: "#6ee7b7", textMuted: "#047857", borderLeft: "#10b981" },
+    blue: { bg: "#dbeafe", text: "#1e40af", border: "#93c5fd", textMuted: "#1d4ed8", borderLeft: "#3b82f6" },
+    purple: { bg: "#f3e8ff", text: "#6b21a8", border: "#c084fc", textMuted: "#7e22ce", borderLeft: "#a855f7" }
+  };
+
+  function parseMetadata(commentField) {
+    if (!commentField) return { color: "default", comments: [] };
+    try {
+      const data = JSON.parse(commentField);
+      return {
+        color: data.color || "default",
+        comments: Array.isArray(data.comments) ? data.comments : []
+      };
+    } catch (_) {
+      if (colorPresets[commentField]) return { color: commentField, comments: [] };
+      return { color: "default", comments: [commentField] };
+    }
+  }
+
+  function serializeMetadata(color, comments) {
+    return JSON.stringify({ color, comments });
+  }
+
+  function openCommentsModal(card) {
+    commentCard = card;
+    commentInput = "";
+    showCommentsModal = true;
+  }
+
+  function handleAddComment() {
+    if (!commentCard || !commentInput.trim()) return;
+    const meta = parseMetadata(commentCard.comment);
+    meta.comments.push(commentInput.trim());
+    const payload = serializeMetadata(meta.color, meta.comments);
+    UpdateCard(commentCard.id, commentCard.page_id, commentCard.content || "", payload)
+      .then(() => {
+        const idx = pageCards.findIndex(c => c.id === commentCard.id);
+        if (idx !== -1) pageCards[idx].comment = payload;
+        commentCard.comment = payload;
+        commentInput = "";
+      })
+      .catch(err => console.error(err));
+  }
+
+  function handleDeleteComment(index) {
+    if (!commentCard) return;
+    const meta = parseMetadata(commentCard.comment);
+    meta.comments.splice(index, 1);
+    const payload = serializeMetadata(meta.color, meta.comments);
+    UpdateCard(commentCard.id, commentCard.page_id, commentCard.content || "", payload)
+      .then(() => {
+        const idx = pageCards.findIndex(c => c.id === commentCard.id);
+        if (idx !== -1) pageCards[idx].comment = payload;
+        commentCard.comment = payload;
+      })
+      .catch(err => console.error(err));
+  }
+
   function openSitesPreview(name, html) {
     previewSitesName = name;
     previewSitesHtml = html;
@@ -1288,6 +1356,7 @@ let showRightSidebar = false;
                 pageSearchQuery = "";
                 showLinkPageModal = true;
               }}
+              on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
               on:moveUp={() => moveCard(currentBlockIndex, -1)}
               on:moveDown={() => moveCard(currentBlockIndex, 1)}
             />
@@ -1327,6 +1396,7 @@ let showRightSidebar = false;
                   pageSearchQuery = "";
                   showLinkPageModal = true;
                 }}
+                on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
                 on:moveUp={() => moveCard(index, -1)}
                 on:moveDown={() => moveCard(index, 1)}
               />
@@ -2311,6 +2381,54 @@ let showRightSidebar = false;
         >
           Move Here
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Comments Modal -->
+{#if showCommentsModal && commentCard}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click|self={() => (showCommentsModal = false)}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="modal-container comments-modal-container">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3>Comments / Notes</h3>
+          <span class="modal-subtitle"
+            >Block context: {commentCard.content ? commentCard.content.substring(0, 120) : '(no content)'}</span
+          >
+        </div>
+        <button class="close-btn" on:click={() => (showCommentsModal = false)}>&times;</button>
+      </div>
+      <div class="comments-modal-body">
+        {#if parseMetadata(commentCard.comment).comments.length === 0}
+          <div class="comments-empty">No comments yet. Add one below.</div>
+        {:else}
+          <div class="comments-timeline">
+            {#each parseMetadata(commentCard.comment).comments as c, i}
+              <div class="comment-item">
+                <span class="comment-bullet">•</span>
+                <span class="comment-text">{c}</span>
+                <button class="comment-delete-btn" on:click={() => handleDeleteComment(i)}>×</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <div class="comments-modal-footer">
+        <input
+          type="text"
+          bind:value={commentInput}
+          placeholder="Add a comment or note..."
+          on:keydown={(e) => { if (e.key === "Enter") handleAddComment(); }}
+        />
+        <button class="btn primary" on:click={handleAddComment} disabled={!commentInput.trim()}>Add</button>
       </div>
     </div>
   </div>
@@ -4664,5 +4782,90 @@ let showRightSidebar = false;
   :global(.tok-operator) {
     color: #cbd5e1 !important;
     opacity: 0.8;
+  }
+
+  /* Comments Modal */
+  .comments-modal-container {
+    width: 500px;
+    max-width: 95%;
+  }
+
+  .comments-modal-body {
+    padding: 16px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .comments-modal-body .comments-empty {
+    color: #52525b;
+    font-size: 13px;
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .comments-modal-body .comments-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .comments-modal-body .comment-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .comments-modal-body .comment-bullet {
+    color: #71717a;
+    flex-shrink: 0;
+  }
+
+  .comments-modal-body .comment-text {
+    flex: 1;
+    color: #d4d4d8;
+    word-break: break-word;
+  }
+
+  .comments-modal-body .comment-delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #71717a;
+    font-size: 16px;
+    padding: 0 2px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .comments-modal-body .comment-delete-btn:hover {
+    color: #f87171;
+  }
+
+  .comments-modal-footer {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .comments-modal-footer input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #e4e4e7;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .comments-modal-footer input::placeholder {
+    color: #52525b;
+  }
+
+  .comments-modal-footer input:focus {
+    border-color: #818cf8;
   }
 </style>

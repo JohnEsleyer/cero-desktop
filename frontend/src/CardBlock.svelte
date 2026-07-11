@@ -29,9 +29,6 @@
   let sitesDesc = "Renders customized HTML template preview";
   let sitesHtml = "<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live.</p>";
 
-  let commentsExpanded = false;
-  let newCommentText = "";
-
   $: isSitesLive = activeLiveCardId === card.id;
   $: sitesLocalUrl = activeLiveCardId === card.id ? activeSitesLocalUrl : "";
 
@@ -184,28 +181,6 @@
     dispatch("previewSites", { name: sitesName, html: sitesHtml });
   }
 
-  function addBlockComment() {
-    if (!newCommentText.trim()) return;
-    const updatedComments = [...meta.comments, newCommentText.trim()];
-    const payload = serializeMetadata(meta.color, updatedComments);
-    UpdateCard(card.id, card.page_id, card.content || "", payload)
-      .then(() => {
-        card.comment = payload;
-        newCommentText = "";
-      })
-      .catch((err) => console.error(err));
-  }
-
-  function deleteBlockComment(cIdx) {
-    const updatedComments = meta.comments.filter((_, i) => i !== cIdx);
-    const payload = serializeMetadata(meta.color, updatedComments);
-    UpdateCard(card.id, card.page_id, card.content || "", payload)
-      .then(() => {
-        card.comment = payload;
-      })
-      .catch((err) => console.error(err));
-  }
-
   function handleColorChange(e) {
     const newColor = e.target.value;
     const payload = serializeMetadata(newColor, meta.comments);
@@ -281,11 +256,13 @@
       {#if card.type === "markdown"}
         <button
           class="inline-comment-toggle-btn"
-          style="color: {meta.comments.length > 0 ? '#818cf8' : activeColor.textMuted};"
-          title="Toggle comments"
-          on:click|stopPropagation={() => (commentsExpanded = !commentsExpanded)}
+          title="View block comments"
+          on:click|stopPropagation={() => dispatch("openCommentsModal", { card })}
         >
-          💬 ({meta.comments.length})
+          💬
+          {#if meta.comments.length > 0}
+            <span class="comment-count-badge">{meta.comments.length}</span>
+          {/if}
         </button>
       {/if}
 
@@ -424,34 +401,6 @@
       </div>
     {/if}
   </div>
-
-  {#if card.type === "markdown" && commentsExpanded}
-    <div class="block-comments-section" on:click|stopPropagation>
-      <div class="comments-section-header">BLOCK COMMENTS</div>
-      {#if meta.comments.length === 0}
-        <div class="empty-comments-hint">No comments written yet.</div>
-      {:else}
-        <div class="comments-list">
-          {#each meta.comments as commentText, cIdx}
-            <div class="comment-row">
-              <span class="comment-bullet">•</span>
-              <span class="comment-text-content">{commentText}</span>
-              <button class="delete-comment-row-btn" on:click={() => deleteBlockComment(cIdx)}>&times;</button>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      <div class="new-comment-input-row">
-        <input
-          type="text"
-          placeholder="Type a block comment..."
-          bind:value={newCommentText}
-          on:keydown={(e) => e.key === "Enter" && addBlockComment()}
-        />
-        <button on:click={addBlockComment}>Add</button>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -510,11 +459,33 @@
   }
 
   .inline-comment-toggle-btn {
+    position: relative;
     background: transparent;
     border: none;
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 13px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+
+  .comment-count-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #818cf8;
+    color: white;
+    font-size: 8px;
+    font-weight: 700;
+    border-radius: 50%;
+    min-width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   .color-select {
@@ -683,69 +654,7 @@
     gap: 6px;
   }
 
-  .block-comments-section {
-    background: rgba(0, 0, 0, 0.25);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding: 10px;
-    margin-top: 4px;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
 
-  .comments-section-header {
-    font-size: 8.5px;
-    font-weight: bold;
-    color: #71717a;
-    letter-spacing: 0.5px;
-  }
-
-  .empty-comments-hint {
-    font-size: 10px;
-    color: #52525b;
-  }
-
-  .comments-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .comment-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    font-size: 11px;
-  }
-
-  .comment-bullet {
-    color: #71717a;
-  }
-
-  .comment-text-content {
-    flex: 1;
-    color: #d4d4d8;
-  }
-
-  .delete-comment-row-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    color: #71717a;
-    font-size: 12px;
-    padding: 0 4px;
-  }
-
-  .delete-comment-row-btn:hover {
-    color: #f87171;
-  }
-
-  .new-comment-input-row {
-    display: flex;
-    gap: 6px;
-    margin-top: 4px;
-  }
 
   .new-comment-input-row input {
     flex: 1;
