@@ -230,6 +230,40 @@
   let movingPage = null;
   let moveBrowsingId = null;
 
+  // Move Block Modal states
+  let showMoveBlockModal = false;
+  let movingCard = null;
+
+  function openMoveBlockModal(card) {
+    movingCard = card;
+    showMoveBlockModal = true;
+  }
+
+  function handleMoveBlockToPage(page) {
+    if (!movingCard || !page) return;
+    UpdateCard(movingCard.id, page.id, movingCard.content || "", movingCard.comment || "")
+      .then(() => {
+        const id = movingCard.id;
+        pageCards = pageCards.filter((c) => c.id !== id);
+        if (currentBlockIndex >= pageCards.length) {
+          currentBlockIndex = pageCards.length > 0 ? pageCards.length - 1 : 0;
+          blockNumberInput = (currentBlockIndex + 1).toString();
+        }
+        showMoveBlockModal = false;
+        movingCard = null;
+        showAlert("Success", `Moved block to "${page.title || 'Untitled'}"`);
+      })
+      .catch((err) => showAlert("Move Failed", err.toString()));
+  }
+
+  $: moveBlockSubpages = selectedPage ? allPages.filter(p => p.parent_id === selectedPage.id && p.relation_type !== "sidepage" && p.id !== selectedPage.id) : [];
+  $: moveBlockNeighbors = selectedPage ? allPages.filter(p => p.parent_id === selectedPage.parent_id && p.id !== selectedPage.id && p.relation_type !== "sidepage") : [];
+  $: moveBlockOthers = (() => {
+    if (!selectedPage) return [];
+    const excluded = new Set([selectedPage.id, ...moveBlockSubpages.map(p => p.id), ...moveBlockNeighbors.map(p => p.id)]);
+    return allPages.filter(p => !excluded.has(p.id) && p.relation_type !== "sidepage");
+  })();
+
   // Comments Modal state
   let showCommentsModal = false;
   let commentCard = null;
@@ -1357,6 +1391,7 @@ let showRightSidebar = false;
                 showLinkPageModal = true;
               }}
               on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
+              on:openMoveBlockModal={(e) => openMoveBlockModal(e.detail.card)}
               on:moveUp={() => moveCard(currentBlockIndex, -1)}
               on:moveDown={() => moveCard(currentBlockIndex, 1)}
             />
@@ -1397,6 +1432,7 @@ let showRightSidebar = false;
                   showLinkPageModal = true;
                 }}
                 on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
+                on:openMoveBlockModal={(e) => openMoveBlockModal(e.detail.card)}
                 on:moveUp={() => moveCard(index, -1)}
                 on:moveDown={() => moveCard(index, 1)}
               />
@@ -2381,6 +2417,82 @@ let showRightSidebar = false;
         >
           Move Here
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Stateful Prioritized Move Block Modal -->
+{#if showMoveBlockModal && movingCard}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click|self={() => (showMoveBlockModal = false)}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="modal-container command-palette-modal" style="height: 480px; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 style="margin:0;">Move Block to Page</h3>
+          <span class="modal-subtitle">Choose a destination page for this block</span>
+        </div>
+        <button class="close-btn" on:click={() => (showMoveBlockModal = false)}>&times;</button>
+      </div>
+
+      <div class="modal-body list-body" style="overflow-y: auto; flex: 1; padding: 12px 16px;">
+        {#if moveBlockSubpages.length > 0}
+          <div class="category-header" style="font-size: 10px; font-weight: bold; color: #818cf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Subpages & Links Inside Current Page</div>
+          <div class="candidates-list" style="margin-bottom: 16px;">
+            {#each moveBlockSubpages as page}
+              <button
+                class="candidate-row"
+                style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
+                on:click={() => handleMoveBlockToPage(page)}
+              >
+                <PageIcon emoji={page.emoji} size={14} />
+                <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+
+        {#if moveBlockNeighbors.length > 0}
+          <div class="category-header" style="font-size: 10px; font-weight: bold; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Neighbor Pages</div>
+          <div class="candidates-list" style="margin-bottom: 16px;">
+            {#each moveBlockNeighbors as page}
+              <button
+                class="candidate-row"
+                style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
+                on:click={() => handleMoveBlockToPage(page)}
+              >
+                <PageIcon emoji={page.emoji} size={14} />
+                <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+
+        {#if moveBlockOthers.length > 0}
+          <div class="category-header" style="font-size: 10px; font-weight: bold; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Other Pages</div>
+          <div class="candidates-list">
+            {#each moveBlockOthers as page}
+              <button
+                class="candidate-row"
+                style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
+                on:click={() => handleMoveBlockToPage(page)}
+              >
+                <PageIcon emoji={page.emoji} size={14} />
+                <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.05); background: #121215; display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn secondary" on:click={() => (showMoveBlockModal = false)}>Cancel</button>
       </div>
     </div>
   </div>

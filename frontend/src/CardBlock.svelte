@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher, getContext } from "svelte";
+  import { createEventDispatcher, getContext, afterUpdate } from "svelte";
   import { marked } from "marked";
   import {
     UpdateCard,
@@ -232,6 +232,21 @@
   })();
 
   $: renderedMarkdown = marked.parse(card.content || "");
+
+  let containerEl;
+  afterUpdate(() => {
+    if (window.renderMathInElement && containerEl) {
+      window.renderMathInElement(containerEl, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+          { left: "\\[", right: "\\]", display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  });
 </script>
 
 <div
@@ -286,6 +301,14 @@
         <button class="inline-tool-btn" style="color: {activeColor.textMuted}" on:click|stopPropagation={() => dispatch("moveUp")}>↑</button>
         <button class="inline-tool-btn" style="color: {activeColor.textMuted}" on:click|stopPropagation={() => dispatch("moveDown")}>↓</button>
       {/if}
+      <button
+        class="inline-tool-btn"
+        title="Move Block to another page"
+        style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-left: 8px;"
+        on:click|stopPropagation={() => dispatch("openMoveBlockModal", { card })}
+      >
+        📦 Move
+      </button>
       {#if isSelected}
         <button class="inline-delete-btn" on:click|stopPropagation={deleteCard}>&times;</button>
       {/if}
@@ -299,7 +322,7 @@
       </div>
 
     {:else if card.type === "markdown"}
-      <div class="card-preview markdown-rendered" style="color: {activeColor.text};" on:dblclick={startEdit}>
+      <div bind:this={containerEl} class="card-preview markdown-rendered" style="color: {activeColor.text};" on:dblclick={startEdit}>
         {#if card.content}
           {@html renderedMarkdown}
         {:else}
