@@ -1,11 +1,10 @@
 <script>
   import { GetImage } from "../wailsjs/go/main/App.js";
 
-  export let emoji = "";
-  export let size = 16;
+  let { emoji = "", size = 16 } = $props();
 
-  let isImage = false;
-  let imageSrc = "";
+  let isImage = $state(false);
+  let imageSrc = $state("");
 
   function checkIconType(text) {
     if (!text) {
@@ -14,10 +13,10 @@
     }
     const trimmed = text.trim();
     if (
-      trimmed.startsWith("http://") || 
-      trimmed.startsWith("https://") || 
-      trimmed.startsWith("/") || 
-      trimmed.startsWith("file://") || 
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("file://") ||
       trimmed.startsWith("data:")
     ) {
       isImage = true;
@@ -47,7 +46,9 @@
     isImage = false;
   }
 
-  $: checkIconType(emoji);
+  $effect(() => {
+    checkIconType(emoji);
+  });
 
   const fallbackSvg = `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>`;
 </script>
@@ -57,7 +58,7 @@
     src={imageSrc}
     alt="Icon"
     style="width: {size}px; height: {size}px; min-width: {size}px; min-height: {size}px; object-fit: cover; border-radius: 4px; display: inline-block; vertical-align: middle;"
-    on:error={(e) => {
+    onerror={(e) => {
       e.target.style.display = "none";
     }}
   />

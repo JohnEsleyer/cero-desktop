@@ -1,11 +1,7 @@
 <script>
-  export let sidePages = [];
-  export let activeTab = "main"; // 'main' or page ID
-  export let onSelectTab;
-  export let onCreateSidePage;
-  export let mainPageTitle = "Main";
   import PageIcon from "./PageIcon.svelte";
-  export let mainPageEmoji = "";
+
+  let { sidePages = [], activeTab = "main", onSelectTab, onCreateSidePage, mainPageTitle = "Main", mainPageEmoji = "" } = $props();
 
   function handleTabClick(tabId) {
     if (onSelectTab) onSelectTab(tabId);
@@ -16,7 +12,7 @@
   <button
     class="tab-item"
     class:active={activeTab === "main"}
-    on:click={() => handleTabClick("main")}
+    onclick={() => handleTabClick("main")}
   >
     <span class="tab-emoji"><PageIcon emoji={mainPageEmoji} size={12} /></span>
     <span class="tab-label">{mainPageTitle || "Main"}</span>
@@ -26,21 +22,21 @@
     <button
       class="tab-item"
       class:active={activeTab === sp.id}
-      on:click={() => handleTabClick(sp.id)}
+      onclick={() => handleTabClick(sp.id)}
     >
       <span class="tab-emoji"><PageIcon emoji={sp.emoji} size={12} /></span>
       <span class="tab-label">{sp.title || "Untitled"}</span>
     </button>
   {/each}
 
-  <button class="tab-add" title="Add side page" on:click={onCreateSidePage}
+  <button class="tab-add" title="Add side page" onclick={onCreateSidePage}
     >+</button
   >
 </div>
 
 <style>
   .sidebar-header {
-    display: none; /* Keeps native sizing from standard header structures if present */
+    display: none;
   }
 
   .tabs-bar {

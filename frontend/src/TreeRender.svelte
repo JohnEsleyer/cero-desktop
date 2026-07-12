@@ -1,21 +1,14 @@
 <script>
-  export var page;
-  export var allPages;
-  export var selectedPage;
-  export var expandedPageIds;
-  export var selectPage;
-  export var createPage;
-  export var deletePage;
-  export var toggleExpand;
-  export var getChildrenOf;
-
   import { MovePage } from "../wailsjs/go/main/App.js";
   import PageIcon from "./PageIcon.svelte";
+  import TreeRender from "./TreeRender.svelte";
 
-  $: children = getChildrenOf(page.id);
-  $: hasChildren = children.length > 0;
-  $: isExpanded = expandedPageIds[page.id] || false;
-  $: isSelected = selectedPage && selectedPage.id === page.id;
+  let { page, allPages, selectedPage, expandedPageIds, selectPage, createPage, deletePage, toggleExpand, getChildrenOf } = $props();
+
+  let children = $derived(getChildrenOf(page.id));
+  let hasChildren = $derived(children.length > 0);
+  let isExpanded = $derived(expandedPageIds[page.id] || false);
+  let isSelected = $derived(selectedPage && selectedPage.id === page.id);
 
   async function handleMoveTo() {
     const pages = allPages.filter((p) => p.id !== page.id);
@@ -42,7 +35,7 @@
   <div class="node-row {isSelected ? 'active' : ''}">
     <button
       class="expand-arrow"
-      on:click|stopPropagation={() => toggleExpand(page.id)}
+      onclick={(e) => { e.stopPropagation(); toggleExpand(page.id); }}
     >
       {#if hasChildren}
         <span class="arrow {isExpanded ? 'open' : ''}">▸</span>
@@ -51,7 +44,7 @@
       {/if}
     </button>
 
-    <button class="node-content" on:click={() => selectPage(page)}>
+    <button class="node-content" onclick={() => selectPage(page)}>
       <span class="emoji"><PageIcon emoji={page.emoji} size={13} /></span>
       <span class="title" title={page.title}>{page.title || "Untitled"}</span>
     </button>
@@ -60,17 +53,17 @@
       <button
         class="action-btn"
         title="Add subpage"
-        on:click|stopPropagation={() => createPage(page.id)}>+</button
+        onclick={(e) => { e.stopPropagation(); createPage(page.id); }}>+</button
       >
       <button
         class="action-btn"
         title="Move to..."
-        on:click|stopPropagation={handleMoveTo}>↗</button
+        onclick={(e) => { e.stopPropagation(); handleMoveTo(); }}>↗</button
       >
       <button
         class="action-btn delete"
         title="Archive page"
-        on:click|stopPropagation={() => deletePage(page.id)}>×</button
+        onclick={(e) => { e.stopPropagation(); deletePage(page.id); }}>×</button
       >
     </div>
   </div>
@@ -78,7 +71,7 @@
   {#if hasChildren && isExpanded}
     <div class="children-list">
       {#each children as child}
-        <svelte:self
+        <TreeRender
           page={child}
           {allPages}
           {selectedPage}
@@ -222,7 +215,6 @@
     background-color: rgba(239, 68, 68, 0.08);
   }
 
-  /* Thin micro vertical guide-line tracing nesting paths */
   .children-list {
     margin-left: 11px;
     border-left: 1px solid rgba(255, 255, 255, 0.03);

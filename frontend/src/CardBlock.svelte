@@ -1,36 +1,46 @@
 <script>
-  import { createEventDispatcher, getContext, afterUpdate } from "svelte";
-  import { marked } from "marked";
+  import { getContext } from "svelte";
   import {
     UpdateCard,
     DeleteCard,
     SaveImage,
   } from "../wailsjs/go/main/App.js";
   import PageIcon from "./PageIcon.svelte";
+  import SvelteMarkdown from "@humanspeak/svelte-markdown";
+  import { markedKatex, KatexRenderer } from "@humanspeak/svelte-markdown/extensions";
 
-  export let card;
-  export let isSelected = false;
-  export let index = 0;
-  export let allPages = [];
-  export let onSelect;
-  export let onDeleted;
-  export let onNavigate;
+  let {
+    card,
+    isSelected = false,
+    index = 0,
+    allPages = [],
+    onSelect,
+    onDeleted,
+    onNavigate,
+    activeLiveCardId = null,
+    activeSitesLocalUrl = "",
+    oneditMarkdown,
+    oneditCode,
+    oneditSites,
+    onpreviewSites,
+    onopenLinkModal,
+    onopenCommentsModal,
+    onopenMoveBlockModal,
+    onmoveUp,
+    onmoveDown,
+  } = $props();
 
-  export let activeLiveCardId = null;
-  export let activeSitesLocalUrl = "";
-
-  const dispatch = createEventDispatcher();
   const { showAlert, showConfirm } = getContext("dialogs");
 
-  let codeLang = "javascript";
-  let codeContent = "";
+  let codeLang = $state("javascript");
+  let codeContent = $state("");
 
-  let sitesName = "My HTML Site";
-  let sitesDesc = "Renders customized HTML template preview";
-  let sitesHtml = "<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live.</p>";
+  let sitesName = $state("My HTML Site");
+  let sitesDesc = $state("Renders customized HTML template preview");
+  let sitesHtml = $state("<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live.</p>");
 
-  $: isSitesLive = activeLiveCardId === card.id;
-  $: sitesLocalUrl = activeLiveCardId === card.id ? activeSitesLocalUrl : "";
+  let isSitesLive = $derived(activeLiveCardId === card.id);
+  let sitesLocalUrl = $derived(activeLiveCardId === card.id ? activeSitesLocalUrl : "");
 
   const colorPresets = {
     default: { bg: "#09090b", text: "#e4e4e7", border: "rgba(255, 255, 255, 0.04)", textMuted: "#71717a", borderLeft: "#71717a" },
@@ -64,33 +74,37 @@
     return JSON.stringify({ color, comments });
   }
 
-  $: meta = parseMetadata(card.comment);
-  $: activeColor = colorPresets[meta.color] || colorPresets.default;
+  let meta = $derived(parseMetadata(card.comment));
+  let activeColor = $derived(colorPresets[meta.color] || colorPresets.default);
 
-  $: if (card.type === "code") {
-    const raw = card.content || "";
-    if (raw.includes("\n")) {
-      const firstLineIdx = raw.indexOf("\n");
-      codeLang = raw.substring(0, firstLineIdx).trim().toLowerCase();
-      codeContent = raw.substring(firstLineIdx + 1);
-    } else {
-      codeLang = "javascript";
-      codeContent = raw;
+  $effect(() => {
+    if (card.type === "code") {
+      const raw = card.content || "";
+      if (raw.includes("\n")) {
+        const firstLineIdx = raw.indexOf("\n");
+        codeLang = raw.substring(0, firstLineIdx).trim().toLowerCase();
+        codeContent = raw.substring(firstLineIdx + 1);
+      } else {
+        codeLang = "javascript";
+        codeContent = raw;
+      }
     }
-  }
+  });
 
-  $: if (card.type === "sites") {
-    try {
-      const parsed = JSON.parse(card.content || "{}");
-      sitesName = parsed.name || "My HTML Site";
-      sitesDesc = parsed.description || "Renders customized HTML template preview";
-      sitesHtml = parsed.html || "<h1>Sample Site</h1>";
-    } catch (_) {
-      sitesName = "My HTML Site";
-      sitesDesc = "Renders customized HTML template preview";
-      sitesHtml = card.content || "";
+  $effect(() => {
+    if (card.type === "sites") {
+      try {
+        const parsed = JSON.parse(card.content || "{}");
+        sitesName = parsed.name || "My HTML Site";
+        sitesDesc = parsed.description || "Renders customized HTML template preview";
+        sitesHtml = parsed.html || "<h1>Sample Site</h1>";
+      } catch (_) {
+        sitesName = "My HTML Site";
+        sitesDesc = "Renders customized HTML template preview";
+        sitesHtml = card.content || "";
+      }
     }
-  }
+  });
 
   function handleClick() {
     if (onSelect) onSelect(card);
@@ -98,7 +112,7 @@
 
   function startEdit() {
     if (card.type === "markdown") {
-      dispatch("editMarkdown", { content: card.content || "" });
+      oneditMarkdown && oneditMarkdown(card.content || "");
     } else if (card.type === "section") {
       const newTitle = prompt("Edit Section Header:", card.content || "");
       if (newTitle !== null) {
@@ -118,8 +132,6 @@
       .catch((err) => console.error(err));
   }
 
-  let imageInput;
-
   function setImage() {
     const choice = prompt("Image source:\n1: Enter URL\n2: Upload file");
     if (choice === "1") {
@@ -130,7 +142,7 @@
           .catch((err) => console.error(err));
       }
     } else if (choice === "2") {
-      imageInput.click();
+      imageInputEl?.click();
     }
   }
 
@@ -163,7 +175,7 @@
 
   function selectSubpage(e) {
     e.stopPropagation();
-    dispatch("openLinkModal", { card });
+    onopenLinkModal && onopenLinkModal(card);
   }
 
   function navigateToSubpage(e) {
@@ -174,11 +186,11 @@
   }
 
   function openSitesModal() {
-    dispatch("editSites", { name: sitesName, description: sitesDesc, html: sitesHtml });
+    oneditSites && oneditSites(sitesName, sitesDesc, sitesHtml);
   }
 
   function openLivePreviewModal() {
-    dispatch("previewSites", { name: sitesName, html: sitesHtml });
+    onpreviewSites && onpreviewSites(sitesName, sitesHtml);
   }
 
   function handleColorChange(e) {
@@ -192,68 +204,90 @@
   }
 
   function highlightCode(code, lang) {
-    if (!code) return '<span class="tok-comment">// Empty code block...</span>';
-    let html = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const keywords = ["function", "return", "if", "else", "for", "while", "const", "let", "var", "class", "void", "final"];
-    const builtins = ["console", "window", "document", "JSON", "Math", "Object", "Array"];
-    const tokenRegex = new RegExp([
-      "(?<multilinecomment>\\/\\*[\\s\\S]*?\\*\\/)",
-      "(?<singlecomment>\\/\\/[^\\n]*|#[^\\n]*)",
-      "(?<string>\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`)",
-      "\\b(?<number>\\d+)\\b",
-      "\\b(?<identifier>\\w+)\\b"
-    ].join("|"), "g");
+    if (!code) return '<span class="tok-comment">// Start writing your code here...</span>';
+
+    let html = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const keywords = [
+      "function", "return", "if", "else", "for", "while", "const", "let", "var",
+      "import", "export", "class", "void", "final", "def", "package", "func", "interface",
+      "fn", "mut", "match", "impl", "struct", "enum", "pub", "use", "mod", "as", "type",
+      "select", "from", "where", "insert", "into", "update", "delete", "create", "table", "alter"
+    ];
+    const builtins = [
+      "console", "window", "document", "process", "Object", "Array", "String", "Number",
+      "Boolean", "Math", "JSON", "Option", "Result", "Some", "None", "Ok", "Err", "Box",
+      "Vec", "Self", "self", "map", "filter", "reduce", "print", "len", "range"
+    ];
+
+    const tokenRegex = new RegExp(
+      [
+        "(?<multilinecomment>\\/\\*[\\s\\S]*?\\*\\/)",
+        "(?<singlecomment>\\/\\/[^\\n]*|#[^\\n]*)",
+        "(?<string>\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`)",
+        "\\b(?<number>\\d+(?:\\.\\d+)?)\\b",
+        "\\b(?<function>\\w+)(?=\\s*\\()",
+        "\\b(?<identifier>\\w+)\\b",
+        "(?<operator>[{}()\\[\\].,:;+\\-*/%=&|^<>!~?])"
+      ].join("|"),
+      "g"
+    );
 
     return html.replace(tokenRegex, (...args) => {
       const groups = args[args.length - 1];
       if (typeof groups === 'object' && groups !== null) {
-        if (groups.multilinecomment || groups.singlecomment) return `<span class="tok-comment">${groups.multilinecomment || groups.singlecomment}</span>`;
-        if (groups.string) return `<span class="tok-string">${groups.string}</span>`;
-        if (groups.number) return `<span class="tok-number">${groups.number}</span>`;
+        if (groups.multilinecomment || groups.singlecomment) {
+          return `<span class="tok-comment">${groups.multilinecomment || groups.singlecomment}</span>`;
+        }
+        if (groups.string) {
+          return `<span class="tok-string">${groups.string}</span>`;
+        }
+        if (groups.number) {
+          return `<span class="tok-number">${groups.number}</span>`;
+        }
+        if (groups.function) {
+          return `<span class="tok-function">${groups.function}</span>`;
+        }
         if (groups.identifier) {
-          if (keywords.includes(groups.identifier)) return `<span class="tok-keyword">${groups.identifier}</span>`;
-          if (builtins.includes(groups.identifier)) return `<span class="tok-builtin">${groups.identifier}</span>`;
+          const word = groups.identifier;
+          if (keywords.includes(word)) {
+            return `<span class="tok-keyword">${word}</span>`;
+          }
+          if (builtins.includes(word)) {
+            return `<span class="tok-builtin">${word}</span>`;
+          }
+          return word;
+        }
+        if (groups.operator) {
+          return `<span class="tok-operator">${groups.operator}</span>`;
         }
       }
       return args[0];
     });
   }
 
-  const renderer = new marked.Renderer();
-  renderer.code = ({ text, lang }) => {
-    const langName = lang ? lang.trim().toLowerCase() : "";
-    return `<pre class="markdown-code-block"><div class="code-lang-badge">${langName.toUpperCase()}</div><code>${highlightCode(text, langName)}</code></pre>`;
-  };
-  marked.setOptions({ renderer });
-
-  $: linkedPage = (() => {
+  let linkedPage = $derived((() => {
     if (card.type !== "subpage_link" || !card.content) return null;
     return allPages.find((p) => p.id === card.content) || null;
-  })();
+  })());
 
-  $: renderedMarkdown = marked.parse(card.content || "");
+  const katexExtensions = [markedKatex({ singleDollarInline: true })];
+  const katexRenderers = {
+    inlineKatex: KatexRenderer,
+    blockKatex: KatexRenderer
+  };
 
-  let containerEl;
-  afterUpdate(() => {
-    if (window.renderMathInElement && containerEl) {
-      window.renderMathInElement(containerEl, {
-        delimiters: [
-          { left: "$$", right: "$$", display: true },
-          { left: "$", right: "$", display: false },
-          { left: "\\(", right: "\\)", display: false },
-          { left: "\\[", right: "\\]", display: true }
-        ],
-        throwOnError: false
-      });
-    }
-  });
+  let imageInputEl = $state(null);
 </script>
 
 <div
   class="card-block {card.type}"
   style="background: {activeColor.bg}; color: {activeColor.text}; border-color: {activeColor.border}; border-left: 4px solid {activeColor.borderLeft};"
   class:selected={isSelected}
-  on:click={handleClick}
+  onclick={handleClick}
   role="button"
   tabindex="0"
 >
@@ -272,7 +306,7 @@
         <button
           class="inline-comment-toggle-btn"
           title="View block comments"
-          on:click|stopPropagation={() => dispatch("openCommentsModal", { card })}
+          onclick={(e) => { e.stopPropagation(); onopenCommentsModal && onopenCommentsModal(card); }}
         >
           💬
           {#if meta.comments.length > 0}
@@ -283,8 +317,8 @@
 
       <select
         value={meta.color}
-        on:change={handleColorChange}
-        on:click|stopPropagation
+        onchange={handleColorChange}
+        onclick={(e) => e.stopPropagation()}
         class="color-select"
         style="color: {activeColor.textMuted};"
       >
@@ -298,33 +332,37 @@
       </select>
 
       {#if card.type === "section"}
-        <button class="inline-tool-btn" style="color: {activeColor.textMuted}" on:click|stopPropagation={() => dispatch("moveUp")}>↑</button>
-        <button class="inline-tool-btn" style="color: {activeColor.textMuted}" on:click|stopPropagation={() => dispatch("moveDown")}>↓</button>
+        <button class="inline-tool-btn" style="color: {activeColor.textMuted}" onclick={(e) => { e.stopPropagation(); onmoveUp && onmoveUp() }}>↑</button>
+        <button class="inline-tool-btn" style="color: {activeColor.textMuted}" onclick={(e) => { e.stopPropagation(); onmoveDown && onmoveDown() }}>↓</button>
       {/if}
       <button
         class="inline-tool-btn"
         title="Move Block to another page"
         style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-left: 8px;"
-        on:click|stopPropagation={() => dispatch("openMoveBlockModal", { card })}
+        onclick={(e) => { e.stopPropagation(); onopenMoveBlockModal && onopenMoveBlockModal(card) }}
       >
         📦 Move
       </button>
       {#if isSelected}
-        <button class="inline-delete-btn" on:click|stopPropagation={deleteCard}>&times;</button>
+        <button class="inline-delete-btn" onclick={(e) => { e.stopPropagation(); deleteCard(e); }}>&times;</button>
       {/if}
     </div>
   </div>
 
   <div class="card-horizontal-content-body">
     {#if card.type === "section"}
-      <div class="section-card-content" on:dblclick={startEdit}>
+      <div class="section-card-content" ondblclick={startEdit}>
         <h2 class="section-title-text" style="color: {activeColor.text};">{card.content || "Untitled Section"}</h2>
       </div>
 
     {:else if card.type === "markdown"}
-      <div bind:this={containerEl} class="card-preview markdown-rendered" style="color: {activeColor.text};" on:dblclick={startEdit}>
+      <div class="card-preview markdown-rendered" style="color: {activeColor.text};" ondblclick={startEdit}>
         {#if card.content}
-          {@html renderedMarkdown}
+          <SvelteMarkdown source={card.content} extensions={katexExtensions} renderers={katexRenderers}>
+            {#snippet code({ lang, text })}
+              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+            {/snippet}
+          </SvelteMarkdown>
         {:else}
           <span class="empty-hint">Double-click to write content...</span>
         {/if}
@@ -332,17 +370,17 @@
 
     {:else if card.type === "image"}
       <div class="image-card-content">
-        <input type="file" bind:this={imageInput} accept="image/*" style="display:none" on:change={handleFileUpload} />
+        <input type="file" bind:this={imageInputEl} accept="image/*" style="display:none" onchange={handleFileUpload} />
         {#if card.content}
           <div class="image-wrapper">
-            <img src={card.content} alt="Card visual" class="card-image" on:error={(e) => (e.target.style.display = "none")} />
+            <img src={card.content} alt="Card visual" class="card-image" onerror={(e) => (e.target.style.display = "none")} />
           </div>
           <div class="image-actions">
-            <button class="img-action-btn" on:click|stopPropagation={setImage}>Change</button>
-            <button class="img-action-btn danger" on:click|stopPropagation={unlinkImage}>Remove</button>
+            <button class="img-action-btn" onclick={(e) => { e.stopPropagation(); setImage(e); }}>Change</button>
+            <button class="img-action-btn danger" onclick={(e) => { e.stopPropagation(); unlinkImage(e); }}>Remove</button>
           </div>
         {:else}
-          <div class="image-placeholder" on:click|stopPropagation={setImage}>
+          <div class="image-placeholder" onclick={(e) => { e.stopPropagation(); setImage(e); }}>
             <span class="placeholder-text">Click to add image file or web URL</span>
           </div>
         {/if}
@@ -368,7 +406,7 @@
             position: relative; 
             overflow: hidden;
           "
-          on:click|stopPropagation={navigateToSubpage}
+          onclick={(e) => { e.stopPropagation(); navigateToSubpage(e); }}
         >
           <div style="position: absolute; inset: 0; background: rgba(0, 0, 0, {linkedPage.cover ? '0.45' : '0.15'}); z-index: 1;"></div>
           
@@ -381,7 +419,7 @@
             <button 
               class="link-action-btn-mini" 
               style="background: transparent; border: none; padding: 0; color: rgba(255,255,255,0.7); font-size: 10px; cursor: pointer; display: flex; align-items: center;" 
-              on:click|stopPropagation={selectSubpage}
+              onclick={(e) => { e.stopPropagation(); selectSubpage(e); }}
               title="Change Target Link"
             >
               ⚙️
@@ -392,7 +430,7 @@
         <div 
           class="subpage-empty" 
           style="background: rgba(255, 255, 255, 0.02); border: 1px dashed {activeColor.textMuted}44; padding: 4px 10px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 11px; color: {activeColor.textMuted};"
-          on:click|stopPropagation={selectSubpage}
+          onclick={(e) => { e.stopPropagation(); selectSubpage(e); }}
         >
           <span>Link subpage...</span>
         </div>
@@ -402,7 +440,7 @@
       <div class="code-card-content">
         <div
           class="code-preview-container"
-          on:dblclick|stopPropagation={() => dispatch("editCode", { content: card.content || "" })}
+          ondblclick={(e) => { e.stopPropagation(); oneditCode && oneditCode(card.content || "") }}
         >
           <div class="code-lang-tag">{codeLang}</div>
           <pre style="margin:0; font-size:12px; line-height:1.5; overflow-x:auto;">{@html highlightCode(codeContent, codeLang)}</pre>
@@ -412,13 +450,13 @@
     {:else if card.type === "sites"}
       <div class="sites-card">
         <div class="sites-card-inner">
-          <div class="sites-card-details" on:click|stopPropagation={openLivePreviewModal}>
+          <div class="sites-card-details" onclick={(e) => { e.stopPropagation(); openLivePreviewModal(); }}>
             <span class="sites-card-name" style="color: {activeColor.text};">{sitesName}</span>
             <span class="sites-card-desc">{sitesDesc}</span>
           </div>
           <div class="sites-card-actions">
-            <button class="img-action-btn" style="color: #10b981;" on:click|stopPropagation={openLivePreviewModal}>▶ Preview</button>
-            <button class="img-action-btn" style="color: #818cf8;" on:click|stopPropagation={openSitesModal}>⚙ Config</button>
+            <button class="img-action-btn" style="color: #10b981;" onclick={(e) => { e.stopPropagation(); openLivePreviewModal(); }}>▶ Preview</button>
+            <button class="img-action-btn" style="color: #818cf8;" onclick={(e) => { e.stopPropagation(); openSitesModal(); }}>⚙ Config</button>
           </div>
         </div>
       </div>

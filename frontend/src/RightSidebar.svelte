@@ -1,10 +1,7 @@
 <script>
   import PageIcon from "./PageIcon.svelte";
-  export let sidePages = [];
-  export let selectedPage = null;
-  export let onSelectPage;
-  export let onCreateSidePage;
-  export let onDeletePage;
+
+  let { sidePages = [], selectedPage = null, onSelectPage, onCreateSidePage, onDeletePage } = $props();
 </script>
 
 <div class="right-sidebar">
@@ -14,7 +11,7 @@
       <button
         class="add-btn"
         title="Add context page"
-        on:click={onCreateSidePage}>+</button
+        onclick={onCreateSidePage}>+</button
       >
     {/if}
   </div>
@@ -31,7 +28,7 @@
       <span class="empty-hint"
         >Side pages provide supplementary info about the current page.</span
       >
-      <button class="add-btn-label" on:click={onCreateSidePage}
+      <button class="add-btn-label" onclick={onCreateSidePage}
         >+ Add Context Page</button
       >
     </div>
@@ -39,7 +36,7 @@
     <div class="pages-list">
       {#each sidePages as sp}
         <div class="page-card" class:selected={false}>
-          <button class="page-btn" on:click={() => onSelectPage(sp)}>
+          <button class="page-btn" onclick={() => onSelectPage(sp)}>
             <span class="page-emoji"><PageIcon emoji={sp.emoji} size={14} /></span>
             <div class="page-info">
               <span class="page-title">{sp.title || "Untitled"}</span>
@@ -48,7 +45,7 @@
           <button
             class="delete-btn"
             title="Remove context page"
-            on:click|stopPropagation={() => onDeletePage(sp.id)}
+            onclick={(e) => { e.stopPropagation(); onDeletePage(sp.id); }}
           >
             ×
           </button>

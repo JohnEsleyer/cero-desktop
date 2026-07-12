@@ -6,8 +6,9 @@
 <script>
   import { onMount, tick, setContext } from "svelte";
   import { EventsOn } from "../wailsjs/runtime/runtime.js";
-  import { marked } from "marked";
   import PageIcon from "./PageIcon.svelte";
+  import SvelteMarkdown from "@humanspeak/svelte-markdown";
+  import { markedKatex, KatexRenderer } from "@humanspeak/svelte-markdown/extensions";
   import {
     GetConnectionStatus,
     GetDbPages,
@@ -31,43 +32,43 @@
     SaveImage,
   } from "../wailsjs/go/main/App.js";
 
-  let connectionStatus = "disconnected";
-  let discoveredDevices = [];
-  let connectedDevice = null;
-  let manualIp = "";
-  let manualPort = 9090;
-  let manualPin = "";
-  let connectionError = "";
+  let connectionStatus = $state("disconnected");
+  let discoveredDevices = $state([]);
+  let connectedDevice = $state(null);
+  let manualIp = $state("");
+  let manualPort = $state(9090);
+  let manualPin = $state("");
+  let connectionError = $state("");
 
-  let activeWorkspace = "";
+  let activeWorkspace = $state("");
 
-  let allPages = [];
-  let selectedPage = null;
-  let navigationHistory = [];
+  let allPages = $state([]);
+  let selectedPage = $state(null);
+  let navigationHistory = $state([]);
 
-  let pageCards = [];
-  let selectedCardId = null;
+  let pageCards = $state([]);
+  let selectedCardId = $state(null);
 
-  let editorTitle = "";
-  let editorEmoji = "";
-  let saveTimeout;
+  let editorTitle = $state("");
+  let editorEmoji = $state("");
+  let saveTimeout = $state(null);
 
   // Root Page search query state
-  let sidebarSearchQuery = "";
+  let sidebarSearchQuery = $state("");
 
   // Reactive filtration to only display filtered active root pages
-  $: filteredSidebarRootPages = rootPages.filter((p) => {
+  let filteredSidebarRootPages = $derived(rootPages.filter((p) => {
     if (!sidebarSearchQuery) return true;
     return (p.title || "").toLowerCase().includes(sidebarSearchQuery.toLowerCase());
-  });
+  }));
 
   // View state option for block-by-block pagination
-  let isPaginatedView = false;
-  let currentBlockIndex = 0;
-  let blockNumberInput = "1";
-  let pendingBlockIndex = null;
+  let isPaginatedView = $state(false);
+  let currentBlockIndex = $state(0);
+  let blockNumberInput = $state("1");
+  let pendingBlockIndex = $state(null);
 
-  $: {
+  $effect(() => {
     if (pageCards && pageCards.length > 0) {
       if (currentBlockIndex >= pageCards.length) {
         currentBlockIndex = pageCards.length - 1;
@@ -77,9 +78,9 @@
       currentBlockIndex = 0;
       blockNumberInput = "1";
     }
-  }
+  });
 
-  $: {
+  $effect(() => {
     if (pageCards && pendingBlockIndex !== null) {
       if (pendingBlockIndex >= 0 && pendingBlockIndex < pageCards.length) {
         currentBlockIndex = pendingBlockIndex;
@@ -87,7 +88,7 @@
         pendingBlockIndex = null;
       }
     }
-  }
+  });
 
   // Reusable Sleek Modal Dialog Configuration
   let modalConfig = {
@@ -146,16 +147,16 @@
   setContext("dialogs", { showAlert, showConfirm });
 
   // Custom Modal States
-  let showBlockSelectorModal = false;
-  let blockInsertIndex = null;
-  let cardColumnContainer;
+  let showBlockSelectorModal = $state(false);
+  let blockInsertIndex = $state(null);
+  let cardColumnContainer = $state(null);
 
-  let showEmojiPickerModal = false;
+  let showEmojiPickerModal = $state(false);
 
-  let showScrollToBottom = false;
+  let showScrollToBottom = $state(false);
 
-  let iconImageInput;
-  let customIconUrl = "";
+  let iconImageInput = $state(null);
+  let customIconUrl = $state("");
 
   function handleIconUpload(e) {
     const file = e.target.files[0];
@@ -204,35 +205,35 @@
   }
 
   // PIN Entry Modal States
-  let showPinModal = false;
-  let pinInput = "";
-  let pendingDeviceToConnect = null;
-  let pinModalError = "";
-  let isConnecting = false;
+  let showPinModal = $state(false);
+  let pinInput = $state("");
+  let pendingDeviceToConnect = $state(null);
+  let pinModalError = $state("");
+  let isConnecting = $state(false);
 
   // Link a Subpage Modal States (Moved to root level)
-  let showLinkPageModal = false;
-  let linkingCard = null;
-  let pageSearchQuery = "";
+  let showLinkPageModal = $state(false);
+  let linkingCard = $state(null);
+  let pageSearchQuery = $state("");
 
   // Immersive Fullscreen States at App Level
-  let editingCard = null;
-  let showMarkdownFullscreenModal = false;
-  let showCodeFullscreenModal = false;
-  let showSitesModal = false;
+  let editingCard = $state(null);
+  let showMarkdownFullscreenModal = $state(false);
+  let showCodeFullscreenModal = $state(false);
+  let showSitesModal = $state(false);
 
-  let showSitesPreviewModal = false;
-  let previewSitesName = "";
-  let previewSitesHtml = "";
+  let showSitesPreviewModal = $state(false);
+  let previewSitesName = $state("");
+  let previewSitesHtml = $state("");
 
   // Move Page Modal state
-  let showMovePageModal = false;
-  let movingPage = null;
-  let moveBrowsingId = null;
+  let showMovePageModal = $state(false);
+  let movingPage = $state(null);
+  let moveBrowsingId = $state(null);
 
   // Move Block Modal states
-  let showMoveBlockModal = false;
-  let movingCard = null;
+  let showMoveBlockModal = $state(false);
+  let movingCard = $state(null);
 
   function openMoveBlockModal(card) {
     movingCard = card;
@@ -256,18 +257,18 @@
       .catch((err) => showAlert("Move Failed", err.toString()));
   }
 
-  $: moveBlockSubpages = selectedPage ? allPages.filter(p => p.parent_id === selectedPage.id && p.relation_type !== "sidepage" && p.id !== selectedPage.id) : [];
-  $: moveBlockNeighbors = selectedPage ? allPages.filter(p => p.parent_id === selectedPage.parent_id && p.id !== selectedPage.id && p.relation_type !== "sidepage") : [];
-  $: moveBlockOthers = (() => {
+  let moveBlockSubpages = $derived(selectedPage ? allPages.filter(p => p.parent_id === selectedPage.id && p.relation_type !== "sidepage" && p.id !== selectedPage.id) : []);
+  let moveBlockNeighbors = $derived(selectedPage ? allPages.filter(p => p.parent_id === selectedPage.parent_id && p.id !== selectedPage.id && p.relation_type !== "sidepage") : []);
+  let moveBlockOthers = $derived((() => {
     if (!selectedPage) return [];
     const excluded = new Set([selectedPage.id, ...moveBlockSubpages.map(p => p.id), ...moveBlockNeighbors.map(p => p.id)]);
     return allPages.filter(p => !excluded.has(p.id) && p.relation_type !== "sidepage");
-  })();
+  })());
 
   // Comments Modal state
-  let showCommentsModal = false;
-  let commentCard = null;
-  let commentInput = "";
+  let showCommentsModal = $state(false);
+  let commentCard = $state(null);
+  let commentInput = $state("");
 
   const colorPresets = {
     default: { bg: "#09090b", text: "#e4e4e7", border: "rgba(255, 255, 255, 0.04)", textMuted: "#71717a", borderLeft: "#71717a" },
@@ -339,35 +340,32 @@
   }
 
   // Real-time server live tracking
-  let activeLiveCardId = null;
-  let activeSitesLocalUrl = "";
-  let isSitesLive = false;
+  let activeLiveCardId = $state(null);
+  let activeSitesLocalUrl = $state("");
+  let isSitesLive = $state(false);
 
   // Fullscreen edit copy
-  let fullscreenEditContent = "";
-  let fullscreenCodeLang = "javascript";
-  let fullscreenCodeContent = "";
+  let fullscreenEditContent = $state("");
+  let fullscreenCodeLang = $state("javascript");
+  let fullscreenCodeContent = $state("");
 
   // Sites Card variables inside sandbox modal
-  let sitesTab = "edit";
-  let sitesName = "";
-  let sitesDesc = "";
-  let sitesHtml = "";
-  let sitesLocalUrl = "";
-
-  // Reactive Fullscreen Markdown Parser
-  $: interactivePreviewMarkdown = marked.parse(fullscreenEditContent || "");
+  let sitesTab = $state("edit");
+  let sitesName = $state("");
+  let sitesDesc = $state("");
+  let sitesHtml = $state("");
+  let sitesLocalUrl = $state("");
 
   // Immersive Markdown Helpers
-  let markdownTextarea;
-  $: markdownCharCount = fullscreenEditContent
+  let markdownTextarea = $state(null);
+  let markdownCharCount = $derived(fullscreenEditContent
     ? fullscreenEditContent.length
-    : 0;
-  $: markdownWordCount = fullscreenEditContent
+    : 0);
+  let markdownWordCount = $derived(fullscreenEditContent
     ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length
-    : 0;
+    : 0);
 
-  $: parentPage = selectedPage && selectedPage.parent_id ? allPages.find(p => p.id === selectedPage.parent_id) : null;
+  let parentPage = $derived(selectedPage && selectedPage.parent_id ? allPages.find(p => p.id === selectedPage.parent_id) : null);
 
   function insertMarkdownSymbol(prefix, suffix = "") {
     if (!markdownTextarea) return;
@@ -391,8 +389,8 @@
   }
 
   // Immersive Code Editor Real-time Sync & Highlighting
-  let lineNumbersElement = null;
-  let preElement = null;
+  let lineNumbersElement = $state(null);
+  let preElement = $state(null);
 
   function handleEditorScroll(e) {
     const { scrollTop, scrollLeft } = e.target;
@@ -472,58 +470,11 @@
     });
   }
 
-  // Configure marked for splitscreen preview
-  const appRenderer = new marked.Renderer();
-  
-  appRenderer.code = ({ text, lang }) => {
-    const langName = lang ? lang.trim().toLowerCase() : "";
-    const highlighted = highlightCode(text, langName);
-    return `<pre class="markdown-code-block"><div class="code-lang-badge">${langName.toUpperCase() || "CODE"}</div><code>${highlighted}</code></pre>`;
-  };
-
-  appRenderer.listitem = function ({ tokens, task, checked }) {
-    const text = this.parser.parse(tokens);
-    if (task) {
-      return `<li class="task-list-item">
-        <label class="task-list-label">
-          <input type="checkbox" class="task-list-checkbox" ${checked ? "checked" : ""} disabled />
-          <span class="task-list-text">${text}</span>
-        </label>
-      </li>`;
-    }
-    return `<li>${text}</li>`;
-  };
-
-  appRenderer.blockquote = function ({ tokens }) {
-    const quote = this.parser.parse(tokens);
-    return `<blockquote class="markdown-blockquote">${quote}</blockquote>`;
-  };
-
-  appRenderer.table = function (token) {
-    let headerHtml = "";
-    for (const cell of token.header) headerHtml += this.tablecell(cell);
-    headerHtml = this.tablerow({ text: headerHtml });
-    let bodyHtml = "";
-    for (const row of token.rows) {
-      let rowHtml = "";
-      for (const cell of row) rowHtml += this.tablecell(cell);
-      bodyHtml += this.tablerow({ text: rowHtml });
-    }
-    return `<div class="markdown-table-wrapper">
-      <table class="markdown-table">
-        <thead>${headerHtml}</thead>
-        <tbody>${bodyHtml}</tbody>
-      </table>
-    </div>`;
-  };
-
-  marked.setOptions({ renderer: appRenderer });
-
-  $: lineNumbers = (fullscreenCodeContent.match(/\n/g) || []).length + 1;
-  $: highlightedCodeHtml = highlightCode(
+  let lineNumbers = $derived((fullscreenCodeContent.match(/\n/g) || []).length + 1);
+  let highlightedCodeHtml = $derived(highlightCode(
     fullscreenCodeContent,
     fullscreenCodeLang,
-  );
+  ));
 
   const emojiCategories = [
     {
@@ -557,22 +508,22 @@
   ];
 
   // Sidebar widths (pixels)
-let leftSidebarWidth = 260;
-let rightSidebarWidth = 260;
-let showRightSidebar = false;
-  let dragging = null; // 'left' | 'right' | null
+  let leftSidebarWidth = $state(260);
+  let rightSidebarWidth = $state(260);
+  let showRightSidebar = $state(false);
+  let dragging = $state(null); // 'left' | 'right' | null
   let dragStartX = 0;
   let dragStartWidth = 0;
 
-  $: rootPages = allPages.filter(
+  let rootPages = $derived(allPages.filter(
     (p) => !p.parent_id && p.relation_type !== "sidepage",
-  );
-  $: sidePages = allPages.filter(
+  ));
+  let sidePages = $derived(allPages.filter(
     (p) => p.parent_id === selectedPage?.id && p.relation_type === "sidepage",
-  );
+  ));
 
   // Filter nested subpages candidates globally for the link modal
-  $: filteredLinkCandidates = (() => {
+  let filteredLinkCandidates = $derived((() => {
     if (!linkingCard) return [];
     const currentPageId = linkingCard.page_id;
     const currentPage = allPages.find(p => p.id === currentPageId);
@@ -597,7 +548,7 @@ let showRightSidebar = false;
         (p.title || "").toLowerCase().includes(query) ||
         (p.emoji || "").includes(query),
     );
-  })();
+  })());
 
   onMount(async () => {
     try {
@@ -1128,7 +1079,7 @@ let showRightSidebar = false;
               >{connectedDevice?.deviceName || "Mobile"}</span
             >
           </div>
-          <button class="btn-sm full" on:click={handleDisconnect}
+          <button class="btn-sm full" onclick={handleDisconnect}
             >Disconnect</button
           >
         {:else if discoveredDevices.length === 0}
@@ -1141,7 +1092,7 @@ let showRightSidebar = false;
                   >{d.ip}:{d.port}</span
                 >
               </div>
-              <button class="btn-sm primary" on:click={() => handleConnect(d)}
+              <button class="btn-sm primary" onclick={() => handleConnect(d)}
                 >Link</button
               >
             </div>
@@ -1154,7 +1105,7 @@ let showRightSidebar = false;
       <div class="section-label">
         <span>Pages</span>
         {#if connectionStatus === "connected"}
-          <button class="icon-btn" on:click={() => createPage("")}>+</button>
+          <button class="icon-btn" onclick={() => createPage("")}>+</button>
         {/if}
       </div>
 
@@ -1179,7 +1130,7 @@ let showRightSidebar = false;
           {#each filteredSidebarRootPages as page}
             <div class="tree-node">
               <div class="node-row" class:active={selectedPage && selectedPage.id === page.id}>
-                <button class="node-content" on:click={() => selectPage(page)} style="padding-left: 4px;">
+                <button class="node-content" onclick={() => selectPage(page)} style="padding-left: 4px;">
                   <span class="emoji"><PageIcon emoji={page.emoji} size={13} /></span>
                   <span class="title" title={page.title}>{page.title || "Untitled"}</span>
                 </button>
@@ -1188,17 +1139,17 @@ let showRightSidebar = false;
                   <button
                     class="action-btn"
                     title="Add subpage"
-                    on:click|stopPropagation={() => createPage(page.id)}>+</button
+                    onclick={(e) => { e.stopPropagation(); createPage(page.id) }}>+</button
                   >
                   <button
                     class="action-btn"
                     title="Move to..."
-                    on:click|stopPropagation={() => movePage(page.id)}>↗</button
+                    onclick={(e) => { e.stopPropagation(); movePage(page.id) }}>↗</button
                   >
                   <button
                     class="action-btn delete"
                     title="Archive page"
-                    on:click|stopPropagation={() => deletePage(page.id)}>×</button
+                    onclick={(e) => { e.stopPropagation(); deletePage(page.id) }}>×</button
                   >
                 </div>
               </div>
@@ -1242,7 +1193,7 @@ let showRightSidebar = false;
               class="pin-input"
             />
           </div>
-          <button class="connect-btn" on:click={handleConnectManually}>
+          <button class="connect-btn" onclick={handleConnectManually}>
             <span class="btn-icon">🔗</span> Link Device
           </button>
           {#if connectionError}
@@ -1259,7 +1210,7 @@ let showRightSidebar = false;
   <!-- LEFT DRAG HANDLE -->
   <div
     class="drag-handle left-handle"
-    on:mousedown={(e) => onDragStart("left", e)}
+    onmousedown={(e) => onDragStart("left", e)}
     class:active={dragging === "left"}
   >
     <div class="handle-line"></div>
@@ -1306,7 +1257,7 @@ let showRightSidebar = false;
           <span class="big-icon"><PageIcon emoji="" size={38} /></span>
           <h2>Select or Create a Page</h2>
           <p>Choose from sidebar or create a new page.</p>
-          <button class="btn primary" on:click={() => createPage("")}
+          <button class="btn primary" onclick={() => createPage("")}
             >Create New Page</button
           >
         </div>
@@ -1315,7 +1266,7 @@ let showRightSidebar = false;
       <div class="editor-header">
         <div class="breadcrumbs">
           {#if navigationHistory.length > 0}
-            <button class="back-btn" on:click={goBack}>← Back</button>
+            <button class="back-btn" onclick={goBack}>← Back</button>
             <span class="sep">|</span>
           {/if}
           <span class="bc-root">{activeWorkspace}</span>
@@ -1326,17 +1277,17 @@ let showRightSidebar = false;
           </span>
         </div>
         <div class="header-actions">
-          <button class="btn-sm" on:click={() => movePage(selectedPage.id)}
+          <button class="btn-sm" onclick={() => movePage(selectedPage.id)}
             >Move</button
           >
           <button
             class="btn-sm danger"
-            on:click={() => deletePage(selectedPage.id)}>Archive</button
+            onclick={() => deletePage(selectedPage.id)}>Archive</button
           >
           <button
             class="btn-sm sidebar-toggle"
             title="{showRightSidebar ? 'Hide' : 'Show'} context panel (Ctrl+\)"
-            on:click={() => (showRightSidebar = !showRightSidebar)}
+            onclick={() => (showRightSidebar = !showRightSidebar)}
           >
             {showRightSidebar ? '✕ Close Context' : '☰ Context'}
           </button>
@@ -1347,7 +1298,7 @@ let showRightSidebar = false;
         <!-- Interactive Page Emoji Picker Trigger -->
         <button
           class="emoji-input-btn"
-          on:click={() => (showEmojiPickerModal = true)}
+          onclick={() => (showEmojiPickerModal = true)}
         >
           <PageIcon emoji={editorEmoji || ""} size={44} />
         </button>
@@ -1356,12 +1307,12 @@ let showRightSidebar = false;
           class="title-input"
           type="text"
           bind:value={editorTitle}
-          on:input={savePageDebounced}
+          oninput={savePageDebounced}
           placeholder="Untitled"
         />
       </div>
 
-      <div class="card-column" bind:this={cardColumnContainer} on:scroll={handleCardColumnScroll}>
+      <div class="card-column" bind:this={cardColumnContainer} onscroll={handleCardColumnScroll}>
         {#if isPaginatedView && pageCards.length > 0}
           {@const card = pageCards[currentBlockIndex]}
           <div class="card-slot">
@@ -1381,19 +1332,19 @@ let showRightSidebar = false;
                   blockNumberInput = (currentBlockIndex + 1).toString();
                 }
               }}
-              on:editMarkdown={(e) => openMarkdownFullscreen(card, e.detail.content)}
-              on:editCode={(e) => openCodeFullscreen(card, e.detail.content)}
-              on:editSites={(e) => openSitesFullscreen(card, e.detail.name, e.detail.description, e.detail.html)}
-              on:previewSites={(e) => openSitesPreview(e.detail.name, e.detail.html)}
-              on:openLinkModal={(e) => {
-                linkingCard = e.detail.card;
+              oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
+              oneditCode={(content) => openCodeFullscreen(card, content)}
+              oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
+              onpreviewSites={(name, html) => openSitesPreview(name, html)}
+              onopenLinkModal={(c) => {
+                linkingCard = c;
                 pageSearchQuery = "";
                 showLinkPageModal = true;
               }}
-              on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
-              on:openMoveBlockModal={(e) => openMoveBlockModal(e.detail.card)}
-              on:moveUp={() => moveCard(currentBlockIndex, -1)}
-              on:moveDown={() => moveCard(currentBlockIndex, 1)}
+              onopenCommentsModal={(c) => openCommentsModal(c)}
+              onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+              onmoveUp={() => moveCard(currentBlockIndex, -1)}
+              onmoveDown={() => moveCard(currentBlockIndex, 1)}
             />
           </div>
         {:else if pageCards.length > 0}
@@ -1401,14 +1352,14 @@ let showRightSidebar = false;
             <div
               class="card-slot"
               draggable="true"
-              on:dragstart={(e) => {
+              ondragstart={(e) => {
                 e.dataTransfer.setData("text/plain", index.toString());
                 e.dataTransfer.effectAllowed = "move";
               }}
-              on:dragover|preventDefault={(e) => {
+              ondragover={(e) => { e.preventDefault(); {
                 e.dataTransfer.dropEffect = "move";
-              }}
-              on:drop|preventDefault={(e) => handleCardDrop(e, index)}
+               }}}
+              ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index) }}
             >
               <CardBlock
                 {card}
@@ -1422,29 +1373,29 @@ let showRightSidebar = false;
                 onDeleted={(id) => {
                   pageCards = pageCards.filter((c) => c.id !== id);
                 }}
-                on:editMarkdown={(e) => openMarkdownFullscreen(card, e.detail.content)}
-                on:editCode={(e) => openCodeFullscreen(card, e.detail.content)}
-                on:editSites={(e) => openSitesFullscreen(card, e.detail.name, e.detail.description, e.detail.html)}
-                on:previewSites={(e) => openSitesPreview(e.detail.name, e.detail.html)}
-                on:openLinkModal={(e) => {
-                  linkingCard = e.detail.card;
+                oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
+                oneditCode={(content) => openCodeFullscreen(card, content)}
+                oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
+                onpreviewSites={(name, html) => openSitesPreview(name, html)}
+                onopenLinkModal={(c) => {
+                  linkingCard = c;
                   pageSearchQuery = "";
                   showLinkPageModal = true;
                 }}
-                on:openCommentsModal={(e) => openCommentsModal(e.detail.card)}
-                on:openMoveBlockModal={(e) => openMoveBlockModal(e.detail.card)}
-                on:moveUp={() => moveCard(index, -1)}
-                on:moveDown={() => moveCard(index, 1)}
+                onopenCommentsModal={(c) => openCommentsModal(c)}
+                onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+                onmoveUp={() => moveCard(index, -1)}
+                onmoveDown={() => moveCard(index, 1)}
               />
             </div>
             <div
               class="insert-slot"
-              on:dragover|preventDefault
-              on:drop|preventDefault={(e) => handleCardDrop(e, index + 1)}
+              ondragover={(e) => e.preventDefault()}
+              ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index + 1) }}
             >
               <button
                 class="insert-btn"
-                on:click={() => {
+                onclick={() => {
                   blockInsertIndex = index + 1;
                   showBlockSelectorModal = true;
                 }}>+</button
@@ -1459,12 +1410,12 @@ let showRightSidebar = false;
             <h3>This page is empty</h3>
             <p>Add blocks to start writing.</p>
             <div class="empty-actions">
-              <button class="btn secondary" on:click={() => handleAddCardType("markdown")}>📝 Markdown</button>
-              <button class="btn secondary" on:click={() => handleAddCardType("image")}>🖼️ Image</button>
-              <button class="btn secondary" on:click={() => handleAddCardType("subpage_link")}>🔗 Link</button>
-              <button class="btn secondary" on:click={() => handleAddCardType("code")}>💻 Code Block</button>
-              <button class="btn secondary" on:click={() => handleAddCardType("sites")}>🌐 HTML Site</button>
-              <button class="btn secondary" on:click={() => handleAddCardType("section")}>📋 Section</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("markdown")}>📝 Markdown</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("image")}>🖼️ Image</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("subpage_link")}>🔗 Link</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("code")}>💻 Code Block</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("sites")}>🌐 HTML Site</button>
+              <button class="btn secondary" onclick={() => handleAddCardType("section")}>📋 Section</button>
             </div>
           </div>
         {/if}
@@ -1472,7 +1423,7 @@ let showRightSidebar = false;
         {#if !isPaginatedView}
           <button
             class="add-card-btn"
-            on:click={() => {
+            onclick={() => {
               blockInsertIndex = null;
               showBlockSelectorModal = true;
             }}>+ Add Card</button
@@ -1480,7 +1431,7 @@ let showRightSidebar = false;
         {/if}
 
         {#if showScrollToBottom && !isPaginatedView}
-          <button class="scroll-to-bottom-btn" on:click={scrollToBottom}>
+          <button class="scroll-to-bottom-btn" onclick={scrollToBottom}>
             ↓
           </button>
         {/if}
@@ -1492,7 +1443,7 @@ let showRightSidebar = false;
         <button
           class="mode-toggle-btn"
           class:block-active={isPaginatedView}
-          on:click={() => {
+          onclick={() => {
             isPaginatedView = !isPaginatedView;
             if (isPaginatedView) {
               currentBlockIndex = 0;
@@ -1515,7 +1466,7 @@ let showRightSidebar = false;
             <button
               class="nav-arrow-btn"
               disabled={currentBlockIndex === 0}
-              on:click={() => {
+              onclick={() => {
                 currentBlockIndex = 0;
                 blockNumberInput = "1";
               }}
@@ -1528,7 +1479,7 @@ let showRightSidebar = false;
             <button
               class="nav-arrow-btn"
               disabled={currentBlockIndex === 0}
-              on:click={() => {
+              onclick={() => {
                 currentBlockIndex = Math.max(0, currentBlockIndex - 1);
                 blockNumberInput = (currentBlockIndex + 1).toString();
               }}
@@ -1544,7 +1495,7 @@ let showRightSidebar = false;
                 min="1"
                 max={pageCards.length}
                 value={blockNumberInput}
-                on:change={(e) => {
+                onchange={(e) => {
                   const parsed = parseInt(e.target.value);
                   if (!isNaN(parsed) && parsed >= 1 && parsed <= pageCards.length) {
                     currentBlockIndex = parsed - 1;
@@ -1562,7 +1513,7 @@ let showRightSidebar = false;
             <button
               class="nav-arrow-btn"
               disabled={currentBlockIndex === pageCards.length - 1}
-              on:click={() => {
+              onclick={() => {
                 currentBlockIndex = Math.min(pageCards.length - 1, currentBlockIndex + 1);
                 blockNumberInput = (currentBlockIndex + 1).toString();
               }}
@@ -1575,7 +1526,7 @@ let showRightSidebar = false;
             <button
               class="nav-arrow-btn"
               disabled={currentBlockIndex === pageCards.length - 1}
-              on:click={() => {
+              onclick={() => {
                 currentBlockIndex = pageCards.length - 1;
                 blockNumberInput = pageCards.length.toString();
               }}
@@ -1597,7 +1548,7 @@ let showRightSidebar = false;
     <!-- RIGHT DRAG HANDLE -->
     <div
       class="drag-handle right-handle"
-      on:mousedown={(e) => onDragStart("right", e)}
+      onmousedown={(e) => onDragStart("right", e)}
       class:active={dragging === "right"}
     >
       <div class="handle-line"></div>
@@ -1619,7 +1570,7 @@ let showRightSidebar = false;
   {/if}
 </main>
 
-<svelte:window on:keydown={(e) => {
+<svelte:window onkeydown={(e) => {
   if (e.key === '\\' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     showRightSidebar = !showRightSidebar;
@@ -1632,7 +1583,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div 
     class="modal-backdrop" 
-    on:click|self={() => { if (modalConfig.type === 'alert') modalConfig.onConfirm(); }} 
+    onclick={(e) => { if (e.target === e.currentTarget) { { if (modalConfig.type === 'alert') modalConfig.onConfirm();  } }}} 
     role="button" 
     tabindex="-1"
   >
@@ -1640,9 +1591,9 @@ let showRightSidebar = false;
       <div class="modal-header">
         <h3>{modalConfig.title}</h3>
         {#if modalConfig.type === 'alert'}
-          <button class="close-btn" on:click={modalConfig.onConfirm}>&times;</button>
+          <button class="close-btn" onclick={modalConfig.onConfirm}>&times;</button>
         {:else}
-          <button class="close-btn" on:click={modalConfig.onCancel}>&times;</button>
+          <button class="close-btn" onclick={modalConfig.onCancel}>&times;</button>
         {/if}
       </div>
       <div class="modal-body alert-confirm-body">
@@ -1650,9 +1601,9 @@ let showRightSidebar = false;
       </div>
       <div class="modal-footer">
         {#if modalConfig.type === 'confirm'}
-          <button class="btn secondary" on:click={modalConfig.onCancel}>{modalConfig.cancelText}</button>
+          <button class="btn secondary" onclick={modalConfig.onCancel}>{modalConfig.cancelText}</button>
         {/if}
-        <button class="btn primary" on:click={modalConfig.onConfirm}>{modalConfig.confirmText}</button>
+        <button class="btn primary" onclick={modalConfig.onConfirm}>{modalConfig.confirmText}</button>
       </div>
     </div>
   </div>
@@ -1664,7 +1615,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showBlockSelectorModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showBlockSelectorModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -1673,13 +1624,13 @@ let showRightSidebar = false;
         <h3>Add Block</h3>
         <button
           class="close-btn"
-          on:click={() => (showBlockSelectorModal = false)}>&times;</button
+          onclick={() => (showBlockSelectorModal = false)}>&times;</button
         >
       </div>
       <div class="modal-body block-options-grid">
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("markdown")}
+          onclick={() => handleAddCardType("markdown")}
         >
           <span class="block-icon">📝</span>
           <div class="block-desc">
@@ -1691,7 +1642,7 @@ let showRightSidebar = false;
         </button>
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("image")}
+          onclick={() => handleAddCardType("image")}
         >
           <span class="block-icon">🖼️</span>
           <div class="block-desc">
@@ -1704,7 +1655,7 @@ let showRightSidebar = false;
         </button>
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("subpage_link")}
+          onclick={() => handleAddCardType("subpage_link")}
         >
           <span class="block-icon">🔗</span>
           <div class="block-desc">
@@ -1716,7 +1667,7 @@ let showRightSidebar = false;
         </button>
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("code")}
+          onclick={() => handleAddCardType("code")}
         >
           <span class="block-icon">💻</span>
           <div class="block-desc">
@@ -1729,7 +1680,7 @@ let showRightSidebar = false;
         </button>
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("sites")}
+          onclick={() => handleAddCardType("sites")}
         >
           <span class="block-icon">🌐</span>
           <div class="block-desc">
@@ -1742,7 +1693,7 @@ let showRightSidebar = false;
         </button>
         <button
           class="block-option-row"
-          on:click={() => handleAddCardType("section")}
+          onclick={() => handleAddCardType("section")}
         >
           <span class="block-icon">📋</span>
           <div class="block-desc">
@@ -1763,7 +1714,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showEmojiPickerModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showEmojiPickerModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -1772,10 +1723,10 @@ let showRightSidebar = false;
         <h3>Select Page Icon</h3>
         <button
           class="close-btn"
-          on:click={() => (showEmojiPickerModal = false)}>&times;</button
+          onclick={() => (showEmojiPickerModal = false)}>&times;</button
         >
       </div>
-      <input type="file" bind:this={iconImageInput} accept="image/*" style="display:none" on:change={handleIconUpload} />
+      <input type="file" bind:this={iconImageInput} accept="image/*" style="display:none" onchange={handleIconUpload} />
       <div class="modal-body">
         <div class="custom-icon-section">
           <div class="custom-icon-header">
@@ -1783,15 +1734,15 @@ let showRightSidebar = false;
             <h4>Use Custom Page Icon</h4>
             <p>Import an image from your computer or use an online URL.</p>
           </div>
-          <button class="btn primary" style="width:100%; margin-bottom: 12px;" on:click={() => iconImageInput.click()}>
+          <button class="btn primary" style="width:100%; margin-bottom: 12px;" onclick={() => iconImageInput.click()}>
             Pick Image from Computer
           </button>
           <div class="custom-icon-url-row" style="margin-bottom: 12px;">
             <input type="text" bind:value={customIconUrl} placeholder="https://example.com/icon.png" />
-            <button class="btn primary" on:click={applyCustomIconUrl}>Apply</button>
+            <button class="btn primary" onclick={applyCustomIconUrl}>Apply</button>
           </div>
           {#if parentPage}
-            <button class="btn secondary" style="width:100%; margin-bottom: 12px; color: #818cf8;" on:click={() => {
+            <button class="btn secondary" style="width:100%; margin-bottom: 12px; color: #818cf8;" onclick={() => {
               editorEmoji = parentPage.emoji || "";
               showEmojiPickerModal = false;
               savePageImmediate();
@@ -1799,7 +1750,7 @@ let showRightSidebar = false;
               Inherit Parent Icon ({parentPage.title || "Untitled"})
             </button>
           {/if}
-          <button class="btn secondary" style="width:100%; color: #f87171;" on:click={() => {
+          <button class="btn secondary" style="width:100%; color: #f87171;" onclick={() => {
             editorEmoji = "";
             showEmojiPickerModal = false;
             savePageImmediate();
@@ -1818,9 +1769,9 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => {
+    onclick={(e) => { if (e.target === e.currentTarget) { {
       if (!isConnecting) showPinModal = false;
-    }}
+     } }}}
     role="button"
     tabindex="-1"
   >
@@ -1829,7 +1780,7 @@ let showRightSidebar = false;
         <h3>🔑 Link Mobile Device</h3>
         <button
           class="close-btn"
-          on:click={() => (showPinModal = false)}
+          onclick={() => (showPinModal = false)}
           disabled={isConnecting}>&times;</button
         >
       </div>
@@ -1859,7 +1810,7 @@ let showRightSidebar = false;
             maxlength="4"
             pattern="[0-9]*"
             inputmode="numeric"
-            on:keydown={(e) => {
+            onkeydown={(e) => {
               if (e.key === "Enter") submitPin();
             }}
             disabled={isConnecting}
@@ -1877,14 +1828,14 @@ let showRightSidebar = false;
       <div class="modal-footer">
         <button
           class="btn secondary"
-          on:click={() => (showPinModal = false)}
+          onclick={() => (showPinModal = false)}
           disabled={isConnecting}
         >
           Cancel
         </button>
         <button
           class="btn primary"
-          on:click={submitPin}
+          onclick={submitPin}
           disabled={isConnecting || pinInput.length < 4}
         >
           {#if isConnecting}
@@ -1927,9 +1878,9 @@ let showRightSidebar = false;
       <div class="header-buttons">
         <button
           class="btn secondary"
-          on:click={() => (showMarkdownFullscreenModal = false)}>Cancel</button
+          onclick={() => (showMarkdownFullscreenModal = false)}>Cancel</button
         >
-        <button class="btn primary" on:click={saveMarkdownFullscreen}
+        <button class="btn primary" onclick={saveMarkdownFullscreen}
           >Save Changes</button
         >
       </div>
@@ -1950,45 +1901,49 @@ let showRightSidebar = false;
           <button
             class="tool-btn"
             title="Bold"
-            on:click={() => insertMarkdownSymbol("**", "**")}
+            onclick={() => insertMarkdownSymbol("**", "**")}
             ><strong>B</strong></button
           >
           <button
             class="tool-btn"
             title="Italic"
-            on:click={() => insertMarkdownSymbol("*", "*")}><em>I</em></button
+            onclick={() => insertMarkdownSymbol("*", "*")}><em>I</em></button
           >
           <button
             class="tool-btn"
             title="Header"
-            on:click={() => insertMarkdownSymbol("### ")}>H3</button
+            onclick={() => insertMarkdownSymbol("### ")}>H3</button
           >
           <button
             class="tool-btn"
             title="List"
-            on:click={() => insertMarkdownSymbol("- ")}>• List</button
+            onclick={() => insertMarkdownSymbol("- ")}>• List</button
           >
           <button
             class="tool-btn"
             title="Checklist"
-            on:click={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button
+            onclick={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button
           >
           <button
             class="tool-btn"
             title="Inline Code"
-            on:click={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button
+            onclick={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button
           >
           <button
             class="tool-btn"
             title="Code Block"
-            on:click={() => insertMarkdownSymbol("```\n", "\n```")}
+            onclick={() => insertMarkdownSymbol("```\n", "\n```")}
             >Block</button
           >
         </div>
       </div>
 
       <div class="fullscreen-preview markdown-rendered">
-        {@html interactivePreviewMarkdown}
+        <SvelteMarkdown source={fullscreenEditContent || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }}>
+          {#snippet code({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+        </SvelteMarkdown>
       </div>
     </div>
   </div>
@@ -2034,9 +1989,9 @@ let showRightSidebar = false;
       <div class="header-buttons">
         <button
           class="btn secondary"
-          on:click={() => (showCodeFullscreenModal = false)}>Cancel</button
+          onclick={() => (showCodeFullscreenModal = false)}>Cancel</button
         >
-        <button class="btn primary" on:click={saveCodeFullscreen}
+        <button class="btn primary" onclick={saveCodeFullscreen}
           >Save Changes</button
         >
       </div>
@@ -2059,7 +2014,7 @@ let showRightSidebar = false;
           <textarea
             class="editor-textarea"
             bind:value={fullscreenCodeContent}
-            on:scroll={handleEditorScroll}
+            onscroll={handleEditorScroll}
             placeholder="Write your code snippet here..."
             spellcheck="false"
             autofocus
@@ -2076,7 +2031,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={closeSitesModal}
+    onclick={(e) => { if (e.target === e.currentTarget) closeSitesModal(e); }}
     role="button"
     tabindex="-1"
   >
@@ -2091,7 +2046,7 @@ let showRightSidebar = false;
             >Renders templates seamlessly using sandbox environment</span
           >
         </div>
-        <button class="close-btn" on:click={closeSitesModal}>&times;</button>
+        <button class="close-btn" onclick={closeSitesModal}>&times;</button>
       </div>
 
       <div
@@ -2101,14 +2056,14 @@ let showRightSidebar = false;
         <button
           class="emoji-tab-btn"
           class:active={sitesTab === "edit"}
-          on:click={() => (sitesTab = "edit")}
+          onclick={() => (sitesTab = "edit")}
         >
           🛠️ Code Editor
         </button>
         <button
           class="emoji-tab-btn"
           class:active={sitesTab === "preview"}
-          on:click={() => (sitesTab = "preview")}
+          onclick={() => (sitesTab = "preview")}
         >
           📡 Local Server
         </button>
@@ -2125,7 +2080,7 @@ let showRightSidebar = false;
               <input
                 type="text"
                 bind:value={sitesName}
-                on:input={handleSaveSites}
+                oninput={handleSaveSites}
                 placeholder="Enter name of site widget"
                 style="background:#1e1e1e; border: 1px solid #2e2e2e; border-radius: 6px; padding: 8px 12px; color: white;"
               />
@@ -2138,7 +2093,7 @@ let showRightSidebar = false;
               <input
                 type="text"
                 bind:value={sitesDesc}
-                on:input={handleSaveSites}
+                oninput={handleSaveSites}
                 placeholder="Renders templates cleanly"
                 style="background:#1e1e1e; border: 1px solid #2e2e2e; border-radius: 6px; padding: 8px 12px; color: white;"
               />
@@ -2150,7 +2105,7 @@ let showRightSidebar = false;
               >
               <textarea
                 bind:value={sitesHtml}
-                on:input={handleSaveSites}
+                oninput={handleSaveSites}
                 placeholder="Write HTML tags here..."
                 style="background:#121212; border: 1px solid #2e2e2e; border-radius: 6px; color: #e2e8f0; font-family: monospace; font-size: 13px; padding: 12px; height: 260px; resize: vertical; line-height: 1.5;"
               ></textarea>
@@ -2185,14 +2140,14 @@ let showRightSidebar = false;
 
             <div class="server-actions-container">
               {#if !isSitesLive}
-                <button class="btn-serve start" on:click={toggleSitesLive}>
+                <button class="btn-serve start" onclick={toggleSitesLive}>
                   <span class="btn-icon">▶</span> Start Local Server
                 </button>
               {:else}
                 <div class="active-server-buttons">
                   <button
                     class="btn primary"
-                    on:click={() => {
+                    onclick={() => {
                       if (sitesLocalUrl) window.open(sitesLocalUrl, "_blank");
                     }}
                   >
@@ -2200,7 +2155,7 @@ let showRightSidebar = false;
                   </button>
                   <button
                     class="btn secondary"
-                    on:click={() => {
+                    onclick={() => {
                       if (sitesLocalUrl) {
                         navigator.clipboard.writeText(sitesLocalUrl);
                         showAlert("Copied", "Address copied to clipboard!");
@@ -2209,7 +2164,7 @@ let showRightSidebar = false;
                   >
                     Copy Address
                   </button>
-                  <button class="btn stop-btn" on:click={toggleSitesLive}>
+                  <button class="btn stop-btn" onclick={toggleSitesLive}>
                     ⏹ Stop Serving
                   </button>
                 </div>
@@ -2228,7 +2183,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showSitesPreviewModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showSitesPreviewModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -2243,7 +2198,7 @@ let showRightSidebar = false;
             >Interacting in a secure sandbox webview container</span
           >
         </div>
-        <button class="close-btn" on:click={() => (showSitesPreviewModal = false)}>&times;</button>
+        <button class="close-btn" onclick={() => (showSitesPreviewModal = false)}>&times;</button>
       </div>
       <div class="modal-body" style="flex:1; overflow:hidden; padding: 12px; background: #09090b;">
         <iframe
@@ -2263,7 +2218,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showLinkPageModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showLinkPageModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -2275,7 +2230,7 @@ let showRightSidebar = false;
             >Search or instantly generate nested references</span
           >
         </div>
-        <button class="close-btn" on:click={() => (showLinkPageModal = false)}
+        <button class="close-btn" onclick={() => (showLinkPageModal = false)}
           >&times;</button
         >
       </div>
@@ -2289,7 +2244,7 @@ let showRightSidebar = false;
           autofocus
         />
         {#if pageSearchQuery}
-          <button class="clear-btn" on:click={() => (pageSearchQuery = "")}
+          <button class="clear-btn" onclick={() => (pageSearchQuery = "")}
             >&times;</button
           >
         {/if}
@@ -2298,7 +2253,7 @@ let showRightSidebar = false;
       <!-- Linear/Raycast-style Command Trigger -->
       <button
         class="cmd-action-btn"
-        on:click|stopPropagation={handleCreateNewPageAndLink}
+        onclick={(e) => { e.stopPropagation(); handleCreateNewPageAndLink(e); }}
       >
         <span class="cmd-plus-icon">+</span>
         <div class="cmd-meta">
@@ -2325,7 +2280,7 @@ let showRightSidebar = false;
             {#each filteredLinkCandidates as p}
               <button
                 class="candidate-row"
-                on:click={() => selectPageToLink(p)}
+                onclick={() => selectPageToLink(p)}
               >
                 <span class="cand-emoji">
                   <PageIcon emoji={p.emoji} size={14} />
@@ -2347,7 +2302,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showMovePageModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showMovePageModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -2357,7 +2312,7 @@ let showRightSidebar = false;
           <h3 style="margin:0;">Move Page</h3>
           <span class="modal-subtitle">Moving "{movingPage.title || 'Untitled'}"</span>
         </div>
-        <button class="close-btn" on:click={() => (showMovePageModal = false)}>&times;</button>
+        <button class="close-btn" onclick={() => (showMovePageModal = false)}>&times;</button>
       </div>
 
       <div class="modal-search" style="background: #121215; justify-content: space-between; display: flex; align-items: center; padding: 12px 16px;">
@@ -2370,7 +2325,7 @@ let showRightSidebar = false;
         {#if moveBrowsingId !== null}
           <button
             class="btn-sm"
-            on:click={() => {
+            onclick={() => {
               const current = allPages.find(p => p.id === moveBrowsingId);
               moveBrowsingId = current ? current.parent_id : null;
             }}
@@ -2391,7 +2346,7 @@ let showRightSidebar = false;
               <button
                 class="candidate-row"
                 style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 6px 12px; border-radius: 6px;"
-                on:click={() => (moveBrowsingId = candidate.id)}
+                onclick={() => (moveBrowsingId = candidate.id)}
               >
                 <span class="cand-emoji"><PageIcon emoji={candidate.emoji} size={14} /></span>
                 <span class="cand-title" style="flex:1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; text-align:left;">{candidate.title || "Untitled"}</span>
@@ -2403,10 +2358,10 @@ let showRightSidebar = false;
       </div>
 
       <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.05); background: #121215; display: flex; justify-content: flex-end; gap: 8px;">
-        <button class="btn secondary" on:click={() => (showMovePageModal = false)}>Cancel</button>
+        <button class="btn secondary" onclick={() => (showMovePageModal = false)}>Cancel</button>
         <button
           class="btn primary"
-          on:click={() => {
+          onclick={() => {
             MovePage(movingPage.id, moveBrowsingId || "")
               .then(() => {
                 showMovePageModal = false;
@@ -2428,7 +2383,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showMoveBlockModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showMoveBlockModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -2438,7 +2393,7 @@ let showRightSidebar = false;
           <h3 style="margin:0;">Move Block to Page</h3>
           <span class="modal-subtitle">Choose a destination page for this block</span>
         </div>
-        <button class="close-btn" on:click={() => (showMoveBlockModal = false)}>&times;</button>
+        <button class="close-btn" onclick={() => (showMoveBlockModal = false)}>&times;</button>
       </div>
 
       <div class="modal-body list-body" style="overflow-y: auto; flex: 1; padding: 12px 16px;">
@@ -2449,7 +2404,7 @@ let showRightSidebar = false;
               <button
                 class="candidate-row"
                 style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
-                on:click={() => handleMoveBlockToPage(page)}
+                onclick={() => handleMoveBlockToPage(page)}
               >
                 <PageIcon emoji={page.emoji} size={14} />
                 <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
@@ -2465,7 +2420,7 @@ let showRightSidebar = false;
               <button
                 class="candidate-row"
                 style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
-                on:click={() => handleMoveBlockToPage(page)}
+                onclick={() => handleMoveBlockToPage(page)}
               >
                 <PageIcon emoji={page.emoji} size={14} />
                 <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
@@ -2481,7 +2436,7 @@ let showRightSidebar = false;
               <button
                 class="candidate-row"
                 style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer;"
-                on:click={() => handleMoveBlockToPage(page)}
+                onclick={() => handleMoveBlockToPage(page)}
               >
                 <PageIcon emoji={page.emoji} size={14} />
                 <span style="font-size: 12px; color: #cbd5e1;">{page.title || "Untitled"}</span>
@@ -2492,7 +2447,7 @@ let showRightSidebar = false;
       </div>
 
       <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.05); background: #121215; display: flex; justify-content: flex-end; gap: 8px;">
-        <button class="btn secondary" on:click={() => (showMoveBlockModal = false)}>Cancel</button>
+        <button class="btn secondary" onclick={() => (showMoveBlockModal = false)}>Cancel</button>
       </div>
     </div>
   </div>
@@ -2504,7 +2459,7 @@ let showRightSidebar = false;
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click|self={() => (showCommentsModal = false)}
+    onclick={(e) => { if (e.target === e.currentTarget) { (showCommentsModal = false) } }}
     role="button"
     tabindex="-1"
   >
@@ -2516,7 +2471,7 @@ let showRightSidebar = false;
             >Block context: {commentCard.content ? commentCard.content.substring(0, 120) : '(no content)'}</span
           >
         </div>
-        <button class="close-btn" on:click={() => (showCommentsModal = false)}>&times;</button>
+        <button class="close-btn" onclick={() => (showCommentsModal = false)}>&times;</button>
       </div>
       <div class="comments-modal-body">
         {#if parseMetadata(commentCard.comment).comments.length === 0}
@@ -2527,7 +2482,7 @@ let showRightSidebar = false;
               <div class="comment-item">
                 <span class="comment-bullet">•</span>
                 <span class="comment-text">{c}</span>
-                <button class="comment-delete-btn" on:click={() => handleDeleteComment(i)}>×</button>
+                <button class="comment-delete-btn" onclick={() => handleDeleteComment(i)}>×</button>
               </div>
             {/each}
           </div>
@@ -2538,9 +2493,9 @@ let showRightSidebar = false;
           type="text"
           bind:value={commentInput}
           placeholder="Add a comment or note..."
-          on:keydown={(e) => { if (e.key === "Enter") handleAddComment(); }}
+          onkeydown={(e) => { if (e.key === "Enter") handleAddComment(); }}
         />
-        <button class="btn primary" on:click={handleAddComment} disabled={!commentInput.trim()}>Add</button>
+        <button class="btn primary" onclick={handleAddComment} disabled={!commentInput.trim()}>Add</button>
       </div>
     </div>
   </div>
