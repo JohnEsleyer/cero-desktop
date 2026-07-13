@@ -513,10 +513,30 @@
   let showRightSidebar = $state(false);
   let dragging = $state(null); // 'left' | 'right' | null
   let dragStartX = 0;
+  let dragStartY = 0;
   let dragStartWidth = 0;
+  let dragStartHeight = 0;
+
+  // Persistent Scratchpad State
+  let showScratchpad = $state(false);
+  let scratchpadContent = $state("");
+  let scratchpadTab = $state("write");
+  let scratchpadWidth = $state(320);
+  let scratchpadHeight = $state(240);
+  let scratchpadLayout = $state("bottom"); // "side" | "bottom"
+
+  // Debounced database sync for local editing
+  let scratchpadSaveTimeout;
+  function saveScratchpadDebounced() {
+    if (scratchpadSaveTimeout) clearTimeout(scratchpadSaveTimeout);
+    scratchpadSaveTimeout = setTimeout(() => {
+      UpdateCard("global-scratchpad-card", "global-scratchpad", scratchpadContent, "")
+        .catch((err) => console.error("Scratchpad sync failed:", err));
+    }, 400);
+  }
 
   let rootPages = $derived(allPages.filter(
-    (p) => !p.parent_id && p.relation_type !== "sidepage",
+    (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad",
   ));
   let sidePages = $derived(allPages.filter(
     (p) => p.parent_id === selectedPage?.id && p.relation_type === "sidepage",
@@ -555,6 +575,9 @@
       connectionStatus = await GetConnectionStatus();
       discoveredDevices = await GetDiscoveredDevices();
       allPages = await GetDbPages();
+      
+      // Initial load from SQLite
+      FetchCards("global-scratchpad");
     } catch (e) {
       console.error("Init failed:", e);
     }
@@ -586,13 +609,26 @@
           editorEmoji = updated.emoji;
         }
       }
+      // Fetch scratchpad when database updates
+      FetchCards("global-scratchpad");
     });
     EventsOn("workspace-status", (data) => {
       activeWorkspace = data.activeWorkspace;
     });
     EventsOn("cards-update", (data) => {
       const pid = data.pageId || data.page_id;
-      if (selectedPage && pid === selectedPage.id) {
+
+      // Update local state when a remote device modifies the global scratchpad
+      if (pid === "global-scratchpad") {
+        const scratchCard = data.cards?.[0];
+        if (scratchCard) {
+          const remoteContent = scratchCard.content || "";
+          const textareaActive = document.activeElement && document.activeElement.id === "scratchpad-textarea";
+          if (scratchpadContent !== remoteContent && !textareaActive) {
+            scratchpadContent = remoteContent;
+          }
+        }
+      } else if (selectedPage && pid === selectedPage.id) {
         pageCards = data.cards || [];
         if (selectedCardId && !pageCards.find((c) => c.id === selectedCardId))
           selectedCardId = null;
@@ -610,7 +646,9 @@
   function onDragStart(panel, e) {
     dragging = panel;
     dragStartX = e.clientX;
-    dragStartWidth = panel === "left" ? leftSidebarWidth : rightSidebarWidth;
+    dragStartY = e.clientY;
+    dragStartWidth = panel === "left" ? leftSidebarWidth : (panel === "right" ? rightSidebarWidth : scratchpadWidth);
+    dragStartHeight = scratchpadHeight;
     e.preventDefault();
   }
 
@@ -621,6 +659,11 @@
       leftSidebarWidth = Math.max(180, Math.min(450, dragStartWidth + delta));
     } else if (dragging === "right") {
       rightSidebarWidth = Math.max(180, Math.min(450, dragStartWidth - delta));
+    } else if (dragging === "scratchpad") {
+      scratchpadWidth = Math.max(200, Math.min(600, dragStartWidth - delta));
+    } else if (dragging === "scratchpad_height") {
+      const deltaY = e.clientY - dragStartY;
+      scratchpadHeight = Math.max(120, Math.min(600, dragStartHeight - deltaY));
     }
   }
 
@@ -1069,6 +1112,20 @@
       </div>
     </div>
 
+    <!-- PERSISTENT SCRATCHPAD TOGGLE BUTTON -->
+    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 12px;">
+      <button
+        class="mode-toggle-btn"
+        class:block-active={showScratchpad}
+        style="width: 100%; justify-content: center; gap: 8px;"
+        onclick={() => (showScratchpad = !showScratchpad)}
+        title="Toggle persistent Scratchpad"
+      >
+        <span class="btn-icon">📝</span>
+        <span class="lbl-text">{showScratchpad ? 'Close Scratchpad' : 'Open Scratchpad'}</span>
+      </button>
+    </div>
+
     <div class="sidebar-section">
       <div class="section-label">Link Devices</div>
       <div class="devices-box">
@@ -1277,6 +1334,13 @@
           </span>
         </div>
         <div class="header-actions">
+          <button
+            class="btn-sm"
+            style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
+            onclick={() => (showScratchpad = !showScratchpad)}
+          >
+            📝 Scratchpad
+          </button>
           <button class="btn-sm" onclick={() => movePage(selectedPage.id)}
             >Move</button
           >
@@ -1294,254 +1358,362 @@
         </div>
       </div>
 
-      <div class="title-bar">
-        <!-- Interactive Page Emoji Picker Trigger -->
-        <button
-          class="emoji-input-btn"
-          onclick={() => (showEmojiPickerModal = true)}
-        >
-          <PageIcon emoji={editorEmoji || ""} size={44} />
-        </button>
-        <input
-          id="editor-title-input"
-          class="title-input"
-          type="text"
-          bind:value={editorTitle}
-          oninput={savePageDebounced}
-          placeholder="Untitled"
-        />
-      </div>
-
-      <div class="card-column" bind:this={cardColumnContainer} onscroll={handleCardColumnScroll}>
-        {#if isPaginatedView && pageCards.length > 0}
-          {@const card = pageCards[currentBlockIndex]}
-          <div class="card-slot">
-            <CardBlock
-              {card}
-              isSelected={selectedCardId === card.id}
-              index={currentBlockIndex + 1}
-              {allPages}
-              {activeLiveCardId}
-              {activeSitesLocalUrl}
-              onSelect={selectCard}
-              onNavigate={selectPage}
-              onDeleted={(id) => {
-                pageCards = pageCards.filter((c) => c.id !== id);
-                if (currentBlockIndex >= pageCards.length) {
-                  currentBlockIndex = pageCards.length > 0 ? pageCards.length - 1 : 0;
-                  blockNumberInput = (currentBlockIndex + 1).toString();
-                }
-              }}
-              oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
-              oneditCode={(content) => openCodeFullscreen(card, content)}
-              oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
-              onpreviewSites={(name, html) => openSitesPreview(name, html)}
-              onopenLinkModal={(c) => {
-                linkingCard = c;
-                pageSearchQuery = "";
-                showLinkPageModal = true;
-              }}
-              onopenCommentsModal={(c) => openCommentsModal(c)}
-              onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
-              onmoveUp={() => moveCard(currentBlockIndex, -1)}
-              onmoveDown={() => moveCard(currentBlockIndex, 1)}
+      <!-- SIDE-BY-SIDE RESPONSIVE WRAPPER CONTAINER -->
+      <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {scratchpadLayout === 'bottom' ? 'column' : 'row'};">
+        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; height: 100%;">
+          <div class="title-bar">
+            <!-- Interactive Page Emoji Picker Trigger -->
+            <button
+              class="emoji-input-btn"
+              onclick={() => (showEmojiPickerModal = true)}
+            >
+              <PageIcon emoji={editorEmoji || ""} size={44} />
+            </button>
+            <input
+              id="editor-title-input"
+              class="title-input"
+              type="text"
+              bind:value={editorTitle}
+              oninput={savePageDebounced}
+              placeholder="Untitled"
             />
           </div>
-        {:else if pageCards.length > 0}
-          {#each pageCards as card, index (card.id)}
-            <div
-              class="card-slot"
-              draggable="true"
-              ondragstart={(e) => {
-                e.dataTransfer.setData("text/plain", index.toString());
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              ondragover={(e) => { e.preventDefault(); {
-                e.dataTransfer.dropEffect = "move";
-               }}}
-              ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index) }}
-            >
-              <CardBlock
-                {card}
-                isSelected={selectedCardId === card.id}
-                index={index + 1}
-                {allPages}
-                {activeLiveCardId}
-                {activeSitesLocalUrl}
-                onSelect={selectCard}
-                onNavigate={selectPage}
-                onDeleted={(id) => {
-                  pageCards = pageCards.filter((c) => c.id !== id);
-                }}
-                oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
-                oneditCode={(content) => openCodeFullscreen(card, content)}
-                oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
-                onpreviewSites={(name, html) => openSitesPreview(name, html)}
-                onopenLinkModal={(c) => {
-                  linkingCard = c;
-                  pageSearchQuery = "";
-                  showLinkPageModal = true;
-                }}
-                onopenCommentsModal={(c) => openCommentsModal(c)}
-                onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
-                onmoveUp={() => moveCard(index, -1)}
-                onmoveDown={() => moveCard(index, 1)}
-              />
-            </div>
-            <div
-              class="insert-slot"
-              ondragover={(e) => e.preventDefault()}
-              ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index + 1) }}
-            >
+
+          <div class="card-column" bind:this={cardColumnContainer} onscroll={handleCardColumnScroll}>
+            {#if isPaginatedView && pageCards.length > 0}
+              {@const card = pageCards[currentBlockIndex]}
+              <div class="card-slot">
+                <CardBlock
+                  {card}
+                  isSelected={selectedCardId === card.id}
+                  index={currentBlockIndex + 1}
+                  {allPages}
+                  {activeLiveCardId}
+                  {activeSitesLocalUrl}
+                  onSelect={selectCard}
+                  onNavigate={selectPage}
+                  onDeleted={(id) => {
+                    pageCards = pageCards.filter((c) => c.id !== id);
+                    if (currentBlockIndex >= pageCards.length) {
+                      currentBlockIndex = pageCards.length > 0 ? pageCards.length - 1 : 0;
+                      blockNumberInput = (currentBlockIndex + 1).toString();
+                    }
+                  }}
+                  oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
+                  oneditCode={(content) => openCodeFullscreen(card, content)}
+                  oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
+                  onpreviewSites={(name, html) => openSitesPreview(name, html)}
+                  onopenLinkModal={(c) => {
+                    linkingCard = c;
+                    pageSearchQuery = "";
+                    showLinkPageModal = true;
+                  }}
+                  onopenCommentsModal={(c) => openCommentsModal(c)}
+                  onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+                  onmoveUp={() => moveCard(currentBlockIndex, -1)}
+                  onmoveDown={() => moveCard(currentBlockIndex, 1)}
+                />
+              </div>
+            {:else if pageCards.length > 0}
+              {#each pageCards as card, index (card.id)}
+                <div
+                  class="card-slot"
+                  draggable="true"
+                  ondragstart={(e) => {
+                    e.dataTransfer.setData("text/plain", index.toString());
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  ondragover={(e) => { e.preventDefault(); {
+                    e.dataTransfer.dropEffect = "move";
+                   }}}
+                  ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index) }}
+                >
+                  <CardBlock
+                    {card}
+                    isSelected={selectedCardId === card.id}
+                    index={index + 1}
+                    {allPages}
+                    {activeLiveCardId}
+                    {activeSitesLocalUrl}
+                    onSelect={selectCard}
+                    onNavigate={selectPage}
+                    onDeleted={(id) => {
+                      pageCards = pageCards.filter((c) => c.id !== id);
+                    }}
+                    oneditMarkdown={(content) => openMarkdownFullscreen(card, content)}
+                    oneditCode={(content) => openCodeFullscreen(card, content)}
+                    oneditSites={(name, desc, html) => openSitesFullscreen(card, name, desc, html)}
+                    onpreviewSites={(name, html) => openSitesPreview(name, html)}
+                    onopenLinkModal={(c) => {
+                      linkingCard = c;
+                      pageSearchQuery = "";
+                      showLinkPageModal = true;
+                    }}
+                    onopenCommentsModal={(c) => openCommentsModal(c)}
+                    onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+                    onmoveUp={() => moveCard(index, -1)}
+                    onmoveDown={() => moveCard(index, 1)}
+                  />
+                </div>
+                <div
+                  class="insert-slot"
+                  ondragover={(e) => e.preventDefault()}
+                  ondrop={(e) => { e.preventDefault(); handleCardDrop(e, index + 1) }}
+                >
+                  <button
+                    class="insert-btn"
+                    onclick={() => {
+                      blockInsertIndex = index + 1;
+                      showBlockSelectorModal = true;
+                    }}>+</button
+                  >
+                </div>
+              {/each}
+            {/if}
+
+            {#if pageCards.length === 0}
+              <div class="empty-cards">
+                <span class="empty-icon"><PageIcon emoji="folder" size={24} /></span>
+                <h3>This page is empty</h3>
+                <p>Add blocks to start writing.</p>
+                <div class="empty-actions">
+                  <button class="btn secondary" onclick={() => handleAddCardType("markdown")}>📝 Markdown</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("image")}>🖼️ Image</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("subpage_link")}>🔗 Link</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("code")}>💻 Code Block</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("sites")}>🌐 HTML Site</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("section")}>📋 Section</button>
+                </div>
+              </div>
+            {/if}
+
+            {#if !isPaginatedView}
               <button
-                class="insert-btn"
+                class="add-card-btn"
                 onclick={() => {
-                  blockInsertIndex = index + 1;
+                  blockInsertIndex = null;
                   showBlockSelectorModal = true;
-                }}>+</button
+                }}>+ Add Card</button
               >
-            </div>
-          {/each}
-        {/if}
+            {/if}
 
-        {#if pageCards.length === 0}
-          <div class="empty-cards">
-            <span class="empty-icon"><PageIcon emoji="folder" size={24} /></span>
-            <h3>This page is empty</h3>
-            <p>Add blocks to start writing.</p>
-            <div class="empty-actions">
-              <button class="btn secondary" onclick={() => handleAddCardType("markdown")}>📝 Markdown</button>
-              <button class="btn secondary" onclick={() => handleAddCardType("image")}>🖼️ Image</button>
-              <button class="btn secondary" onclick={() => handleAddCardType("subpage_link")}>🔗 Link</button>
-              <button class="btn secondary" onclick={() => handleAddCardType("code")}>💻 Code Block</button>
-              <button class="btn secondary" onclick={() => handleAddCardType("sites")}>🌐 HTML Site</button>
-              <button class="btn secondary" onclick={() => handleAddCardType("section")}>📋 Section</button>
-            </div>
+            {#if showScrollToBottom && !isPaginatedView}
+              <button class="scroll-to-bottom-btn" onclick={scrollToBottom}>
+                ↓
+              </button>
+            {/if}
           </div>
-        {/if}
 
-        {#if !isPaginatedView}
-          <button
-            class="add-card-btn"
-            onclick={() => {
-              blockInsertIndex = null;
-              showBlockSelectorModal = true;
-            }}>+ Add Card</button
-          >
-        {/if}
-
-        {#if showScrollToBottom && !isPaginatedView}
-          <button class="scroll-to-bottom-btn" onclick={scrollToBottom}>
-            ↓
-          </button>
-        {/if}
-      </div>
-
-      <!-- Persistent workspace-bottom-bar sits right here inside the workspace parent, below the card-column -->
-      <div class="workspace-bottom-bar">
-        <!-- Unified Mode Control (Left) -->
-        <button
-          class="mode-toggle-btn"
-          class:block-active={isPaginatedView}
-          onclick={() => {
-            isPaginatedView = !isPaginatedView;
-            if (isPaginatedView) {
-              currentBlockIndex = 0;
-              blockNumberInput = "1";
-            }
-          }}
-          title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
-        >
-          {#if isPaginatedView}
-            <span class="btn-icon">📖</span> <span class="lbl-text">Block View</span>
-          {:else}
-            <span class="btn-icon">🔀</span> <span class="lbl-text">Scroll View</span>
-          {/if}
-        </button>
-
-        <!-- Super Compact Pagination (Right) with Jump buttons -->
-        {#if isPaginatedView && pageCards.length > 0}
-          <div class="pagination-compact">
-            <!-- Jump to First Block Button -->
+          <!-- Persistent workspace-bottom-bar sits right here inside the workspace parent, below the card-column -->
+          <div class="workspace-bottom-bar">
+            <!-- Unified Mode Control (Left) -->
             <button
-              class="nav-arrow-btn"
-              disabled={currentBlockIndex === 0}
+              class="mode-toggle-btn"
+              class:block-active={isPaginatedView}
               onclick={() => {
-                currentBlockIndex = 0;
-                blockNumberInput = "1";
+                isPaginatedView = !isPaginatedView;
+                if (isPaginatedView) {
+                  currentBlockIndex = 0;
+                  blockNumberInput = "1";
+                }
               }}
-              title="First Block"
+              title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
             >
-              &laquo;
+              {#if isPaginatedView}
+                <span class="btn-icon">📖</span> <span class="lbl-text">Block View</span>
+              {:else}
+                <span class="btn-icon">🔀</span> <span class="lbl-text">Scroll View</span>
+              {/if}
             </button>
 
-            <!-- Previous Block Button -->
-            <button
-              class="nav-arrow-btn"
-              disabled={currentBlockIndex === 0}
-              onclick={() => {
-                currentBlockIndex = Math.max(0, currentBlockIndex - 1);
-                blockNumberInput = (currentBlockIndex + 1).toString();
-              }}
-              title="Previous Block"
-            >
-              &larr;
-            </button>
-            
-            <div class="pagination-info">
-              <input
-                type="number"
-                class="pagination-num-input"
-                min="1"
-                max={pageCards.length}
-                value={blockNumberInput}
-                onchange={(e) => {
-                  const parsed = parseInt(e.target.value);
-                  if (!isNaN(parsed) && parsed >= 1 && parsed <= pageCards.length) {
-                    currentBlockIndex = parsed - 1;
-                    blockNumberInput = parsed.toString();
-                  } else {
+            <!-- Super Compact Pagination (Right) with Jump buttons -->
+            {#if isPaginatedView && pageCards.length > 0}
+              <div class="pagination-compact">
+                <!-- Jump to First Block Button -->
+                <button
+                  class="nav-arrow-btn"
+                  disabled={currentBlockIndex === 0}
+                  onclick={() => {
+                    currentBlockIndex = 0;
+                    blockNumberInput = "1";
+                  }}
+                  title="First Block"
+                >
+                  &laquo;
+                </button>
+
+                <!-- Previous Block Button -->
+                <button
+                  class="nav-arrow-btn"
+                  disabled={currentBlockIndex === 0}
+                  onclick={() => {
+                    currentBlockIndex = Math.max(0, currentBlockIndex - 1);
                     blockNumberInput = (currentBlockIndex + 1).toString();
-                  }
-                }}
-              />
-              <span class="divider-slash">/</span>
-              <span class="total-blocks">{pageCards.length}</span>
-            </div>
+                  }}
+                  title="Previous Block"
+                >
+                  &larr;
+                </button>
+                
+                <div class="pagination-info">
+                  <input
+                    type="number"
+                    class="pagination-num-input"
+                    min="1"
+                    max={pageCards.length}
+                    value={blockNumberInput}
+                    onchange={(e) => {
+                      const parsed = parseInt(e.target.value);
+                      if (!isNaN(parsed) && parsed >= 1 && parsed <= pageCards.length) {
+                        currentBlockIndex = parsed - 1;
+                        blockNumberInput = parsed.toString();
+                      } else {
+                        blockNumberInput = (currentBlockIndex + 1).toString();
+                      }
+                    }}
+                  />
+                  <span class="divider-slash">/</span>
+                  <span class="total-blocks">{pageCards.length}</span>
+                </div>
 
-            <!-- Next Block Button -->
-            <button
-              class="nav-arrow-btn"
-              disabled={currentBlockIndex === pageCards.length - 1}
-              onclick={() => {
-                currentBlockIndex = Math.min(pageCards.length - 1, currentBlockIndex + 1);
-                blockNumberInput = (currentBlockIndex + 1).toString();
-              }}
-              title="Next Block"
-            >
-              &rarr;
-            </button>
+                <!-- Next Block Button -->
+                <button
+                  class="nav-arrow-btn"
+                  disabled={currentBlockIndex === pageCards.length - 1}
+                  onclick={() => {
+                    currentBlockIndex = Math.min(pageCards.length - 1, currentBlockIndex + 1);
+                    blockNumberInput = (currentBlockIndex + 1).toString();
+                  }}
+                  title="Next Block"
+                >
+                  &rarr;
+                </button>
 
-            <!-- Jump to Last Block Button -->
-            <button
-              class="nav-arrow-btn"
-              disabled={currentBlockIndex === pageCards.length - 1}
-              onclick={() => {
-                currentBlockIndex = pageCards.length - 1;
-                blockNumberInput = pageCards.length.toString();
-              }}
-              title="Last Block"
-            >
-              &raquo;
-            </button>
+                <!-- Jump to Last Block Button -->
+                <button
+                  class="nav-arrow-btn"
+                  disabled={currentBlockIndex === pageCards.length - 1}
+                  onclick={() => {
+                    currentBlockIndex = pageCards.length - 1;
+                    blockNumberInput = pageCards.length.toString();
+                  }}
+                  title="Last Block"
+                >
+                  &raquo;
+                </button>
+              </div>
+            {:else}
+              <div class="continuous-scroll-lbl">
+                Continuous
+              </div>
+            {/if}
           </div>
-        {:else}
-          <div class="continuous-scroll-lbl">
-            Continuous
+        </div>
+
+        {#if showScratchpad && scratchpadLayout === "side"}
+          <!-- SIDE DRAG HANDLE -->
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <div
+            class="drag-handle scratchpad-handle"
+            onmousedown={(e) => onDragStart("scratchpad", e)}
+            class:active={dragging === "scratchpad"}
+            style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;"
+          >
+            <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+          </div>
+
+          <!-- SIDE SCRATCHPAD PANE -->
+          <div
+            class="scratchpad-pane"
+            style="width: {scratchpadWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;"
+          >
+            {@render scratchpadContentTemplate()}
+          </div>
+        {/if}
+
+        {#if showScratchpad && scratchpadLayout === "bottom"}
+          <!-- VERTICAL DRAG HANDLE FOR HEIGHT RESIZING -->
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <div
+            class="drag-handle scratchpad-height-handle"
+            onmousedown={(e) => onDragStart("scratchpad_height", e)}
+            class:active={dragging === "scratchpad_height"}
+            style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;"
+          >
+            <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+          </div>
+
+          <!-- BOTTOM SCRATCHPAD PANE -->
+          <div
+            class="scratchpad-pane bottom-dock"
+            style="height: {scratchpadHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
+          >
+            {@render scratchpadContentTemplate()}
           </div>
         {/if}
       </div>
     {/if}
+
+{#snippet scratchpadContentTemplate()}
+  <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">📝 Scratchpad</span>
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px;"
+        onclick={() => (scratchpadLayout = scratchpadLayout === "side" ? "bottom" : "side")}
+        title="Toggle Dock Layout (Side / Bottom)"
+      >
+        {scratchpadLayout === "side" ? "📥 Bottom" : "🔲 Side"}
+      </button>
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'write' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+        onclick={() => (scratchpadTab = "write")}
+      >
+        Write
+      </button>
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'preview' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+        onclick={() => (scratchpadTab = "preview")}
+      >
+        Preview
+      </button>
+      <button
+        class="close-btn"
+        style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
+        onclick={() => (showScratchpad = false)}
+      >
+        &times;
+      </button>
+    </div>
+  </div>
+  
+  <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+    {#if scratchpadTab === "write"}
+      <textarea
+        id="scratchpad-textarea"
+        style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-family: inherit; font-size: 12px; line-height: 1.6; padding: 14px; box-sizing: border-box; text-align: left;"
+        bind:value={scratchpadContent}
+        oninput={saveScratchpadDebounced}
+        placeholder="Take quick notes here while reading your main page..."
+      ></textarea>
+    {:else}
+      <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%;">
+        {#if scratchpadContent.trim()}
+          <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }}>
+            {#snippet code({ lang, text })}
+              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+            {/snippet}
+          </SvelteMarkdown>
+        {:else}
+          <span class="empty-hint" style="font-style: italic; font-size: 11px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
+        {/if}
+      </div>
+    {/if}
+  </div>
+{/snippet}
   </section>
 
   {#if showRightSidebar}
