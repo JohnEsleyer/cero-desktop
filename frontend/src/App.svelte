@@ -45,6 +45,7 @@
   let allPages = $state([]);
   let selectedPage = $state(null);
   let navigationHistory = $state([]);
+  let recentlyOpenedRootPageIds = $state([]);
 
   let pageCards = $state([]);
   let selectedCardId = $state(null);
@@ -535,9 +536,19 @@
     }, 400);
   }
 
-  let rootPages = $derived(allPages.filter(
-    (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad",
-  ));
+  let rootPages = $derived((() => {
+    const rawRoot = allPages.filter(
+      (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad",
+    );
+    return rawRoot.sort((a, b) => {
+      const idxA = recentlyOpenedRootPageIds.indexOf(a.id);
+      const idxB = recentlyOpenedRootPageIds.indexOf(b.id);
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  })());
   let sidePages = $derived(allPages.filter(
     (p) => p.parent_id === selectedPage?.id && p.relation_type === "sidepage",
   ));
@@ -571,6 +582,15 @@
   })());
 
   onMount(async () => {
+    try {
+      const saved = localStorage.getItem("cero_recently_opened_root_pages");
+      if (saved) {
+        recentlyOpenedRootPageIds = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to load recently opened pages:", e);
+    }
+
     try {
       connectionStatus = await GetConnectionStatus();
       discoveredDevices = await GetDiscoveredDevices();
@@ -751,6 +771,16 @@
     pageCards = [];
     FetchCards(page.id);
     pendingBlockIndex = null;
+
+    if (!page.parent_id && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad") {
+      const updated = [page.id, ...recentlyOpenedRootPageIds.filter((id) => id !== page.id)];
+      recentlyOpenedRootPageIds = updated;
+      try {
+        localStorage.setItem("cero_recently_opened_root_pages", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 
   function goBack() {
