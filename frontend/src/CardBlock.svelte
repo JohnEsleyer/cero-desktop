@@ -127,9 +127,14 @@
     e.stopPropagation();
     const confirmed = await showConfirm("Delete Card", "Are you sure you want to delete this card?");
     if (!confirmed) return;
-    DeleteCard(card.id, card.page_id)
-      .then(() => { if (onDeleted) onDeleted(card.id); })
-      .catch((err) => console.error(err));
+
+    try {
+      await DeleteCard(card.id, card.page_id || "");
+      if (onDeleted) onDeleted(card.id);
+    } catch (err) {
+      console.error("DeleteCard backend error:", err);
+      showAlert("Delete Failed", err?.toString() || "Could not delete card from server.");
+    }
   }
 
   function setImage() {

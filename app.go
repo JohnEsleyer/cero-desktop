@@ -204,6 +204,7 @@ func (a *App) StartUdpDiscovery() {
 
 		multicastAddr := &net.UDPAddr{IP: net.IPv4(239, 255, 255, 250), Port: 9100}
 		packetConn := ipv4.NewPacketConn(conn)
+		packetConn.SetControlMessage(ipv4.FlagDst, true)
 		if err := packetConn.JoinGroup(nil, multicastAddr); err != nil {
 			fmt.Printf("Multicast join (non-fatal): %v\n", err)
 		} else {
@@ -216,7 +217,7 @@ func (a *App) StartUdpDiscovery() {
 
 		go a.pruneDevicesLoop()
 
-		buf := make([]byte, 1024)
+		buf := make([]byte, 1500)
 		for {
 			a.discoveredMux.Lock()
 			discovering := a.isDiscovering
@@ -225,7 +226,7 @@ func (a *App) StartUdpDiscovery() {
 				break
 			}
 
-			n, _, err := conn.ReadFromUDP(buf)
+			n, _, _, err := packetConn.ReadFrom(buf)
 			if err != nil {
 				break
 			}

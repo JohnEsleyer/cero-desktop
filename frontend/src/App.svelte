@@ -91,7 +91,7 @@
   });
 
   // Reusable Sleek Modal Dialog Configuration
-  let modalConfig = {
+  let modalConfig = $state({
     show: false,
     title: "",
     message: "",
@@ -100,7 +100,7 @@
     onCancel: null,
     confirmText: "OK",
     cancelText: "Cancel"
-  };
+  });
 
   function showAlert(title, message) {
     return new Promise((resolve) => {
