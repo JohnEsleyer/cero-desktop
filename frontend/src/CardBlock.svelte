@@ -9,6 +9,8 @@
   import SvelteMarkdown from "@humanspeak/svelte-markdown";
   import { markedKatex, KatexRenderer } from "@humanspeak/svelte-markdown/extensions";
 
+  const PREVIEW_WORD_LIMIT = 100;
+
   let {
     card,
     isSelected = false,
@@ -31,6 +33,30 @@
   } = $props();
 
   const { showAlert, showConfirm } = getContext("dialogs");
+
+  let showReadingModal = $state(false);
+
+  function truncateText(text) {
+    if (!text) return "";
+    const words = text.split(/(\s+)/);
+    let wordCount = 0;
+    let result = [];
+    for (const part of words) {
+      if (part.trim().length > 0) {
+        wordCount++;
+      }
+      if (wordCount > PREVIEW_WORD_LIMIT) {
+        result.push("...");
+        break;
+      }
+      result.push(part);
+    }
+    return result.join("");
+  }
+
+  let isTruncated = $derived(
+    card.content ? card.content.split(/\s+/).filter(w => w.trim().length > 0).length > PREVIEW_WORD_LIMIT : false
+  );
 
   let codeLang = $state("javascript");
   let codeContent = $state("");
@@ -108,12 +134,17 @@
 
   function handleClick() {
     if (onSelect) onSelect(card);
+    if (card.type === "markdown") {
+      showReadingModal = true;
+    } else if (card.type === "code") {
+      showReadingModal = true;
+    } else if (card.type === "sites") {
+      openLivePreviewModal();
+    }
   }
 
   function startEdit() {
-    if (card.type === "markdown") {
-      oneditMarkdown && oneditMarkdown(card.content || "");
-    } else if (card.type === "section") {
+    if (card.type === "section") {
       const newTitle = prompt("Edit Section Header:", card.content || "");
       if (newTitle !== null) {
         UpdateCard(card.id, card.page_id, newTitle.trim(), card.comment || "")
@@ -309,6 +340,13 @@
     <div class="card-inline-toolbar">
       {#if card.type === "markdown"}
         <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
+          onclick={(e) => { e.stopPropagation(); oneditMarkdown && oneditMarkdown(card.content || ""); }}
+        >
+          ✏️ Edit
+        </button>
+        <button
           class="inline-comment-toggle-btn"
           title="View block comments"
           onclick={(e) => { e.stopPropagation(); onopenCommentsModal && onopenCommentsModal(card); }}
@@ -320,26 +358,38 @@
         </button>
       {/if}
 
-      <select
-        value={meta.color}
-        onchange={handleColorChange}
-        onclick={(e) => e.stopPropagation()}
-        class="color-select"
-        style="color: {activeColor.textMuted};"
-      >
-        <option value="default">⚫ Default</option>
-        <option value="red">🔴 Red</option>
-        <option value="orange">🟠 Orange</option>
-        <option value="yellow">🟡 Yellow</option>
-        <option value="green">🟢 Green</option>
-        <option value="blue">🔵 Blue</option>
-        <option value="purple">🟣 Purple</option>
-      </select>
+      {#if card.type === "code"}
+        <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
+          onclick={(e) => { e.stopPropagation(); oneditCode && oneditCode(card.content || ""); }}
+        >
+          ✏️ Edit
+        </button>
+      {/if}
+
+      {#if card.type === "sites"}
+        <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
+          onclick={(e) => { e.stopPropagation(); openSitesModal(); }}
+        >
+          ✏️ Edit
+        </button>
+      {/if}
 
       {#if card.type === "section"}
+        <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
+          onclick={(e) => { e.stopPropagation(); startEdit(); }}
+        >
+          ✏️ Edit
+        </button>
         <button class="inline-tool-btn" style="color: {activeColor.textMuted}" onclick={(e) => { e.stopPropagation(); onmoveUp && onmoveUp() }}>↑</button>
         <button class="inline-tool-btn" style="color: {activeColor.textMuted}" onclick={(e) => { e.stopPropagation(); onmoveDown && onmoveDown() }}>↓</button>
       {/if}
+
       <button
         class="inline-tool-btn"
         title="Move Block to another page"
@@ -356,20 +406,22 @@
 
   <div class="card-horizontal-content-body">
     {#if card.type === "section"}
-      <div class="section-card-content" ondblclick={startEdit}>
+      <div class="section-card-content">
         <h2 class="section-title-text" style="color: {activeColor.text};">{card.content || "Untitled Section"}</h2>
       </div>
 
     {:else if card.type === "markdown"}
-      <div class="card-preview markdown-rendered" style="color: {activeColor.text};" ondblclick={startEdit}>
+      <div class="card-preview markdown-rendered" style="color: {activeColor.text};">
         {#if card.content}
-          <SvelteMarkdown source={card.content} extensions={katexExtensions} renderers={katexRenderers}>
-            {#snippet code({ lang, text })}
-              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-            {/snippet}
-          </SvelteMarkdown>
+          {#snippet codeSnippet({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+          <SvelteMarkdown source={truncateText(card.content)} extensions={katexExtensions} renderers={katexRenderers} code={codeSnippet} />
+          {#if isTruncated}
+            <button class="read-fullscreen-btn" onclick={(e) => { e.stopPropagation(); showReadingModal = true; }}>Read Fullscreen</button>
+          {/if}
         {:else}
-          <span class="empty-hint">Double-click to write content...</span>
+          <span class="empty-hint">Click Edit button to write content...</span>
         {/if}
       </div>
 
@@ -443,10 +495,7 @@
 
     {:else if card.type === "code"}
       <div class="code-card-content">
-        <div
-          class="code-preview-container"
-          ondblclick={(e) => { e.stopPropagation(); oneditCode && oneditCode(card.content || "") }}
-        >
+        <div class="code-preview-container">
           <div class="code-lang-tag">{codeLang}</div>
           <pre style="margin:0; font-size:12px; line-height:1.5; overflow-x:auto;">{@html highlightCode(codeContent, codeLang)}</pre>
         </div>
@@ -455,7 +504,7 @@
     {:else if card.type === "sites"}
       <div class="sites-card">
         <div class="sites-card-inner">
-          <div class="sites-card-details" onclick={(e) => { e.stopPropagation(); openLivePreviewModal(); }}>
+          <div class="sites-card-details">
             <span class="sites-card-name" style="color: {activeColor.text};">{sitesName}</span>
             <span class="sites-card-desc">{sitesDesc}</span>
           </div>
@@ -468,6 +517,27 @@
     {/if}
   </div>
 </div>
+
+{#if showReadingModal}
+  <div class="reading-modal-overlay" onclick={() => (showReadingModal = false)}>
+    <div class="reading-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="reading-modal-header">
+        <span class="reading-modal-title">Reading View</span>
+        <button class="reading-modal-close" onclick={() => (showReadingModal = false)}>&times;</button>
+      </div>
+      <div class="reading-modal-content markdown-rendered">
+        {#snippet codeSnippet({ lang, text })}
+          <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+        {/snippet}
+        {#if card.type === "code"}
+          <pre class="markdown-code-block" style="background: #09090b; border: 1px solid rgba(255, 255, 255, 0.08);"><div class="code-lang-badge">{(codeLang || '').toUpperCase()}</div><code>{@html highlightCode(codeContent, codeLang)}</code></pre>
+        {:else}
+          <SvelteMarkdown source={card.content} extensions={katexExtensions} renderers={katexRenderers} code={codeSnippet} />
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .card-block {
@@ -552,20 +622,6 @@
     justify-content: center;
     padding: 1px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
-  .color-select {
-    background: transparent;
-    border: none;
-    font-size: 9px;
-    font-weight: 700;
-    cursor: pointer;
-    outline: none;
-  }
-
-  .color-select option {
-    background: #18181a;
-    color: #cbd5e1;
   }
 
   .inline-tool-btn {
@@ -720,54 +776,528 @@
     gap: 6px;
   }
 
-
-
-  .new-comment-input-row input {
-    flex: 1;
-    background: #18181a;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+  /* Redesigned Markdown Card rendering system matching the full screen mode */
+  .card-preview.markdown-rendered {
+    color: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    letter-spacing: -0.05px;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(p) {
+    margin: 0 0 10px 0;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .card-preview.markdown-rendered :global(h1) {
+    font-size: 1.25rem;
+    margin: 16px 0 8px 0;
+    color: inherit;
+    font-weight: 800;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 4px;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(h2) {
+    font-size: 1.1rem;
+    margin: 14px 0 6px 0;
+    color: inherit;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(h3) {
+    font-size: 0.95rem;
+    margin: 12px 0 4px 0;
+    color: #818cf8;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(h4), 
+  .card-preview.markdown-rendered :global(h5), 
+  .card-preview.markdown-rendered :global(h6) {
+    font-size: 0.85rem;
+    margin: 10px 0 4px 0;
+    color: inherit;
+    font-weight: 600;
+    opacity: 0.9;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(code:not(pre code)) {
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 2px 4px;
     border-radius: 4px;
-    color: #e4e4e7;
     font-size: 11px;
-    padding: 4px 8px;
+    font-family: "Fira Code", Consolas, Monaco, monospace;
+    color: #f472b6;
+  }
+  .card-preview.markdown-rendered :global(.markdown-code-block) {
+    position: relative;
+    background: #09090b;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    margin: 10px 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .card-preview.markdown-rendered :global(.markdown-code-block pre) {
+    margin: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .card-preview.markdown-rendered :global(.markdown-code-block code) {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 11.5px;
+    line-height: 1.45;
+    font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    color: #e4e4e7;
+    display: block;
+  }
+  .card-preview.markdown-rendered :global(.code-lang-badge) {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 8px;
+    font-weight: 800;
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 1px 5px;
+    border-radius: 4px;
+    user-select: none;
+    pointer-events: none;
+  }
+  .card-preview.markdown-rendered :global(ul), 
+  .card-preview.markdown-rendered :global(ol) {
+    padding-left: 18px;
+    margin: 0 0 10px 0;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(li) {
+    margin-bottom: 3px;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(li::marker) {
+    color: #818cf8;
+  }
+  .card-preview.markdown-rendered :global(.task-list-item) {
+    list-style-type: none;
+    margin-left: -18px;
+    margin-bottom: 3px;
+  }
+  .card-preview.markdown-rendered :global(.task-list-label) {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    cursor: default;
+    user-select: none;
+  }
+  .card-preview.markdown-rendered :global(.task-list-checkbox) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid #52525b;
+    border-radius: 3px;
     outline: none;
+    background-color: transparent;
+    cursor: default;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .card-preview.markdown-rendered :global(.task-list-checkbox:checked) {
+    background-color: #818cf8;
+    border-color: #818cf8;
+  }
+  .card-preview.markdown-rendered :global(.task-list-checkbox:checked::before) {
+    content: "✓";
+    color: white;
+    font-size: 8px;
+    font-weight: bold;
+  }
+  .card-preview.markdown-rendered :global(.task-list-checkbox:checked + .task-list-text) {
+    color: #71717a;
+    text-decoration: line-through;
+  }
+  .card-preview.markdown-rendered :global(.markdown-blockquote) {
+    border-left: 3px solid #818cf8;
+    background: rgba(129, 140, 248, 0.03);
+    padding: 6px 12px;
+    margin: 10px 0;
+    border-radius: 0 4px 4px 0;
+    color: #a1a1aa;
+    font-style: italic;
+    text-align: left !important;
+  }
+  .card-preview.markdown-rendered :global(.markdown-blockquote p) {
+    margin: 0;
+  }
+  .card-preview.markdown-rendered :global(.markdown-table-wrapper) {
+    overflow-x: auto;
+    margin: 10px 0;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    background: #09090b;
+  }
+  .card-preview.markdown-rendered :global(.markdown-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    text-align: left;
+  }
+  .card-preview.markdown-rendered :global(.markdown-table th) {
+    background: rgba(255, 255, 255, 0.02);
+    font-weight: 700;
+    color: #ffffff;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .card-preview.markdown-rendered :global(.markdown-table td) {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: inherit;
+  }
+  .card-preview.markdown-rendered :global(.markdown-table tbody tr:last-child td) {
+    border-bottom: none;
+  }
+  .card-preview.markdown-rendered :global(.markdown-table tbody tr:nth-child(even)) {
+    background: rgba(255, 255, 255, 0.005);
+  }
+  .card-preview.markdown-rendered :global(hr) {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin: 14px 0;
+  }
+  .card-preview.markdown-rendered :global(a) {
+    color: #818cf8;
+    text-decoration: none;
+    border-bottom: 1px dotted transparent;
+    transition: all 0.15s ease;
+  }
+  .card-preview.markdown-rendered :global(a:hover) {
+    color: #a5b4fc;
+    border-bottom-color: #a5b4fc;
+  }
+  .card-preview.markdown-rendered :global(img) {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 8px 0;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .card-preview.markdown-rendered :global(kbd) {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 9px;
+    font-family: inherit;
+    color: inherit;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2);
   }
 
-  .new-comment-input-row button {
-    background: #818cf8;
+  .read-fullscreen-btn {
+    display: block;
+    margin-top: 12px;
+    background: rgba(129, 140, 248, 0.12);
+    color: #818cf8;
+    border: 1px solid rgba(129, 140, 248, 0.25);
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .read-fullscreen-btn:hover {
+    background: rgba(129, 140, 248, 0.2);
+  }
+
+  .reading-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .reading-modal {
+    background: #1a1a22;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    width: 90vw;
+    max-width: 800px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .reading-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .reading-modal-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e2e2;
+  }
+
+  .reading-modal-close {
+    background: none;
     border: none;
+    color: #888;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .reading-modal-close:hover {
+    color: #fff;
+  }
+
+  .reading-modal-content {
+    padding: 24px 28px;
+    overflow-y: auto;
+    font-size: 16px;
+    line-height: 1.7;
+    color: #d4d4d4;
+    font-family: "Georgia", "Times New Roman", serif;
+  }
+  .reading-modal-content :global(h1),
+  .reading-modal-content :global(h2),
+  .reading-modal-content :global(h3),
+  .reading-modal-content :global(h4),
+  .reading-modal-content :global(h5),
+  .reading-modal-content :global(h6),
+  .reading-modal-content :global(p),
+  .reading-modal-content :global(li),
+  .reading-modal-content :global(blockquote) {
+    color: #e8e8e8 !important;
+  }
+  .reading-modal-content :global(p) {
+    margin: 0 0 12px 0;
+  }
+  .reading-modal-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .reading-modal-content :global(h1) {
+    font-size: 1.5rem;
+    margin: 20px 0 10px 0;
+    font-weight: 800;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 6px;
+  }
+  .reading-modal-content :global(h2) {
+    font-size: 1.3rem;
+    margin: 18px 0 8px 0;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+  .reading-modal-content :global(h3) {
+    font-size: 1.15rem;
+    margin: 14px 0 6px 0;
+    font-weight: 600;
+  }
+  .reading-modal-content :global(h4),
+  .reading-modal-content :global(h5),
+  .reading-modal-content :global(h6) {
+    font-size: 1rem;
+    margin: 12px 0 6px 0;
+    font-weight: 600;
+    opacity: 0.9;
+  }
+  .reading-modal-content :global(code:not(pre code)) {
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 2px 5px;
     border-radius: 4px;
+    font-size: 13px;
+    font-family: "Fira Code", Consolas, Monaco, monospace;
+    color: #f472b6;
+  }
+  .reading-modal-content :global(.markdown-code-block) {
+    position: relative;
+    background: #09090b;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    margin: 14px 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+  }
+  .reading-modal-content :global(.markdown-code-block pre) {
+    margin: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .reading-modal-content :global(.markdown-code-block code) {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+    color: #e4e4e7;
+    display: block;
+  }
+  .reading-modal-content :global(.code-lang-badge) {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 9px;
+    font-weight: 800;
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.08);
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    padding: 1px 6px;
+    border-radius: 4px;
+    user-select: none;
+    pointer-events: none;
+  }
+  .reading-modal-content :global(ul),
+  .reading-modal-content :global(ol) {
+    padding-left: 22px;
+    margin: 0 0 12px 0;
+  }
+  .reading-modal-content :global(li) {
+    margin-bottom: 4px;
+  }
+  .reading-modal-content :global(li::marker) {
+    color: #818cf8;
+  }
+  .reading-modal-content :global(.task-list-item) {
+    list-style-type: none;
+    margin-left: -22px;
+    margin-bottom: 4px;
+  }
+  .reading-modal-content :global(.task-list-label) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: default;
+    user-select: none;
+  }
+  .reading-modal-content :global(.task-list-checkbox) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #52525b;
+    border-radius: 3px;
+    outline: none;
+    background-color: transparent;
+    cursor: default;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .reading-modal-content :global(.task-list-checkbox:checked) {
+    background-color: #818cf8;
+    border-color: #818cf8;
+  }
+  .reading-modal-content :global(.task-list-checkbox:checked::before) {
+    content: "✓";
     color: white;
     font-size: 10px;
-    font-weight: 600;
-    padding: 4px 10px;
-    cursor: pointer;
+    font-weight: bold;
   }
-
-  .markdown-rendered {
-    text-align: left !important;
+  .reading-modal-content :global(.task-list-checkbox:checked + .task-list-text) {
+    color: #71717a;
+    text-decoration: line-through;
   }
-
-  .markdown-rendered :global(h1),
-  .markdown-rendered :global(h2),
-  .markdown-rendered :global(h3),
-  .markdown-rendered :global(h4),
-  .markdown-rendered :global(h5),
-  .markdown-rendered :global(h6),
-  .markdown-rendered :global(p),
-  .markdown-rendered :global(li),
-  .markdown-rendered :global(span),
-  .markdown-rendered :global(strong),
-  .markdown-rendered :global(em),
-  .markdown-rendered :global(blockquote) {
-    color: inherit !important;
-    text-align: left !important;
+  .reading-modal-content :global(.markdown-blockquote) {
+    border-left: 3px solid #818cf8;
+    background: rgba(129, 140, 248, 0.03);
+    padding: 8px 16px;
+    margin: 14px 0;
+    border-radius: 0 4px 4px 0;
+    color: #a1a1aa;
+    font-style: italic;
   }
-
-  .markdown-rendered :global(h1) { font-size: 1.4em; margin-top: 8px; margin-bottom: 4px; }
-  .markdown-rendered :global(h2) { font-size: 1.25em; margin-top: 8px; margin-bottom: 4px; }
-  .markdown-rendered :global(h3) { font-size: 1.1em; margin-top: 6px; margin-bottom: 3px; }
-  .markdown-rendered :global(h4),
-  .markdown-rendered :global(h5),
-  .markdown-rendered :global(h6) { font-size: 1em; margin-top: 6px; margin-bottom: 3px; }
+  .reading-modal-content :global(.markdown-blockquote p) {
+    margin: 0;
+  }
+  .reading-modal-content :global(.markdown-table-wrapper) {
+    overflow-x: auto;
+    margin: 14px 0;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    background: #09090b;
+  }
+  .reading-modal-content :global(.markdown-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+  .reading-modal-content :global(.markdown-table th) {
+    background: rgba(255, 255, 255, 0.02);
+    font-weight: 700;
+    color: #ffffff;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .reading-modal-content :global(.markdown-table td) {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: inherit;
+  }
+  .reading-modal-content :global(.markdown-table tbody tr:last-child td) {
+    border-bottom: none;
+  }
+  .reading-modal-content :global(.markdown-table tbody tr:nth-child(even)) {
+    background: rgba(255, 255, 255, 0.005);
+  }
+  .reading-modal-content :global(hr) {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin: 18px 0;
+  }
+  .reading-modal-content :global(a) {
+    color: #818cf8;
+    text-decoration: none;
+    border-bottom: 1px dotted transparent;
+    transition: all 0.15s ease;
+  }
+  .reading-modal-content :global(a:hover) {
+    color: #a5b4fc;
+    border-bottom-color: #a5b4fc;
+  }
+  .reading-modal-content :global(img) {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 10px 0;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .reading-modal-content :global(kbd) {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-family: inherit;
+    color: inherit;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  }
 </style>

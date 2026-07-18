@@ -526,6 +526,14 @@
   let scratchpadHeight = $state(240);
   let scratchpadLayout = $state("bottom"); // "side" | "bottom"
 
+  // Persistent Tally State
+  let showTally = $state(false);
+  let tallyCards = $state([]);
+  let newTallyName = $state("");
+  let tallyWidth = $state(320);
+  let tallyHeight = $state(240);
+  let tallyLayout = $state("bottom"); // "side" | "bottom"
+
   // Debounced database sync for local editing
   let scratchpadSaveTimeout;
   function saveScratchpadDebounced() {
@@ -538,7 +546,7 @@
 
   let rootPages = $derived((() => {
     const rawRoot = allPages.filter(
-      (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad",
+      (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally",
     );
     return rawRoot.sort((a, b) => {
       const idxA = recentlyOpenedRootPageIds.indexOf(a.id);
@@ -598,6 +606,7 @@
       
       // Initial load from SQLite
       FetchCards("global-scratchpad");
+      FetchCards("global-tally");
     } catch (e) {
       console.error("Init failed:", e);
     }
@@ -629,8 +638,9 @@
           editorEmoji = updated.emoji;
         }
       }
-      // Fetch scratchpad when database updates
+      // Fetch scratchpad and tally when database updates
       FetchCards("global-scratchpad");
+      FetchCards("global-tally");
     });
     EventsOn("workspace-status", (data) => {
       activeWorkspace = data.activeWorkspace;
@@ -638,7 +648,7 @@
     EventsOn("cards-update", (data) => {
       const pid = data.pageId || data.page_id;
 
-      // Update local state when a remote device modifies the global scratchpad
+      // Update local state when a remote device modifies global pages
       if (pid === "global-scratchpad") {
         const scratchCard = data.cards?.[0];
         if (scratchCard) {
@@ -648,6 +658,8 @@
             scratchpadContent = remoteContent;
           }
         }
+      } else if (pid === "global-tally") {
+        tallyCards = data.cards || [];
       } else if (selectedPage && pid === selectedPage.id) {
         pageCards = data.cards || [];
         if (selectedCardId && !pageCards.find((c) => c.id === selectedCardId))
@@ -667,8 +679,14 @@
     dragging = panel;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
-    dragStartWidth = panel === "left" ? leftSidebarWidth : (panel === "right" ? rightSidebarWidth : scratchpadWidth);
-    dragStartHeight = scratchpadHeight;
+    if (panel === "left") {
+      dragStartWidth = leftSidebarWidth;
+    } else if (panel === "right") {
+      dragStartWidth = rightSidebarWidth;
+    } else {
+      dragStartWidth = showTally ? tallyWidth : scratchpadWidth;
+      dragStartHeight = showTally ? tallyHeight : scratchpadHeight;
+    }
     e.preventDefault();
   }
 
@@ -680,10 +698,18 @@
     } else if (dragging === "right") {
       rightSidebarWidth = Math.max(180, Math.min(450, dragStartWidth - delta));
     } else if (dragging === "scratchpad") {
-      scratchpadWidth = Math.max(200, Math.min(600, dragStartWidth - delta));
+      if (showTally) {
+        tallyWidth = Math.max(200, Math.min(600, dragStartWidth - delta));
+      } else {
+        scratchpadWidth = Math.max(200, Math.min(600, dragStartWidth - delta));
+      }
     } else if (dragging === "scratchpad_height") {
       const deltaY = e.clientY - dragStartY;
-      scratchpadHeight = Math.max(120, Math.min(600, dragStartHeight - deltaY));
+      if (showTally) {
+        tallyHeight = Math.max(120, Math.min(600, dragStartHeight - deltaY));
+      } else {
+        scratchpadHeight = Math.max(120, Math.min(600, dragStartHeight - deltaY));
+      }
     }
   }
 
@@ -757,6 +783,43 @@
     } catch (err) {}
   }
 
+  async function addTally() {
+    if (!newTallyName.trim()) return;
+    try {
+      const sortOrder = tallyCards.length > 0
+        ? Math.max(...tallyCards.map((c) => c.sort_order)) + 1
+        : 0;
+      const initialJson = JSON.stringify({ name: newTallyName.trim(), count: 0 });
+      await AddCard("global-tally", "tally", initialJson, sortOrder);
+      newTallyName = "";
+      FetchCards("global-tally");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function updateTallyCount(card, name, newCount) {
+    if (newCount < 0) return;
+    try {
+      const updatedJson = JSON.stringify({ name, count: newCount });
+      await UpdateCard(card.id, "global-tally", updatedJson, "");
+      FetchCards("global-tally");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function deleteTally(cardId) {
+    const confirmed = await showConfirm("Delete Tally", "Are you sure you want to permanently delete this tally?");
+    if (!confirmed) return;
+    try {
+      await DeleteCard(cardId, "global-tally");
+      FetchCards("global-tally");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   function selectPage(page, pushToHistory = true) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
@@ -772,7 +835,7 @@
     FetchCards(page.id);
     pendingBlockIndex = null;
 
-    if (!page.parent_id && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad") {
+    if (!page.parent_id && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
       const updated = [page.id, ...recentlyOpenedRootPageIds.filter((id) => id !== page.id)];
       recentlyOpenedRootPageIds = updated;
       try {
@@ -1143,16 +1206,39 @@
     </div>
 
     <!-- PERSISTENT SCRATCHPAD TOGGLE BUTTON -->
-    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 12px;">
+    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 6px;">
       <button
         class="mode-toggle-btn"
         class:block-active={showScratchpad}
         style="width: 100%; justify-content: center; gap: 8px;"
-        onclick={() => (showScratchpad = !showScratchpad)}
+        onclick={() => {
+          showScratchpad = !showScratchpad;
+          if (showScratchpad) showTally = false;
+        }}
         title="Toggle persistent Scratchpad"
       >
         <span class="btn-icon">📝</span>
         <span class="lbl-text">{showScratchpad ? 'Close Scratchpad' : 'Open Scratchpad'}</span>
+      </button>
+    </div>
+
+    <!-- PERSISTENT TALLY TOGGLE BUTTON -->
+    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 12px;">
+      <button
+        class="mode-toggle-btn"
+        class:block-active={showTally}
+        style="width: 100%; justify-content: center; gap: 8px;"
+        onclick={() => {
+          showTally = !showTally;
+          if (showTally) {
+            showScratchpad = false;
+            FetchCards("global-tally");
+          }
+        }}
+        title="Toggle persistent Tally Page"
+      >
+        <span class="btn-icon">🔢</span>
+        <span class="lbl-text">{showTally ? 'Close Tally Page' : 'Open Tally Page'}</span>
       </button>
     </div>
 
@@ -1367,9 +1453,25 @@
           <button
             class="btn-sm"
             style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
-            onclick={() => (showScratchpad = !showScratchpad)}
+            onclick={() => {
+              showScratchpad = !showScratchpad;
+              if (showScratchpad) showTally = false;
+            }}
           >
             📝 Scratchpad
+          </button>
+          <button
+            class="btn-sm"
+            style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
+            onclick={() => {
+              showTally = !showTally;
+              if (showTally) {
+                showScratchpad = false;
+                FetchCards("global-tally");
+              }
+            }}
+          >
+            🔢 Tallies
           </button>
           <button class="btn-sm" onclick={() => movePage(selectedPage.id)}
             >Move</button
@@ -1389,7 +1491,7 @@
       </div>
 
       <!-- SIDE-BY-SIDE RESPONSIVE WRAPPER CONTAINER -->
-      <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {scratchpadLayout === 'bottom' ? 'column' : 'row'};">
+      <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
         <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; height: 100%;">
           <div class="title-bar">
             <!-- Interactive Page Emoji Picker Trigger -->
@@ -1681,6 +1783,44 @@
             {@render scratchpadContentTemplate()}
           </div>
         {/if}
+
+        {#if showTally && tallyLayout === "side"}
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <div
+            class="drag-handle scratchpad-handle"
+            onmousedown={(e) => onDragStart("scratchpad", e)}
+            class:active={dragging === "scratchpad"}
+            style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;"
+          >
+            <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+          </div>
+
+          <div
+            class="scratchpad-pane"
+            style="width: {tallyWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;"
+          >
+            {@render tallyContentTemplate()}
+          </div>
+        {/if}
+
+        {#if showTally && tallyLayout === "bottom"}
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <div
+            class="drag-handle scratchpad-height-handle"
+            onmousedown={(e) => onDragStart("scratchpad_height", e)}
+            class:active={dragging === "scratchpad_height"}
+            style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;"
+          >
+            <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+          </div>
+
+          <div
+            class="scratchpad-pane bottom-dock"
+            style="height: {tallyHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
+          >
+            {@render tallyContentTemplate()}
+          </div>
+        {/if}
       </div>
     {/if}
 
@@ -1732,16 +1872,108 @@
     {:else}
       <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%;">
         {#if scratchpadContent.trim()}
-          <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }}>
-            {#snippet code({ lang, text })}
-              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-            {/snippet}
-          </SvelteMarkdown>
+          {#snippet codeSnippet({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+          <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
         {:else}
           <span class="empty-hint" style="font-style: italic; font-size: 11px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
         {/if}
       </div>
     {/if}
+  </div>
+{/snippet}
+
+{#snippet tallyContentTemplate()}
+  <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">🔢 Tallies</span>
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px;"
+        onclick={() => (tallyLayout = tallyLayout === "side" ? "bottom" : "side")}
+        title="Toggle Dock Layout (Side / Bottom)"
+      >
+        {tallyLayout === "side" ? "📥 Bottom" : "🔲 Side"}
+      </button>
+      <button
+        class="close-btn"
+        style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
+        onclick={() => (showTally = false)}
+      >
+        &times;
+      </button>
+    </div>
+  </div>
+  
+  <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+    <div style="display: flex; padding: 10px; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: #141416;">
+      <input
+        type="text"
+        placeholder="New Tally Name..."
+        bind:value={newTallyName}
+        onkeydown={(e) => { if (e.key === "Enter") addTally(); }}
+        style="flex: 1; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 10px; color: white; font-size: 12px; outline: none;"
+      />
+      <button
+        class="btn primary"
+        style="padding: 6px 12px; font-size: 12px;"
+        onclick={addTally}
+      >
+        Add
+      </button>
+    </div>
+
+    <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+      {#if tallyCards.length === 0}
+        <div style="padding: 24px; text-align: center; color: #52525b; font-size: 12px; font-style: italic;">
+          No tallies yet. Add one above!
+        </div>
+      {:else}
+        {#each tallyCards as card (card.id)}
+          {@const data = (() => {
+            try {
+              return JSON.parse(card.content);
+            } catch (_) {
+              return { name: card.comment || "Tally", count: parseInt(card.content) || 0 };
+            }
+          })()}
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px 12px; gap: 12px;">
+            <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
+              {data.name}
+            </span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <button
+                class="btn-sm"
+                style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
+                disabled={data.count <= 0}
+                onclick={() => updateTallyCount(card, data.name, data.count - 1)}
+              >
+                -
+              </button>
+              <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
+                {data.count}
+              </span>
+              <button
+                class="btn-sm"
+                style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
+                onclick={() => updateTallyCount(card, data.name, data.count + 1)}
+              >
+                +
+              </button>
+              <button
+                class="close-btn"
+                style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
+                onclick={() => deleteTally(card.id)}
+                title="Delete Tally"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        {/each}
+      {/if}
+    </div>
   </div>
 {/snippet}
   </section>
@@ -2141,11 +2373,10 @@
       </div>
 
       <div class="fullscreen-preview markdown-rendered">
-        <SvelteMarkdown source={fullscreenEditContent || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }}>
-          {#snippet code({ lang, text })}
-            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-          {/snippet}
-        </SvelteMarkdown>
+        {#snippet codeSnippet({ lang, text })}
+          <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+        {/snippet}
+        <SvelteMarkdown source={fullscreenEditContent || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
       </div>
     </div>
   </div>
@@ -4702,11 +4933,11 @@
   .pagination-compact {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 6px;
-    padding: 2px 4px;
+    border-radius: 8px;
+    padding: 4px 8px;
   }
 
   .nav-arrow-btn {
@@ -4714,14 +4945,15 @@
     border: none;
     color: #818cf8;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 6px 10px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.1s ease;
+    line-height: 1;
   }
 
   .nav-arrow-btn:hover:not(:disabled) {
@@ -4737,18 +4969,18 @@
   .pagination-info {
     display: flex;
     align-items: center;
-    gap: 3px;
-    padding: 0 4px;
+    gap: 4px;
+    padding: 0 6px;
   }
 
   .pagination-num-input {
     background: transparent !important;
     border: none !important;
     color: #ffffff !important;
-    font-size: 12px !important;
+    font-size: 14px !important;
     font-weight: 700 !important;
     text-align: center !important;
-    width: 28px !important;
+    width: 32px !important;
     padding: 0 !important;
     outline: none !important;
     margin-bottom: 0 !important;
@@ -4756,12 +4988,12 @@
 
   .divider-slash {
     color: #3f3f46;
-    font-size: 11px;
+    font-size: 14px;
     user-select: none;
   }
 
   .total-blocks {
-    font-size: 11px;
+    font-size: 14px;
     color: #71717a;
     font-weight: 600;
     user-select: none;
