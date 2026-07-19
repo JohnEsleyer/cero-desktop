@@ -558,6 +558,23 @@
   let tallyHeight = $state(240);
   let tallyLayout = $state("bottom"); // "side" | "bottom"
 
+  function toggleScratchpad() {
+    showScratchpad = !showScratchpad;
+    if (showScratchpad) {
+      showTally = false;
+    }
+  }
+
+  function toggleTally() {
+    showTally = !showTally;
+    if (showTally) {
+      showScratchpad = false;
+      if (typeof FetchCards === "function") {
+        FetchCards("global-tally");
+      }
+    }
+  }
+
   // Debounced database sync for local editing
   let scratchpadSaveTimeout;
   function saveScratchpadDebounced() {
@@ -1249,10 +1266,7 @@
         class="mode-toggle-btn"
         class:block-active={showScratchpad}
         style="width: 100%; justify-content: center; gap: 8px;"
-        onclick={() => {
-          showScratchpad = !showScratchpad;
-          if (showScratchpad) showTally = false;
-        }}
+        onclick={toggleScratchpad}
         title="Toggle persistent Scratchpad"
       >
         <span class="btn-icon">📝</span>
@@ -1266,13 +1280,7 @@
         class="mode-toggle-btn"
         class:block-active={showTally}
         style="width: 100%; justify-content: center; gap: 8px;"
-        onclick={() => {
-          showTally = !showTally;
-          if (showTally) {
-            showScratchpad = false;
-            FetchCards("global-tally");
-          }
-        }}
+        onclick={toggleTally}
         title="Toggle persistent Tally Page"
       >
         <span class="btn-icon">🔢</span>
@@ -1491,23 +1499,14 @@
           <button
             class="btn-sm"
             style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
-            onclick={() => {
-              showScratchpad = !showScratchpad;
-              if (showScratchpad) showTally = false;
-            }}
+            onclick={toggleScratchpad}
           >
             📝 Scratchpad
           </button>
           <button
             class="btn-sm"
             style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
-            onclick={() => {
-              showTally = !showTally;
-              if (showTally) {
-                showScratchpad = false;
-                FetchCards("global-tally");
-              }
-            }}
+            onclick={toggleTally}
           >
             🔢 Tallies
           </button>
@@ -1530,7 +1529,7 @@
 
       <!-- SIDE-BY-SIDE RESPONSIVE WRAPPER CONTAINER -->
       <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; height: 100%;">
+        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
           <div class="title-bar">
             <!-- Interactive Page Emoji Picker Trigger -->
             <button
@@ -2360,23 +2359,14 @@
         <button
           class="btn-sm"
           style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
-          onclick={() => {
-            showScratchpad = !showScratchpad;
-            if (showScratchpad) showTally = false;
-          }}
+          onclick={toggleScratchpad}
         >
           📝 Scratchpad
         </button>
         <button
           class="btn-sm"
           style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
-          onclick={() => {
-            showTally = !showTally;
-            if (showTally) {
-              showScratchpad = false;
-              FetchCards("global-tally");
-            }
-          }}
+          onclick={toggleTally}
         >
           🔢 Tallies
         </button>
@@ -2394,8 +2384,8 @@
     </div>
 
     <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; height: 100%; width: 100%;">
-        <div class="editor-pane-container">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+        <div class="editor-pane-container" style="flex: 1;">
           <textarea
             bind:this={markdownTextarea}
             class="fullscreen-textarea"
@@ -2622,10 +2612,10 @@
         {/if}
       </div>
       <div class="header-buttons" style="display: flex; align-items: center; gap: 8px;">
-        <button class="btn ghost" onclick={() => { showScratchpad = !showScratchpad; }} style="font-size: 13px;">
+        <button class="btn ghost" onclick={toggleScratchpad} style="font-size: 13px;">
           {showScratchpad ? "Hide" : "Show"} Scratchpad
         </button>
-        <button class="btn ghost" onclick={() => { showTally = !showTally; }} style="font-size: 13px;">
+        <button class="btn ghost" onclick={toggleTally} style="font-size: 13px;">
           {showTally ? "Hide" : "Show"} Tallies
         </button>
         <button class="btn secondary" onclick={() => { showReadingFullscreenModal = false; }}>Close</button>
@@ -2633,7 +2623,7 @@
     </div>
 
     <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; height: 100%; width: 100%;">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
         <div class="fullscreen-preview markdown-rendered" style="flex: 1; overflow-y: auto;">
           {#snippet codeSnippet({ lang, text })}
             <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
