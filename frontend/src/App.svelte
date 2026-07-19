@@ -1256,7 +1256,9 @@
     <div class="sidebar-section active-workspace-card">
       <div class="section-label">Active Workspace</div>
       <div class="active-ws-display">
-        <span class="ws-icon">🗄️</span>
+        <span class="ws-icon" style="display: inline-flex; align-items: center; color: #818cf8; margin-right: 4px;">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="3" rx="2" ry="2"/><rect width="20" height="8" x="2" y="13" rx="2" ry="2"/><line x1="6" x2="6.01" y1="7" y2="7"/><line x1="6" x2="6.01" y1="17" y2="17"/></svg>
+        </span>
         <span class="ws-name">{activeWorkspace || "Personal"}</span>
       </div>
     </div>
@@ -1270,7 +1272,9 @@
         onclick={toggleScratchpad}
         title="Toggle persistent Scratchpad"
       >
-        <span class="btn-icon">📝</span>
+        <span class="btn-icon" style="display: inline-flex; align-items: center;">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </span>
         <span class="lbl-text">{showScratchpad ? 'Close Scratchpad' : 'Open Scratchpad'}</span>
       </button>
     </div>
@@ -1284,7 +1288,9 @@
         onclick={toggleTally}
         title="Toggle persistent Tally Page"
       >
-        <span class="btn-icon">🔢</span>
+        <span class="btn-icon" style="display: inline-flex; align-items: center;">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+        </span>
         <span class="lbl-text">{showTally ? 'Close Tally Page' : 'Open Tally Page'}</span>
       </button>
     </div>
@@ -1414,11 +1420,15 @@
             />
           </div>
           <button class="connect-btn" onclick={handleConnectManually}>
-            <span class="btn-icon">🔗</span> Link Device
+            <span class="btn-icon" style="display: inline-flex; align-items: center;">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </span> Link Device
           </button>
           {#if connectionError}
             <div class="connection-error-box">
-              <span class="err-icon">⚠️</span>
+              <span class="err-icon" style="display: inline-flex; align-items: center; color: #f87171;">
+                <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              </span>
               <span class="err-msg">{connectionError}</span>
             </div>
           {/if}
@@ -1502,14 +1512,16 @@
             style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
             onclick={toggleScratchpad}
           >
-            📝 Scratchpad
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Scratchpad
           </button>
           <button
             class="btn-sm"
             style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
             onclick={toggleTally}
           >
-            🔢 Tallies
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+            Tallies
           </button>
           <button class="btn-sm" onclick={() => movePage(selectedPage.id)}
             >Move</button
@@ -1657,7 +1669,10 @@
                 <h3>This page is empty</h3>
                 <p>Add blocks to start writing.</p>
                 <div class="empty-actions">
-                  <button class="btn secondary" onclick={() => handleAddCardType("markdown")}>📝 Markdown</button>
+                  <button class="btn secondary" onclick={() => handleAddCardType("markdown")}>
+                    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    Markdown
+                  </button>
                   <button class="btn secondary" onclick={() => handleAddCardType("image")}>🖼️ Image</button>
                   <button class="btn secondary" onclick={() => handleAddCardType("subpage_link")}>🔗 Link</button>
                   <button class="btn secondary" onclick={() => handleAddCardType("code")}>💻 Code Block</button>
@@ -1700,9 +1715,13 @@
               title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
             >
               {#if isPaginatedView}
-                <span class="btn-icon">📖</span> <span class="lbl-text">Block View</span>
+                <span class="btn-icon" style="display: inline-flex; align-items: center;">
+                  <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                </span> <span class="lbl-text">Block View</span>
               {:else}
-                <span class="btn-icon">🔀</span> <span class="lbl-text">Scroll View</span>
+                <span class="btn-icon" style="display: inline-flex; align-items: center;">
+                  <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                </span> <span class="lbl-text">Scroll View</span>
               {/if}
             </button>
 
@@ -1902,7 +1921,9 @@
   <!-- GLOBAL SNIPPETS (Placed at root level for global component access) -->
   {#snippet scratchpadContentTemplate()}
     <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">📝 Scratchpad</span>
+      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        Scratchpad</span>
       <div style="display: flex; align-items: center; gap: 4px;">
         <button
           class="btn-sm"
@@ -1962,7 +1983,9 @@
 
   {#snippet tallyContentTemplate()}
     <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">🔢 Tallies</span>
+      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+        Tallies</span>
       <div style="display: flex; align-items: center; gap: 4px;">
         <button
           class="btn-sm"
@@ -2116,7 +2139,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("markdown")}
         >
-          <span class="block-icon">📝</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">Markdown</span>
             <span class="block-subtitle"
@@ -2128,7 +2153,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("image")}
         >
-          <span class="block-icon">🖼️</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L12 15"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">Image</span>
             <span class="block-subtitle"
@@ -2141,7 +2168,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("subpage_link")}
         >
-          <span class="block-icon">🔗</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">Subpage Link</span>
             <span class="block-subtitle"
@@ -2153,7 +2182,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("code")}
         >
-          <span class="block-icon">💻</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">Code Block</span>
             <span class="block-subtitle"
@@ -2166,7 +2197,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("sites")}
         >
-          <span class="block-icon">🌐</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">HTML Site block</span>
             <span class="block-subtitle"
@@ -2179,7 +2212,9 @@
           class="block-option-row"
           onclick={() => handleAddCardType("section")}
         >
-          <span class="block-icon">📋</span>
+          <span class="block-icon" style="display: inline-flex; align-items: center; color: #818cf8;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/></svg>
+          </span>
           <div class="block-desc">
             <span class="block-title">Section Divider</span>
             <span class="block-subtitle"
@@ -2366,14 +2401,16 @@
           style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
           onclick={toggleScratchpad}
         >
-          📝 Scratchpad
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          Scratchpad
         </button>
         <button
           class="btn-sm"
           style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
           onclick={toggleTally}
         >
-          🔢 Tallies
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+          Tallies
         </button>
       </div>
 
@@ -2627,15 +2664,19 @@
         class="emoji-tab-btn"
         class:active={readingViewTab === "read"}
         onclick={() => (readingViewTab = "read")}
+        style="display: inline-flex; align-items: center; gap: 6px;"
       >
-        📖 Reading View
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z"/></svg>
+        Reading View
       </button>
       <button
         class="emoji-tab-btn"
         class:active={readingViewTab === "scratchpad"}
         onclick={() => (readingViewTab = "scratchpad")}
+        style="display: inline-flex; align-items: center; gap: 6px;"
       >
-        📝 Scratchpad
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        Scratchpad
       </button>
       <button
         class="emoji-tab-btn"
@@ -2644,8 +2685,10 @@
           readingViewTab = "tallies";
           FetchCards("global-tally");
         }}
+        style="display: inline-flex; align-items: center; gap: 6px;"
       >
-        🔢 Tallies
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+        Tallies
       </button>
     </div>
 
@@ -2666,7 +2709,9 @@
     {:else if readingViewTab === "scratchpad"}
       <div class="fullscreen-workspace" style="flex: 1; display: flex; flex-direction: column; background: #09090b; overflow: hidden;">
         <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">📝 Scratchpad Canvas</span>
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Scratchpad Canvas</span>
           <div style="display: flex; align-items: center; gap: 4px;">
             <button
               class="btn-sm"
@@ -2713,7 +2758,9 @@
     {:else if readingViewTab === "tallies"}
       <div class="fullscreen-workspace" style="flex: 1; display: flex; flex-direction: column; background: #09090b; overflow: hidden;">
         <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">🔢 Fullscreen Tallies</span>
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+            Fullscreen Tallies</span>
         </div>
 
         <div style="max-width: 600px; width: 100%; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto;">

@@ -18,12 +18,16 @@
 
   {#if !selectedPage}
     <div class="empty-state">
-      <span class="empty-icon">📋</span>
+      <span class="empty-icon" style="display: inline-flex; align-items: center; color: #52525b;">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/></svg>
+      </span>
       <p>Select a page to view context pages</p>
     </div>
   {:else if sidePages.length === 0}
     <div class="empty-state">
-      <span class="empty-icon">📎</span>
+      <span class="empty-icon" style="display: inline-flex; align-items: center; color: #52525b;">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </span>
       <p>No context pages yet</p>
       <span class="empty-hint"
         >Side pages provide supplementary info about the current page.</span
