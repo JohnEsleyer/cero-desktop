@@ -345,6 +345,30 @@
   let activeSitesLocalUrl = $state("");
   let isSitesLive = $state(false);
 
+  let autoOpenEditCardAfterAdd = $state(false);
+
+  // Fullscreen reading state
+  let readingCard = $state(null);
+  let showReadingFullscreenModal = $state(false);
+
+  let readingCodeLang = $derived((() => {
+    if (!readingCard || readingCard.type !== "code") return "javascript";
+    const raw = readingCard.content || "";
+    if (raw.includes("\n")) {
+      return raw.substring(0, raw.indexOf("\n")).trim().toLowerCase();
+    }
+    return "javascript";
+  })());
+
+  let readingCodeContent = $derived((() => {
+    if (!readingCard || readingCard.type !== "code") return "";
+    const raw = readingCard.content || "";
+    if (raw.includes("\n")) {
+      return raw.substring(raw.indexOf("\n") + 1);
+    }
+    return raw;
+  })());
+
   // Fullscreen edit copy
   let fullscreenEditContent = $state("");
   let fullscreenCodeLang = $state("javascript");
@@ -661,7 +685,17 @@
       } else if (pid === "global-tally") {
         tallyCards = data.cards || [];
       } else if (selectedPage && pid === selectedPage.id) {
+        const oldCards = pageCards;
         pageCards = data.cards || [];
+
+        if (autoOpenEditCardAfterAdd) {
+          autoOpenEditCardAfterAdd = false;
+          const newCard = pageCards.find((c) => !oldCards.some((oc) => oc.id === c.id) && c.type === "markdown");
+          if (newCard) {
+            openMarkdownFullscreen(newCard, newCard.content);
+          }
+        }
+
         if (selectedCardId && !pageCards.find((c) => c.id === selectedCardId))
           selectedCardId = null;
       }
@@ -934,6 +968,10 @@
           description: "Sandboxed iframe renderer preview widget",
           html: "<h1>Welcome directly to Sandboxed Environment!</h1>\n<p>Change this code inside the editor tab to render customized HTML components.</p>",
         });
+      }
+
+      if (type === "markdown") {
+        autoOpenEditCardAfterAdd = true;
       }
 
       await AddCard(selectedPage.id, type, defaultContent, sortOrder);
@@ -1542,6 +1580,10 @@
                   }}
                   onopenCommentsModal={(c) => openCommentsModal(c)}
                   onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+                  onReadFullscreen={(c) => {
+                    readingCard = c;
+                    showReadingFullscreenModal = true;
+                  }}
                   onmoveUp={() => moveCard(currentBlockIndex, -1)}
                   onmoveDown={() => moveCard(currentBlockIndex, 1)}
                 />
@@ -1583,6 +1625,10 @@
                     }}
                     onopenCommentsModal={(c) => openCommentsModal(c)}
                     onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
+                    onReadFullscreen={(c) => {
+                      readingCard = c;
+                      showReadingFullscreenModal = true;
+                    }}
                     onmoveUp={() => moveCard(index, -1)}
                     onmoveDown={() => moveCard(index, 1)}
                   />
@@ -2309,6 +2355,33 @@
         </div>
       </div>
 
+      <!-- Action Toggles for Scratchpad & Tallies inside Fullscreen mode -->
+      <div style="display: flex; gap: 8px; margin-right: 12px; margin-left: auto;">
+        <button
+          class="btn-sm"
+          style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
+          onclick={() => {
+            showScratchpad = !showScratchpad;
+            if (showScratchpad) showTally = false;
+          }}
+        >
+          📝 Scratchpad
+        </button>
+        <button
+          class="btn-sm"
+          style="background: {showTally ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showTally ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showTally ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
+          onclick={() => {
+            showTally = !showTally;
+            if (showTally) {
+              showScratchpad = false;
+              FetchCards("global-tally");
+            }
+          }}
+        >
+          🔢 Tallies
+        </button>
+      </div>
+
       <div class="header-buttons">
         <button
           class="btn secondary"
@@ -2320,64 +2393,142 @@
       </div>
     </div>
 
-    <div class="fullscreen-workspace">
-      <div class="editor-pane-container">
-        <textarea
-          bind:this={markdownTextarea}
-          class="fullscreen-textarea"
-          bind:value={fullscreenEditContent}
-          placeholder="Start typing your thoughts in markdown..."
-          spellcheck="true"
-        ></textarea>
+    <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; height: 100%; width: 100%;">
+        <div class="editor-pane-container">
+          <textarea
+            bind:this={markdownTextarea}
+            class="fullscreen-textarea"
+            bind:value={fullscreenEditContent}
+            placeholder="Start typing your thoughts in markdown..."
+            spellcheck="true"
+          ></textarea>
 
-        <!-- Interactive Formatting Toolbar -->
-        <div class="floating-markdown-toolbar">
-          <button
-            class="tool-btn"
-            title="Bold"
-            onclick={() => insertMarkdownSymbol("**", "**")}
-            ><strong>B</strong></button
-          >
-          <button
-            class="tool-btn"
-            title="Italic"
-            onclick={() => insertMarkdownSymbol("*", "*")}><em>I</em></button
-          >
-          <button
-            class="tool-btn"
-            title="Header"
-            onclick={() => insertMarkdownSymbol("### ")}>H3</button
-          >
-          <button
-            class="tool-btn"
-            title="List"
-            onclick={() => insertMarkdownSymbol("- ")}>• List</button
-          >
-          <button
-            class="tool-btn"
-            title="Checklist"
-            onclick={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button
-          >
-          <button
-            class="tool-btn"
-            title="Inline Code"
-            onclick={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button
-          >
-          <button
-            class="tool-btn"
-            title="Code Block"
-            onclick={() => insertMarkdownSymbol("```\n", "\n```")}
-            >Block</button
-          >
+          <!-- Interactive Formatting Toolbar -->
+          <div class="floating-markdown-toolbar">
+            <button
+              class="tool-btn"
+              title="Bold"
+              onclick={() => insertMarkdownSymbol("**", "**")}
+              ><strong>B</strong></button
+            >
+            <button
+              class="tool-btn"
+              title="Italic"
+              onclick={() => insertMarkdownSymbol("*", "*")}><em>I</em></button
+            >
+            <button
+              class="tool-btn"
+              title="Header"
+              onclick={() => insertMarkdownSymbol("### ")}>H3</button
+            >
+            <button
+              class="tool-btn"
+              title="List"
+              onclick={() => insertMarkdownSymbol("- ")}>• List</button
+            >
+            <button
+              class="tool-btn"
+              title="Checklist"
+              onclick={() => insertMarkdownSymbol("- [ ] ")}>☑ Todo</button
+            >
+            <button
+              class="tool-btn"
+              title="Inline Code"
+              onclick={() => insertMarkdownSymbol("`", "`")}>&lt;/&gt;</button
+            >
+            <button
+              class="tool-btn"
+              title="Code Block"
+              onclick={() => insertMarkdownSymbol("```\n", "\n```")}
+              >Block</button
+            >
+          </div>
+        </div>
+
+        <div class="fullscreen-preview markdown-rendered" style="flex: 1; overflow-y: auto;">
+          {#snippet codeSnippet({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+          <SvelteMarkdown source={fullscreenEditContent || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
         </div>
       </div>
 
-      <div class="fullscreen-preview markdown-rendered">
-        {#snippet codeSnippet({ lang, text })}
-          <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-        {/snippet}
-        <SvelteMarkdown source={fullscreenEditContent || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
-      </div>
+      {#if showScratchpad && scratchpadLayout === "side"}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div
+          class="drag-handle scratchpad-handle"
+          onmousedown={(e) => onDragStart("scratchpad", e)}
+          class:active={dragging === "scratchpad"}
+          style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;"
+        >
+          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+        </div>
+
+        <div
+          class="scratchpad-pane"
+          style="width: {scratchpadWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;"
+        >
+          {@render scratchpadContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showScratchpad && scratchpadLayout === "bottom"}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div
+          class="drag-handle scratchpad-height-handle"
+          onmousedown={(e) => onDragStart("scratchpad_height", e)}
+          class:active={dragging === "scratchpad_height"}
+          style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;"
+        >
+          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+        </div>
+
+        <div
+          class="scratchpad-pane bottom-dock"
+          style="height: {scratchpadHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
+        >
+          {@render scratchpadContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showTally && tallyLayout === "side"}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div
+          class="drag-handle scratchpad-handle"
+          onmousedown={(e) => onDragStart("scratchpad", e)}
+          class:active={dragging === "scratchpad"}
+          style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;"
+        >
+          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+        </div>
+
+        <div
+          class="scratchpad-pane"
+          style="width: {tallyWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;"
+        >
+          {@render tallyContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showTally && tallyLayout === "bottom"}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div
+          class="drag-handle scratchpad-height-handle"
+          onmousedown={(e) => onDragStart("scratchpad_height", e)}
+          class:active={dragging === "scratchpad_height"}
+          style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;"
+        >
+          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+        </div>
+
+        <div
+          class="scratchpad-pane bottom-dock"
+          style="height: {tallyHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
+        >
+          {@render tallyContentTemplate()}
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -2454,6 +2605,82 @@
           ></textarea>
         </div>
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Fullscreen Reading Modal (with scratchpad/tally) -->
+{#if showReadingFullscreenModal && readingCard}
+  <div class="fullscreen-editor-overlay">
+    <div class="fullscreen-header">
+      <div class="header-info">
+        <span class="header-title">Reading View — {readingCard.title || "Untitled"}</span>
+      </div>
+      <div class="editor-stats">
+        {#if readingCard.type === "markdown"}
+          <div class="stat-pill"><span class="stat-val">{readingCard.content ? readingCard.content.length : 0}</span><span class="stat-lbl">chars</span></div>
+        {/if}
+      </div>
+      <div class="header-buttons" style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn ghost" onclick={() => { showScratchpad = !showScratchpad; }} style="font-size: 13px;">
+          {showScratchpad ? "Hide" : "Show"} Scratchpad
+        </button>
+        <button class="btn ghost" onclick={() => { showTally = !showTally; }} style="font-size: 13px;">
+          {showTally ? "Hide" : "Show"} Tallies
+        </button>
+        <button class="btn secondary" onclick={() => { showReadingFullscreenModal = false; }}>Close</button>
+      </div>
+    </div>
+
+    <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; height: 100%; width: 100%;">
+        <div class="fullscreen-preview markdown-rendered" style="flex: 1; overflow-y: auto;">
+          {#snippet codeSnippet({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+          {#if readingCard.type === "code"}
+            <pre class="markdown-code-block" style="background: #09090b; border: 1px solid rgba(255, 255, 255, 0.08);"><div class="code-lang-badge">{(readingCodeLang || '').toUpperCase()}</div><code>{@html highlightCode(readingCodeContent, readingCodeLang)}</code></pre>
+          {:else}
+            <SvelteMarkdown source={readingCard.content || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
+          {/if}
+        </div>
+      </div>
+
+      {#if showScratchpad && scratchpadLayout === "side"}
+        <div class="drag-handle scratchpad-handle" onmousedown={(e) => onDragStart("scratchpad", e)} class:active={dragging === "scratchpad"} style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;">
+          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+        </div>
+        <div class="scratchpad-pane" style="width: {scratchpadWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;">
+          {@render scratchpadContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showScratchpad && scratchpadLayout === "bottom"}
+        <div class="drag-handle scratchpad-height-handle" onmousedown={(e) => onDragStart("scratchpad_height", e)} class:active={dragging === "scratchpad_height"} style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;">
+          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+        </div>
+        <div class="scratchpad-pane bottom-dock" style="height: {scratchpadHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;">
+          {@render scratchpadContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showTally && tallyLayout === "side"}
+        <div class="drag-handle scratchpad-handle" onmousedown={(e) => onDragStart("scratchpad", e)} class:active={dragging === "scratchpad"} style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;">
+          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
+        </div>
+        <div class="scratchpad-pane" style="width: {tallyWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;">
+          {@render tallyContentTemplate()}
+        </div>
+      {/if}
+
+      {#if showTally && tallyLayout === "bottom"}
+        <div class="drag-handle scratchpad-height-handle" onmousedown={(e) => onDragStart("scratchpad_height", e)} class:active={dragging === "scratchpad_height"} style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;">
+          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+        </div>
+        <div class="scratchpad-pane bottom-dock" style="height: {tallyHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;">
+          {@render tallyContentTemplate()}
+        </div>
+      {/if}
     </div>
   </div>
 {/if}

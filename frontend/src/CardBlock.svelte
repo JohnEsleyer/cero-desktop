@@ -28,13 +28,12 @@
     onopenLinkModal,
     onopenCommentsModal,
     onopenMoveBlockModal,
+    onReadFullscreen,
     onmoveUp,
     onmoveDown,
   } = $props();
 
   const { showAlert, showConfirm } = getContext("dialogs");
-
-  let showReadingModal = $state(false);
 
   function truncateText(text) {
     if (!text) return "";
@@ -135,9 +134,9 @@
   function handleClick() {
     if (onSelect) onSelect(card);
     if (card.type === "markdown") {
-      showReadingModal = true;
+      if (onReadFullscreen) onReadFullscreen(card);
     } else if (card.type === "code") {
-      showReadingModal = true;
+      if (onReadFullscreen) onReadFullscreen(card);
     } else if (card.type === "sites") {
       openLivePreviewModal();
     }
@@ -418,7 +417,7 @@
           {/snippet}
           <SvelteMarkdown source={truncateText(card.content)} extensions={katexExtensions} renderers={katexRenderers} code={codeSnippet} />
           {#if isTruncated}
-            <button class="read-fullscreen-btn" onclick={(e) => { e.stopPropagation(); showReadingModal = true; }}>Read Fullscreen</button>
+            <button class="read-fullscreen-btn" onclick={(e) => { e.stopPropagation(); onReadFullscreen && onReadFullscreen(card); }}>Read Fullscreen</button>
           {/if}
         {:else}
           <span class="empty-hint">Click Edit button to write content...</span>
@@ -518,26 +517,7 @@
   </div>
 </div>
 
-{#if showReadingModal}
-  <div class="reading-modal-overlay" onclick={() => (showReadingModal = false)}>
-    <div class="reading-modal" onclick={(e) => e.stopPropagation()}>
-      <div class="reading-modal-header">
-        <span class="reading-modal-title">Reading View</span>
-        <button class="reading-modal-close" onclick={() => (showReadingModal = false)}>&times;</button>
-      </div>
-      <div class="reading-modal-content markdown-rendered">
-        {#snippet codeSnippet({ lang, text })}
-          <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-        {/snippet}
-        {#if card.type === "code"}
-          <pre class="markdown-code-block" style="background: #09090b; border: 1px solid rgba(255, 255, 255, 0.08);"><div class="code-lang-badge">{(codeLang || '').toUpperCase()}</div><code>{@html highlightCode(codeContent, codeLang)}</code></pre>
-        {:else}
-          <SvelteMarkdown source={card.content} extensions={katexExtensions} renderers={katexRenderers} code={codeSnippet} />
-        {/if}
-      </div>
-    </div>
-  </div>
-{/if}
+
 
 <style>
   .card-block {
