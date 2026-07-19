@@ -150,7 +150,7 @@
     if (card.type === "section") {
       const newTitle = prompt("Edit Section Header:", card.content || "");
       if (newTitle !== null) {
-        UpdateCard(card.id, card.page_id, newTitle.trim(), card.comment || "")
+        UpdateCard(card.id, card.page_id || card.pageId, newTitle.trim(), card.comment || "")
           .then(() => { card.content = newTitle.trim(); })
           .catch((err) => console.error(err));
       }
@@ -163,7 +163,7 @@
     if (!confirmed) return;
 
     try {
-      await DeleteCard(card.id, card.page_id || "");
+      await DeleteCard(card.id, card.page_id || card.pageId || "");
       if (onDeleted) onDeleted(card.id);
     } catch (err) {
       console.error("DeleteCard backend error:", err);
@@ -176,7 +176,7 @@
     if (choice === "1") {
       const url = prompt("Enter image URL:", card.content || "");
       if (url !== null) {
-        UpdateCard(card.id, card.page_id, url, card.comment || "")
+        UpdateCard(card.id, card.page_id || card.pageId, url, card.comment || "")
           .then(() => { card.content = url; })
           .catch((err) => console.error(err));
       }
@@ -193,7 +193,7 @@
       const base64 = reader.result;
       SaveImage(base64, file.name)
         .then((filename) => {
-          UpdateCard(card.id, card.page_id, filename, card.comment || "")
+          UpdateCard(card.id, card.page_id || card.pageId, filename, card.comment || "")
             .then(() => { card.content = filename; })
             .catch((err) => console.error(err));
         })
@@ -207,7 +207,7 @@
     e.stopPropagation();
     const confirmed = await showConfirm("Remove Image", "Are you sure you want to remove this image?");
     if (!confirmed) return;
-    UpdateCard(card.id, card.page_id, "", card.comment || "")
+    UpdateCard(card.id, card.page_id || card.pageId, "", card.comment || "")
       .then(() => { card.content = ""; })
       .catch((err) => console.error(err));
   }
@@ -235,7 +235,7 @@
   function handleColorChange(e) {
     const newColor = e.target.value;
     const payload = serializeMetadata(newColor, meta.comments);
-    UpdateCard(card.id, card.page_id, card.content || "", payload)
+    UpdateCard(card.id, card.page_id || card.pageId, card.content || "", payload)
       .then(() => {
         card.comment = payload;
       })
@@ -768,10 +768,14 @@
     line-height: 1.6;
     letter-spacing: -0.05px;
     text-align: left !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .card-preview.markdown-rendered :global(p) {
     margin: 0 0 10px 0;
     text-align: left !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .card-preview.markdown-rendered :global(p:last-child) {
     margin-bottom: 0;
@@ -1066,6 +1070,8 @@
     line-height: 1.7;
     color: #d4d4d4;
     font-family: "Georgia", "Times New Roman", serif;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .reading-modal-content :global(h1),
   .reading-modal-content :global(h2),
@@ -1080,6 +1086,8 @@
   }
   .reading-modal-content :global(p) {
     margin: 0 0 12px 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .reading-modal-content :global(p:last-child) {
     margin-bottom: 0;

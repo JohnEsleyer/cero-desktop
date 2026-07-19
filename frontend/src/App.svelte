@@ -15,21 +15,21 @@
     GetDiscoveredDevices,
     ConnectToDevice,
     Disconnect,
-    AddPage,
-    UpdatePage,
-    DeletePage,
-    RestorePage,
-    HardDeletePage,
-    MovePage,
-    GetCards,
-    FetchCards,
-    AddCard,
-    UpdateCard,
-    DeleteCard,
-    ReorderCards,
-    StartHTMLServer,
-    StopHTMLServer,
-    SaveImage,
+    AddPage as _AddPage,
+    UpdatePage as _UpdatePage,
+    DeletePage as _DeletePage,
+    RestorePage as _RestorePage,
+    HardDeletePage as _HardDeletePage,
+    MovePage as _MovePage,
+    GetCards as _GetCards,
+    FetchCards as _FetchCards,
+    AddCard as _AddCard,
+    UpdateCard as _UpdateCard,
+    DeleteCard as _DeleteCard,
+    ReorderCards as _ReorderCards,
+    StartHTMLServer as _StartHTMLServer,
+    StopHTMLServer as _StopHTMLServer,
+    SaveImage as _SaveImage,
   } from "../wailsjs/go/main/App.js";
 
   let connectionStatus = $state("disconnected");
@@ -53,6 +53,40 @@
   let editorTitle = $state("");
   let editorEmoji = $state("");
   let saveTimeout = $state(null);
+
+  // Global Sync Request Tracker
+  let activeRequestsCount = $state(0);
+  let isSyncing = $derived(activeRequestsCount > 0);
+
+  setContext("syncState", {
+    increment: () => { activeRequestsCount++; },
+    decrement: () => { activeRequestsCount = Math.max(0, activeRequestsCount - 1); }
+  });
+
+  function wrapSync(fn) {
+    return (...args) => {
+      activeRequestsCount++;
+      return fn(...args).finally(() => {
+        activeRequestsCount = Math.max(0, activeRequestsCount - 1);
+      });
+    };
+  }
+
+  const AddPage = wrapSync(_AddPage);
+  const UpdatePage = wrapSync(_UpdatePage);
+  const DeletePage = wrapSync(_DeletePage);
+  const RestorePage = wrapSync(_RestorePage);
+  const HardDeletePage = wrapSync(_HardDeletePage);
+  const MovePage = wrapSync(_MovePage);
+  const GetCards = wrapSync(_GetCards);
+  const FetchCards = wrapSync(_FetchCards);
+  const AddCard = wrapSync(_AddCard);
+  const UpdateCard = wrapSync(_UpdateCard);
+  const DeleteCard = wrapSync(_DeleteCard);
+  const ReorderCards = wrapSync(_ReorderCards);
+  const StartHTMLServer = wrapSync(_StartHTMLServer);
+  const StopHTMLServer = wrapSync(_StopHTMLServer);
+  const SaveImage = wrapSync(_SaveImage);
 
   // Root Page search query state
   let sidebarSearchQuery = $state("");
@@ -258,8 +292,8 @@
       .catch((err) => showAlert("Move Failed", err.toString()));
   }
 
-  let moveBlockSubpages = $derived(selectedPage ? allPages.filter(p => p.parent_id === selectedPage.id && p.relation_type !== "sidepage" && p.id !== selectedPage.id) : []);
-  let moveBlockNeighbors = $derived(selectedPage ? allPages.filter(p => p.parent_id === selectedPage.parent_id && p.id !== selectedPage.id && p.relation_type !== "sidepage") : []);
+  let moveBlockSubpages = $derived(selectedPage ? allPages.filter(p => (p.parent_id || p.parentId) === selectedPage.id && p.relation_type !== "sidepage" && p.id !== selectedPage.id) : []);
+  let moveBlockNeighbors = $derived(selectedPage ? allPages.filter(p => (p.parent_id || p.parentId) === (selectedPage.parent_id || selectedPage.parentId) && p.id !== selectedPage.id && p.relation_type !== "sidepage") : []);
   let moveBlockOthers = $derived((() => {
     if (!selectedPage) return [];
     const excluded = new Set([selectedPage.id, ...moveBlockSubpages.map(p => p.id), ...moveBlockNeighbors.map(p => p.id)]);
@@ -310,7 +344,7 @@
     const meta = parseMetadata(commentCard.comment);
     meta.comments.push(commentInput.trim());
     const payload = serializeMetadata(meta.color, meta.comments);
-    UpdateCard(commentCard.id, commentCard.page_id, commentCard.content || "", payload)
+    UpdateCard(commentCard.id, commentCard.page_id || commentCard.pageId, commentCard.content || "", payload)
       .then(() => {
         const idx = pageCards.findIndex(c => c.id === commentCard.id);
         if (idx !== -1) pageCards[idx].comment = payload;
@@ -325,10 +359,13 @@
     const meta = parseMetadata(commentCard.comment);
     meta.comments.splice(index, 1);
     const payload = serializeMetadata(meta.color, meta.comments);
-    UpdateCard(commentCard.id, commentCard.page_id, commentCard.content || "", payload)
+    UpdateCard(commentCard.id, commentCard.page_id || commentCard.pageId, commentCard.content || "", payload)
       .then(() => {
         const idx = pageCards.findIndex(c => c.id === commentCard.id);
-        if (idx !== -1) pageCards[idx].comment = payload;
+        if (idx !== -1) {
+          pageCards[idx].comment = payload;
+          pageCards = [...pageCards];
+        }
         commentCard.comment = payload;
       })
       .catch(err => console.error(err));
@@ -391,7 +428,7 @@
     ? fullscreenEditContent.trim().split(/\s+/).filter(Boolean).length
     : 0);
 
-  let parentPage = $derived(selectedPage && selectedPage.parent_id ? allPages.find(p => p.id === selectedPage.parent_id) : null);
+  let parentPage = $derived(selectedPage && (selectedPage.parent_id || selectedPage.parentId) ? allPages.find(p => p.id === (selectedPage.parent_id || selectedPage.parentId)) : null);
 
   function insertMarkdownSymbol(prefix, suffix = "") {
     if (!markdownTextarea) return;
@@ -588,7 +625,7 @@
 
   let rootPages = $derived((() => {
     const rawRoot = allPages.filter(
-      (p) => !p.parent_id && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally",
+      (p) => !(p.parent_id || p.parentId) && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally",
     );
     return rawRoot.sort((a, b) => {
       const idxA = recentlyOpenedRootPageIds.indexOf(a.id);
@@ -600,26 +637,26 @@
     });
   })());
   let sidePages = $derived(allPages.filter(
-    (p) => p.parent_id === selectedPage?.id && p.relation_type === "sidepage",
+    (p) => (p.parent_id || p.parentId) === selectedPage?.id && p.relation_type === "sidepage",
   ));
 
   // Filter nested subpages candidates globally for the link modal
   let filteredLinkCandidates = $derived((() => {
     if (!linkingCard) return [];
-    const currentPageId = linkingCard.page_id;
+    const currentPageId = linkingCard.page_id || linkingCard.pageId;
     const currentPage = allPages.find(p => p.id === currentPageId);
     if (!currentPage) return [];
 
     const directChildrenIds = new Set(
       allPages
-        .filter((p) => p.parent_id === currentPage.id && p.relation_type !== "sidepage")
+        .filter((p) => (p.parent_id || p.parentId) === currentPage.id && p.relation_type !== "sidepage")
         .map((p) => p.id),
     );
 
     const candidates = allPages.filter((p) => {
       if (p.id === currentPageId || p.relation_type === "sidepage") return false;
-      if (p.parent_id === currentPage.id) return true;
-      return directChildrenIds.has(p.parent_id);
+      if ((p.parent_id || p.parentId) === currentPage.id) return true;
+      return directChildrenIds.has(p.parent_id || p.parentId);
     });
 
     if (!pageSearchQuery) return candidates;
@@ -887,7 +924,7 @@
     FetchCards(page.id);
     pendingBlockIndex = null;
 
-    if (!page.parent_id && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
+    if (!(page.parent_id || page.parentId) && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
       const updated = [page.id, ...recentlyOpenedRootPageIds.filter((id) => id !== page.id)];
       recentlyOpenedRootPageIds = updated;
       try {
@@ -1054,7 +1091,7 @@
     const page = allPages.find((p) => p.id === id);
     if (!page) return;
     movingPage = page;
-    moveBrowsingId = page.parent_id || null;
+    moveBrowsingId = page.parent_id || page.parentId || null;
     showMovePageModal = true;
   }
 
@@ -1067,10 +1104,13 @@
 
   function saveMarkdownFullscreen() {
     if (!editingCard) return;
-    UpdateCard(editingCard.id, editingCard.page_id, fullscreenEditContent, editingCard.comment || "")
+    UpdateCard(editingCard.id, editingCard.page_id || editingCard.pageId, fullscreenEditContent, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
-        if (idx !== -1) pageCards[idx].content = fullscreenEditContent;
+        if (idx !== -1) {
+          pageCards[idx].content = fullscreenEditContent;
+          pageCards = [...pageCards];
+        }
       })
       .catch((err) => console.error(err));
     showMarkdownFullscreenModal = false;
@@ -1094,10 +1134,13 @@
   function saveCodeFullscreen() {
     if (!editingCard) return;
     const combined = `${fullscreenCodeLang}\n${fullscreenCodeContent}`;
-    UpdateCard(editingCard.id, editingCard.page_id, combined, editingCard.comment || "")
+    UpdateCard(editingCard.id, editingCard.page_id || editingCard.pageId, combined, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
-        if (idx !== -1) pageCards[idx].content = combined;
+        if (idx !== -1) {
+          pageCards[idx].content = combined;
+          pageCards = [...pageCards];
+        }
       })
       .catch((err) => console.error(err));
     showCodeFullscreenModal = false;
@@ -1127,10 +1170,13 @@
       description: sitesDesc,
       html: sitesHtml,
     });
-    UpdateCard(editingCard.id, editingCard.page_id, combined, editingCard.comment || "")
+    UpdateCard(editingCard.id, editingCard.page_id || editingCard.pageId, combined, editingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === editingCard.id);
-        if (idx !== -1) pageCards[idx].content = combined;
+        if (idx !== -1) {
+          pageCards[idx].content = combined;
+          pageCards = [...pageCards];
+        }
       })
       .catch((err) => console.error(err));
 
@@ -1185,12 +1231,12 @@
   // Link Subpage Selection Handlers at Root Level
   function selectPageToLink(target) {
     if (!linkingCard) return;
-    UpdateCard(linkingCard.id, linkingCard.page_id, target.id, linkingCard.comment || "")
+    UpdateCard(linkingCard.id, linkingCard.page_id || linkingCard.pageId, target.id, linkingCard.comment || "")
       .then(() => {
         const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
         if (idx !== -1) {
           pageCards[idx].content = target.id;
-          pageCards = pageCards; // trigger updates
+          pageCards = [...pageCards]; // trigger updates cleanly in Svelte 5
         }
         showLinkPageModal = false;
         linkingCard = null;
@@ -1201,21 +1247,21 @@
   async function handleCreateNewPageAndLink() {
     if (!linkingCard) return;
     try {
-      const parentPage = allPages.find((p) => p.id === linkingCard.page_id);
+      const parentPage = allPages.find((p) => p.id === (linkingCard.page_id || linkingCard.pageId));
       const inheritedEmoji = parentPage?.emoji || "";
       const newPageId = await AddPage(
-        linkingCard.page_id,
+        linkingCard.page_id || linkingCard.pageId,
         "subpage",
         "New Subpage Link",
         inheritedEmoji,
       );
 
       if (newPageId) {
-        await UpdateCard(linkingCard.id, linkingCard.page_id, newPageId, linkingCard.comment || "");
+        await UpdateCard(linkingCard.id, linkingCard.page_id || linkingCard.pageId, newPageId, linkingCard.comment || "");
         const idx = pageCards.findIndex((c) => c.id === linkingCard.id);
         if (idx !== -1) {
           pageCards[idx].content = newPageId;
-          pageCards = pageCards;
+          pageCards = [...pageCards];
         }
         showLinkPageModal = false;
         linkingCard = null;
@@ -1247,8 +1293,16 @@
         </svg>
         <span class="logo-text">Cero</span>
       </div>
-      <div class="status-badge {connectionStatus}">
-        <span class="dot"></span>{connectionStatus}
+      <div style="display: flex; align-items: center; gap: 8px;">
+        {#if isSyncing}
+          <div class="sync-indicator" title="Syncing changes with mobile server..." style="display: flex; align-items: center; gap: 4px;">
+            <span class="sync-spinner"></span>
+            <span style="font-size: 10px; color: #818cf8; font-weight: 600;">Syncing</span>
+          </div>
+        {/if}
+        <div class="status-badge {connectionStatus}">
+          <span class="dot"></span>{connectionStatus}
+        </div>
       </div>
     </div>
 
@@ -1505,6 +1559,11 @@
             <PageIcon emoji={selectedPage.emoji} size={12} />
             {selectedPage.title || "Untitled"}
           </span>
+          {#if isSyncing}
+            <span class="sync-pill" style="margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; background: rgba(129, 140, 248, 0.1); border: 1px solid rgba(129, 140, 248, 0.2); padding: 2px 8px; border-radius: 12px; font-size: 9px; color: #818cf8; font-weight: bold;">
+              <span class="sync-spinner-mini"></span> Syncing...
+            </span>
+          {/if}
         </div>
         <div class="header-actions">
           <button
@@ -1967,7 +2026,7 @@
           placeholder="Take quick notes here while reading your main page..."
         ></textarea>
       {:else}
-        <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%;">
+        <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%; overflow-wrap: break-word; word-break: break-word;">
           {#if scratchpadContent.trim()}
             {#snippet codeSnippet({ lang, text })}
               <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
@@ -2695,7 +2754,7 @@
     <!-- Render active page view -->
     {#if readingViewTab === "read"}
       <div class="fullscreen-workspace single-pane" style="flex: 1; overflow-y: auto; padding: 32px; background: #09090b; display: flex; flex-direction: column;">
-        <div class="markdown-rendered" style="max-width: 800px; width: 100%; margin: 0 auto; text-align: left; flex: 1;">
+        <div class="markdown-rendered" style="max-width: 800px; width: 100%; margin: 0 auto; text-align: left; flex: 1; overflow-wrap: break-word; word-break: break-word;">
           {#snippet codeSnippet({ lang, text })}
             <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
           {/snippet}
@@ -3139,7 +3198,7 @@
             class="btn-sm"
             onclick={() => {
               const current = allPages.find(p => p.id === moveBrowsingId);
-              moveBrowsingId = current ? current.parent_id : null;
+              moveBrowsingId = current ? (current.parent_id || current.parentId) : null;
             }}
           >
             ↑ Go Up
@@ -3148,13 +3207,13 @@
       </div>
 
       <div class="modal-body list-body" style="overflow-y: auto; padding: 8px;">
-        {#if allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && p.parent_id === moveBrowsingId).length === 0}
+        {#if allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && (p.parent_id || p.parentId) === moveBrowsingId).length === 0}
           <div style="padding: 24px; text-align: center; color: #52525b; font-size: 11px; line-height: 1.5;">
             No subpages under this level.<br/>Click "Move Here" to choose this destination.
           </div>
         {:else}
           <div class="candidates-list">
-            {#each allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && p.parent_id === moveBrowsingId) as candidate}
+            {#each allPages.filter(p => p.id !== movingPage.id && p.relation_type !== "sidepage" && (p.parent_id || p.parentId) === moveBrowsingId) as candidate}
               <button
                 class="candidate-row"
                 style="display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; padding: 6px 12px; border-radius: 6px;"
@@ -5434,10 +5493,14 @@
     line-height: 1.65;
     letter-spacing: -0.05px;
     text-align: left !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .fullscreen-preview.markdown-rendered :global(p) {
     margin: 0 0 12px 0;
     text-align: left !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .fullscreen-preview.markdown-rendered :global(p:last-child) {
     margin-bottom: 0;
@@ -5744,5 +5807,38 @@
 
   .comments-modal-footer input:focus {
     border-color: #818cf8;
+  }
+
+  .sync-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(129, 140, 248, 0.3);
+    border-top-color: #818cf8;
+    border-radius: 50%;
+    animation: sync-spin 0.6s linear infinite;
+  }
+
+  .sync-spinner-mini {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border: 1.5px solid rgba(129, 140, 248, 0.3);
+    border-top-color: #818cf8;
+    border-radius: 50%;
+    animation: sync-spin 0.6s linear infinite;
+  }
+
+  .sync-pill {
+    animation: sync-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes sync-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes sync-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
 </style>
