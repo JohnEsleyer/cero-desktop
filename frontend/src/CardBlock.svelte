@@ -131,8 +131,12 @@
     }
   });
 
-  function handleClick() {
+  function handleClick(e) {
     if (onSelect) onSelect(card);
+  }
+
+  function handleDoubleClick(e) {
+    e.stopPropagation();
     if (card.type === "markdown") {
       if (onReadFullscreen) onReadFullscreen(card);
     } else if (card.type === "code") {
@@ -323,6 +327,7 @@
   style="background: {activeColor.bg}; color: {activeColor.text}; border-color: {activeColor.border}; border-left: 4px solid {activeColor.borderLeft};"
   class:selected={isSelected}
   onclick={handleClick}
+  ondblclick={handleDoubleClick}
   role="button"
   tabindex="0"
 >
@@ -338,6 +343,14 @@
 
     <div class="card-inline-toolbar">
       {#if card.type === "markdown"}
+        <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-right: 4px;"
+          onclick={(e) => { e.stopPropagation(); onReadFullscreen && onReadFullscreen(card); }}
+          title="Read card in fullscreen"
+        >
+          📖 Read
+        </button>
         <button
           class="inline-tool-btn"
           style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
@@ -358,6 +371,14 @@
       {/if}
 
       {#if card.type === "code"}
+        <button
+          class="inline-tool-btn"
+          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-right: 4px;"
+          onclick={(e) => { e.stopPropagation(); onReadFullscreen && onReadFullscreen(card); }}
+          title="Read code in fullscreen"
+        >
+          📖 Read
+        </button>
         <button
           class="inline-tool-btn"
           style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"

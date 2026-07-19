@@ -1529,7 +1529,7 @@
 
       <!-- SIDE-BY-SIDE RESPONSIVE WRAPPER CONTAINER -->
       <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
           <div class="title-bar">
             <!-- Interactive Page Emoji Picker Trigger -->
             <button
@@ -2384,7 +2384,7 @@
     </div>
 
     <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
         <div class="editor-pane-container" style="flex: 1;">
           <textarea
             bind:this={markdownTextarea}
@@ -2623,7 +2623,7 @@
     </div>
 
     <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
         <div class="fullscreen-preview markdown-rendered" style="flex: 1; overflow-y: auto;">
           {#snippet codeSnippet({ lang, text })}
             <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
@@ -4463,12 +4463,9 @@
 
   .fullscreen-workspace {
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: row;
     overflow: hidden;
-  }
-  .fullscreen-workspace.single-pane {
-    grid-template-columns: 1fr;
   }
   .fullscreen-textarea {
     background: #09090b;
