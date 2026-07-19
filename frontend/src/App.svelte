@@ -350,6 +350,7 @@
   // Fullscreen reading state
   let readingCard = $state(null);
   let showReadingFullscreenModal = $state(false);
+  let readingViewTab = $state("read"); // "read" | "scratchpad" | "tallies"
 
   let readingCodeLang = $derived((() => {
     if (!readingCard || readingCard.type !== "code") return "javascript";
@@ -1581,6 +1582,7 @@
                   onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
                   onReadFullscreen={(c) => {
                     readingCard = c;
+                    readingViewTab = "read";
                     showReadingFullscreenModal = true;
                   }}
                   onmoveUp={() => moveCard(currentBlockIndex, -1)}
@@ -1626,6 +1628,7 @@
                     onopenMoveBlockModal={(c) => openMoveBlockModal(c)}
                     onReadFullscreen={(c) => {
                       readingCard = c;
+                      readingViewTab = "read";
                       showReadingFullscreenModal = true;
                     }}
                     onmoveUp={() => moveCard(index, -1)}
@@ -2601,32 +2604,55 @@
   </div>
 {/if}
 
-<!-- Fullscreen Reading Modal (with scratchpad/tally) -->
+<!-- Fullscreen Reading Modal (Tabbed pages) -->
 {#if showReadingFullscreenModal && readingCard}
-  <div class="fullscreen-editor-overlay">
+  <div class="fullscreen-editor-overlay" style="display: flex; flex-direction: column; background: #09090b; height: 100vh; width: 100vw;">
     <div class="fullscreen-header">
       <div class="header-info">
-        <span class="header-title">Reading View — {readingCard.title || "Untitled"}</span>
+        <span class="header-title">Reading Workspace — {readingCard.title || "Untitled"}</span>
       </div>
       <div class="editor-stats">
         {#if readingCard.type === "markdown"}
           <div class="stat-pill"><span class="stat-val">{readingCard.content ? readingCard.content.length : 0}</span><span class="stat-lbl">chars</span></div>
         {/if}
       </div>
-      <div class="header-buttons" style="display: flex; align-items: center; gap: 8px;">
-        <button class="btn ghost" onclick={toggleScratchpad} style="font-size: 13px;">
-          {showScratchpad ? "Hide" : "Show"} Scratchpad
-        </button>
-        <button class="btn ghost" onclick={toggleTally} style="font-size: 13px;">
-          {showTally ? "Hide" : "Show"} Tallies
-        </button>
-        <button class="btn secondary" onclick={() => { showReadingFullscreenModal = false; }}>Close</button>
+      <div class="header-buttons">
+        <button class="btn secondary" onclick={() => { showReadingFullscreenModal = false; }}>Close Workspace</button>
       </div>
     </div>
 
-    <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
-        <div class="fullscreen-preview markdown-rendered" style="flex: 1; overflow-y: auto;">
+    <!-- Cohesive Segmented Tabs -->
+    <div class="sites-tabs" style="display: flex; gap: 4px; background: #121212; border-bottom: 1px solid #2e2e2e; padding: 6px 12px; flex-shrink: 0;">
+      <button
+        class="emoji-tab-btn"
+        class:active={readingViewTab === "read"}
+        onclick={() => (readingViewTab = "read")}
+      >
+        📖 Reading View
+      </button>
+      <button
+        class="emoji-tab-btn"
+        class:active={readingViewTab === "scratchpad"}
+        onclick={() => (readingViewTab = "scratchpad")}
+      >
+        📝 Scratchpad
+      </button>
+      <button
+        class="emoji-tab-btn"
+        class:active={readingViewTab === "tallies"}
+        onclick={() => {
+          readingViewTab = "tallies";
+          FetchCards("global-tally");
+        }}
+      >
+        🔢 Tallies
+      </button>
+    </div>
+
+    <!-- Render active page view -->
+    {#if readingViewTab === "read"}
+      <div class="fullscreen-workspace single-pane" style="flex: 1; overflow-y: auto; padding: 32px; background: #09090b; display: flex; flex-direction: column;">
+        <div class="markdown-rendered" style="max-width: 800px; width: 100%; margin: 0 auto; text-align: left; flex: 1;">
           {#snippet codeSnippet({ lang, text })}
             <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
           {/snippet}
@@ -2637,43 +2663,130 @@
           {/if}
         </div>
       </div>
+    {:else if readingViewTab === "scratchpad"}
+      <div class="fullscreen-workspace" style="flex: 1; display: flex; flex-direction: column; background: #09090b; overflow: hidden;">
+        <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">📝 Scratchpad Canvas</span>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button
+              class="btn-sm"
+              style="padding: 4px 10px; font-size: 11px; {scratchpadTab === 'write' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+              onclick={() => (scratchpadTab = "write")}
+            >
+              Write
+            </button>
+            <button
+              class="btn-sm"
+              style="padding: 4px 10px; font-size: 11px; {scratchpadTab === 'preview' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+              onclick={() => (scratchpadTab = "preview")}
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+        
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+          {#if scratchpadTab === "write"}
+            <textarea
+              id="fullscreen-scratchpad-textarea"
+              style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-family: inherit; font-size: 14px; line-height: 1.7; padding: 24px; box-sizing: border-box; text-align: left;"
+              bind:value={scratchpadContent}
+              oninput={saveScratchpadDebounced}
+              placeholder="Take fullscreen scratchpad notes here..."
+            ></textarea>
+          {:else}
+            <div class="markdown-rendered" style="flex: 1; overflow-y: auto; padding: 32px; background: #09090b; text-align: left; height: 100%;">
+              <div style="max-width: 800px; margin: 0 auto;">
+                {#if scratchpadContent.trim()}
+                  {#snippet codeSnippet({ lang, text })}
+                    <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+                  {/snippet}
+                  <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
+                {:else}
+                  <span class="empty-hint" style="font-style: italic; font-size: 12px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
+                {/if}
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {:else if readingViewTab === "tallies"}
+      <div class="fullscreen-workspace" style="flex: 1; display: flex; flex-direction: column; background: #09090b; overflow: hidden;">
+        <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">🔢 Fullscreen Tallies</span>
+        </div>
 
-      {#if showScratchpad && scratchpadLayout === "side"}
-        <div class="drag-handle scratchpad-handle" onmousedown={(e) => onDragStart("scratchpad", e)} class:active={dragging === "scratchpad"} style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;">
-          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
-        </div>
-        <div class="scratchpad-pane" style="width: {scratchpadWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;">
-          {@render scratchpadContentTemplate()}
-        </div>
-      {/if}
+        <div style="max-width: 600px; width: 100%; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto;">
+          <div style="display: flex; padding: 12px; gap: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; background: #141416;">
+            <input
+              type="text"
+              placeholder="New Tally Name..."
+              bind:value={newTallyName}
+              onkeydown={(e) => { if (e.key === "Enter") addTally(); }}
+              style="flex: 1; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 8px 12px; color: white; font-size: 13px; outline: none;"
+            />
+            <button
+              class="btn primary"
+              style="padding: 8px 16px; font-size: 13px;"
+              onclick={addTally}
+            >
+              Add Tally
+            </button>
+          </div>
 
-      {#if showScratchpad && scratchpadLayout === "bottom"}
-        <div class="drag-handle scratchpad-height-handle" onmousedown={(e) => onDragStart("scratchpad_height", e)} class:active={dragging === "scratchpad_height"} style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;">
-          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            {#if tallyCards.length === 0}
+              <div style="padding: 48px 24px; text-align: center; color: #52525b; font-size: 13px; font-style: italic;">
+                No tallies yet. Add one above!
+              </div>
+            {:else}
+              {#each tallyCards as card (card.id)}
+                {@const data = (() => {
+                  try {
+                    return JSON.parse(card.content);
+                  } catch (_) {
+                    return { name: card.comment || "Tally", count: parseInt(card.content) || 0 };
+                  }
+                })()}
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 12px 18px; gap: 16px;">
+                  <span style="font-size: 14px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
+                    {data.name}
+                  </span>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <button
+                      class="btn-sm"
+                      style="padding: 4px 12px; font-size: 16px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
+                      disabled={data.count <= 0}
+                      onclick={() => updateTallyCount(card, data.name, data.count - 1)}
+                    >
+                      -
+                    </button>
+                    <span style="font-size: 16px; font-weight: 700; color: white; min-width: 32px; text-align: center;">
+                      {data.count}
+                    </span>
+                    <button
+                      class="btn-sm"
+                      style="padding: 4px 12px; font-size: 16px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
+                      onclick={() => updateTallyCount(card, data.name, data.count + 1)}
+                    >
+                      +
+                    </button>
+                    <button
+                      class="close-btn"
+                      style="font-size: 18px; padding: 4px 8px; margin-left: 12px; color: #71717a;"
+                      onclick={() => deleteTally(card.id)}
+                      title="Delete Tally"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
         </div>
-        <div class="scratchpad-pane bottom-dock" style="height: {scratchpadHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;">
-          {@render scratchpadContentTemplate()}
-        </div>
-      {/if}
-
-      {#if showTally && tallyLayout === "side"}
-        <div class="drag-handle scratchpad-handle" onmousedown={(e) => onDragStart("scratchpad", e)} class:active={dragging === "scratchpad"} style="width: 4px; cursor: col-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20;">
-          <div class="handle-line" style="width: 1px; height: 32px; background: rgba(255, 255, 255, 0.1);"></div>
-        </div>
-        <div class="scratchpad-pane" style="width: {tallyWidth}px; min-width: 220px; max-width: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; height: 100%;">
-          {@render tallyContentTemplate()}
-        </div>
-      {/if}
-
-      {#if showTally && tallyLayout === "bottom"}
-        <div class="drag-handle scratchpad-height-handle" onmousedown={(e) => onDragStart("scratchpad_height", e)} class:active={dragging === "scratchpad_height"} style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; transition: background 0.15s; z-index: 20; width: 100%;">
-          <div class="handle-line" style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
-        </div>
-        <div class="scratchpad-pane bottom-dock" style="height: {tallyHeight}px; min-height: 120px; max-height: 500px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;">
-          {@render tallyContentTemplate()}
-        </div>
-      {/if}
-    </div>
+      </div>
+    {/if}
   </div>
 {/if}
 
