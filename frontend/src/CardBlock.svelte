@@ -345,14 +345,6 @@
       {#if card.type === "markdown"}
         <button
           class="inline-tool-btn"
-          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-right: 4px;"
-          onclick={(e) => { e.stopPropagation(); onReadFullscreen && onReadFullscreen(card); }}
-          title="Read card in fullscreen"
-        >
-          📖 Read
-        </button>
-        <button
-          class="inline-tool-btn"
           style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
           onclick={(e) => { e.stopPropagation(); oneditMarkdown && oneditMarkdown(card.content || ""); }}
         >
@@ -371,14 +363,6 @@
       {/if}
 
       {#if card.type === "code"}
-        <button
-          class="inline-tool-btn"
-          style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-right: 4px;"
-          onclick={(e) => { e.stopPropagation(); onReadFullscreen && onReadFullscreen(card); }}
-          title="Read code in fullscreen"
-        >
-          📖 Read
-        </button>
         <button
           class="inline-tool-btn"
           style="color: {activeColor.textMuted}; font-size: 11px; font-weight: bold;"
