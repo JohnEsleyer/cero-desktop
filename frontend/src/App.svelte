@@ -46,6 +46,7 @@
   let selectedPage = $state(null);
   let navigationHistory = $state([]);
   let recentlyOpenedRootPageIds = $state([]);
+  let showLeftSidebar = $state(true);
 
   let pageCards = $state([]);
   let selectedCardId = $state(null);
@@ -924,6 +925,13 @@
     FetchCards(page.id);
     pendingBlockIndex = null;
 
+    const savedViewMode = localStorage.getItem(`cero_view_mode_${page.id}`);
+    if (savedViewMode !== null) {
+      isPaginatedView = savedViewMode === "block";
+    } else {
+      isPaginatedView = false;
+    }
+
     if (!(page.parent_id || page.parentId) && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
       const updated = [page.id, ...recentlyOpenedRootPageIds.filter((id) => id !== page.id)];
       recentlyOpenedRootPageIds = updated;
@@ -1274,6 +1282,7 @@
 </script>
 
 <main class="app-layout" class:dragging>
+  {#if showLeftSidebar}
   <!-- LEFT SIDEBAR -->
   <aside
     class="sidebar left-sidebar"
@@ -1315,38 +1324,6 @@
         </span>
         <span class="ws-name">{activeWorkspace || "Personal"}</span>
       </div>
-    </div>
-
-    <!-- PERSISTENT SCRATCHPAD TOGGLE BUTTON -->
-    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 6px;">
-      <button
-        class="mode-toggle-btn"
-        class:block-active={showScratchpad}
-        style="width: 100%; justify-content: center; gap: 8px;"
-        onclick={toggleScratchpad}
-        title="Toggle persistent Scratchpad"
-      >
-        <span class="btn-icon" style="display: inline-flex; align-items: center;">
-          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-        </span>
-        <span class="lbl-text">{showScratchpad ? 'Close Scratchpad' : 'Open Scratchpad'}</span>
-      </button>
-    </div>
-
-    <!-- PERSISTENT TALLY TOGGLE BUTTON -->
-    <div class="sidebar-section" style="padding-top: 0; padding-bottom: 12px;">
-      <button
-        class="mode-toggle-btn"
-        class:block-active={showTally}
-        style="width: 100%; justify-content: center; gap: 8px;"
-        onclick={toggleTally}
-        title="Toggle persistent Tally Page"
-      >
-        <span class="btn-icon" style="display: inline-flex; align-items: center;">
-          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
-        </span>
-        <span class="lbl-text">{showTally ? 'Close Tally Page' : 'Open Tally Page'}</span>
-      </button>
     </div>
 
     <div class="sidebar-section">
@@ -1499,9 +1476,20 @@
   >
     <div class="handle-line"></div>
   </div>
+  {/if}
 
   <!-- EDITOR WORKSPACE -->
-  <section class="editor-workspace">
+  <section class="editor-workspace" style="position: relative;">
+    {#if !showLeftSidebar && !selectedPage}
+      <button
+        class="btn-sm"
+        style="position: absolute; top: 12px; left: 12px; z-index: 15; background: #121215; border: 1px solid rgba(255, 255, 255, 0.08); color: #cbd5e1; font-weight: bold;"
+        onclick={() => (showLeftSidebar = true)}
+        title="Show Sidebar (Ctrl+[)"
+      >
+        ☰ Open Sidebar
+      </button>
+    {/if}
     {#if connectionStatus !== "connected"}
       <div class="welcome">
         <div class="welcome-card">
@@ -1589,6 +1577,13 @@
             class="btn-sm danger"
             onclick={() => deletePage(selectedPage.id)}>Archive</button
           >
+          <button
+            class="btn-sm"
+            onclick={() => (showLeftSidebar = !showLeftSidebar)}
+            title="Toggle left sidebar (Ctrl+[)"
+          >
+            {showLeftSidebar ? '✕ Close Sidebar' : '☰ Open Sidebar'}
+          </button>
           <button
             class="btn-sm sidebar-toggle"
             title="{showRightSidebar ? 'Hide' : 'Show'} context panel (Ctrl+\)"
@@ -1766,6 +1761,9 @@
               class:block-active={isPaginatedView}
               onclick={() => {
                 isPaginatedView = !isPaginatedView;
+                if (selectedPage) {
+                  localStorage.setItem(`cero_view_mode_${selectedPage.id}`, isPaginatedView ? "block" : "scroll");
+                }
                 if (isPaginatedView) {
                   currentBlockIndex = 0;
                   blockNumberInput = "1";
@@ -1973,6 +1971,7 @@
         onSelectPage={selectPage}
         onCreateSidePage={createSidePage}
         onDeletePage={deletePage}
+        onClose={() => (showRightSidebar = false)}
       />
     </aside>
   {/if}
@@ -2140,6 +2139,10 @@
   if (e.key === '\\' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     showRightSidebar = !showRightSidebar;
+  }
+  if (e.key === '[' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    showLeftSidebar = !showLeftSidebar;
   }
 }} />
 
