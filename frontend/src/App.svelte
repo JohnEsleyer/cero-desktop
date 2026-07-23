@@ -1623,7 +1623,7 @@
 
       <!-- SIDE-BY-SIDE RESPONSIVE WRAPPER CONTAINER -->
       <div class="workspace-body-container" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+        <div class="main-editor-pane" style="display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; height: 100%;">
           <div class="title-bar">
             <!-- Interactive Page Emoji Picker Trigger -->
             <button
@@ -2029,164 +2029,165 @@
     </aside>
   {/if}
 
-  <!-- GLOBAL SNIPPETS (Placed at root level for global component access) -->
-  {#snippet scratchpadContentTemplate()}
-    <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
-        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-        Scratchpad</span>
-      <div style="display: flex; align-items: center; gap: 4px;">
-        <button
-          class="btn-sm"
-          style="padding: 2px 6px; font-size: 9px;"
-          onclick={() => (scratchpadLayout = scratchpadLayout === "side" ? "bottom" : "side")}
-          title="Toggle Dock Layout (Side / Bottom)"
-        >
-          {scratchpadLayout === "side" ? "📥 Bottom" : "🔲 Side"}
-        </button>
-        <button
-          class="btn-sm"
-          style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'write' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
-          onclick={() => (scratchpadTab = "write")}
-        >
-          Write
-        </button>
-        <button
-          class="btn-sm"
-          style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'preview' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
-          onclick={() => (scratchpadTab = "preview")}
-        >
-          Preview
-        </button>
-        <button
-          class="close-btn"
-          style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
-          onclick={() => (showScratchpad = false)}
-        >
-          &times;
-        </button>
-      </div>
-    </div>
-    
-    <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
-      {#if scratchpadTab === "write"}
-        <textarea
-          id="scratchpad-textarea"
-          style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-family: inherit; font-size: 12px; line-height: 1.6; padding: 14px; box-sizing: border-box; text-align: left;"
-          bind:value={scratchpadContent}
-          oninput={saveScratchpadDebounced}
-          placeholder="Take quick notes here while reading your main page..."
-        ></textarea>
-      {:else}
-        <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%; overflow-wrap: break-word; word-break: break-word;">
-          {#if scratchpadContent.trim()}
-            {#snippet codeSnippet({ lang, text })}
-              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-            {/snippet}
-            <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
-          {:else}
-            <span class="empty-hint" style="font-style: italic; font-size: 11px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/snippet}
+</main>
 
-  {#snippet tallyContentTemplate()}
-    <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-      <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
-        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
-        Tallies</span>
-      <div style="display: flex; align-items: center; gap: 4px;">
-        <button
-          class="btn-sm"
-          style="padding: 2px 6px; font-size: 9px;"
-          onclick={() => (tallyLayout = tallyLayout === "side" ? "bottom" : "side")}
-          title="Toggle Dock Layout (Side / Bottom)"
-        >
-          {tallyLayout === "side" ? "📥 Bottom" : "🔲 Side"}
-        </button>
-        <button
-          class="close-btn"
-          style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
-          onclick={() => (showTally = false)}
-        >
-          &times;
-        </button>
-      </div>
+<!-- Root-level snippets for access from both main view and modals -->
+{#snippet scratchpadContentTemplate()}
+  <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+      <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Scratchpad</span>
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px;"
+        onclick={() => (scratchpadLayout = scratchpadLayout === "side" ? "bottom" : "side")}
+        title="Toggle Dock Layout (Side / Bottom)"
+      >
+        {scratchpadLayout === "side" ? "📥 Bottom" : "🔲 Side"}
+      </button>
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'write' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+        onclick={() => (scratchpadTab = "write")}
+      >
+        Write
+      </button>
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'preview' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
+        onclick={() => (scratchpadTab = "preview")}
+      >
+        Preview
+      </button>
+      <button
+        class="close-btn"
+        style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
+        onclick={() => (showScratchpad = false)}
+      >
+        &times;
+      </button>
     </div>
-    
-    <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
-      <div style="display: flex; padding: 10px; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: #141416;">
-        <input
-          type="text"
-          placeholder="New Tally Name..."
-          bind:value={newTallyName}
-          onkeydown={(e) => { if (e.key === "Enter") addTally(); }}
-          style="flex: 1; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 10px; color: white; font-size: 12px; outline: none;"
-        />
-        <button
-          class="btn primary"
-          style="padding: 6px 12px; font-size: 12px;"
-          onclick={addTally}
-        >
-          Add
-        </button>
-      </div>
-
-      <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
-        {#if tallyCards.length === 0}
-          <div style="padding: 24px; text-align: center; color: #52525b; font-size: 12px; font-style: italic;">
-            No tallies yet. Add one above!
-          </div>
+  </div>
+  
+  <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+    {#if scratchpadTab === "write"}
+      <textarea
+        id="scratchpad-textarea"
+        style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-family: inherit; font-size: 12px; line-height: 1.6; padding: 14px; box-sizing: border-box; text-align: left;"
+        bind:value={scratchpadContent}
+        oninput={saveScratchpadDebounced}
+        placeholder="Take quick notes here while reading your main page..."
+      ></textarea>
+    {:else}
+      <div class="scratchpad-preview-rendered markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%; overflow-wrap: break-word; word-break: break-word;">
+        {#if scratchpadContent.trim()}
+          {#snippet codeSnippet({ lang, text })}
+            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+          {/snippet}
+          <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
         {:else}
-          {#each tallyCards as card (card.id)}
-            {@const data = (() => {
-              try {
-                return JSON.parse(card.content);
-              } catch (_) {
-                return { name: card.comment || "Tally", count: parseInt(card.content) || 0 };
-              }
-            })()}
-            <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px 12px; gap: 12px;">
-              <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
-                {data.name}
-              </span>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <button
-                  class="btn-sm"
-                  style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
-                  disabled={data.count <= 0}
-                  onclick={() => updateTallyCount(card, data.name, data.count - 1)}
-                >
-                  -
-                </button>
-                <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
-                  {data.count}
-                </span>
-                <button
-                  class="btn-sm"
-                  style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
-                  onclick={() => updateTallyCount(card, data.name, data.count + 1)}
-                >
-                  +
-                </button>
-                <button
-                  class="close-btn"
-                  style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
-                  onclick={() => deleteTally(card.id)}
-                  title="Delete Tally"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-          {/each}
+          <span class="empty-hint" style="font-style: italic; font-size: 11px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
         {/if}
       </div>
+    {/if}
+  </div>
+{/snippet}
+
+{#snippet tallyContentTemplate()}
+  <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
+      <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
+      Tallies</span>
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button
+        class="btn-sm"
+        style="padding: 2px 6px; font-size: 9px;"
+        onclick={() => (tallyLayout = tallyLayout === "side" ? "bottom" : "side")}
+        title="Toggle Dock Layout (Side / Bottom)"
+      >
+        {tallyLayout === "side" ? "📥 Bottom" : "🔲 Side"}
+      </button>
+      <button
+        class="close-btn"
+        style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
+        onclick={() => (showTally = false)}
+      >
+        &times;
+      </button>
     </div>
-  {/snippet}
-</main>
+  </div>
+  
+  <div class="scratchpad-content-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+    <div style="display: flex; padding: 10px; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: #141416;">
+      <input
+        type="text"
+        placeholder="New Tally Name..."
+        bind:value={newTallyName}
+        onkeydown={(e) => { if (e.key === "Enter") addTally(); }}
+        style="flex: 1; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 10px; color: white; font-size: 12px; outline: none;"
+      />
+      <button
+        class="btn primary"
+        style="padding: 6px 12px; font-size: 12px;"
+        onclick={addTally}
+      >
+        Add
+      </button>
+    </div>
+
+    <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+      {#if tallyCards.length === 0}
+        <div style="padding: 24px; text-align: center; color: #52525b; font-size: 12px; font-style: italic;">
+          No tallies yet. Add one above!
+        </div>
+      {:else}
+        {#each tallyCards as card (card.id)}
+          {@const data = (() => {
+            try {
+              return JSON.parse(card.content);
+            } catch (_) {
+              return { name: card.comment || "Tally", count: parseInt(card.content) || 0 };
+            }
+          })()}
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px 12px; gap: 12px;">
+            <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
+              {data.name}
+            </span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <button
+                class="btn-sm"
+                style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
+                disabled={data.count <= 0}
+                onclick={() => updateTallyCount(card, data.name, data.count - 1)}
+              >
+                -
+              </button>
+              <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
+                {data.count}
+              </span>
+              <button
+                class="btn-sm"
+                style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
+                onclick={() => updateTallyCount(card, data.name, data.count + 1)}
+              >
+                +
+              </button>
+              <button
+                class="close-btn"
+                style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
+                onclick={() => deleteTally(card.id)}
+                title="Delete Tally"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        {/each}
+      {/if}
+    </div>
+  </div>
+{/snippet}
 
 <svelte:window onkeydown={(e) => {
   if (e.key === '\\' && (e.ctrlKey || e.metaKey)) {
@@ -2541,7 +2542,7 @@
     </div>
 
     <div class="fullscreen-workspace" style="display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; flex-direction: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'column' : 'row'};">
-      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; width: 100%; height: {(showScratchpad ? scratchpadLayout : tallyLayout) === 'bottom' ? 'auto' : '100%'};">
+      <div class="fullscreen-editor-columns-wrap" style="display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; width: 100%; height: 100%;">
         <div class="editor-pane-container" style="flex: 1;">
           <textarea
             bind:this={markdownTextarea}
