@@ -1,19 +1,31 @@
 <script>
   import PageIcon from "./PageIcon.svelte";
 
-  let { sidePages = [], selectedPage = null, onSelectPage, onCreateSidePage, onDeletePage } = $props();
+  let { sidePages = [], selectedPage = null, onSelectPage, onCreateSidePage, onDeletePage, onClose } = $props();
 </script>
 
 <div class="right-sidebar">
   <div class="sidebar-header">
     <span class="header-title">Context</span>
-    {#if selectedPage}
-      <button
-        class="add-btn"
-        title="Add context page"
-        onclick={onCreateSidePage}>+</button
-      >
-    {/if}
+    <div style="display: flex; align-items: center; gap: 4px;">
+      {#if selectedPage}
+        <button
+          class="add-btn"
+          title="Add context page"
+          onclick={onCreateSidePage}>+</button
+        >
+      {/if}
+      {#if onClose}
+        <button
+          class="close-btn"
+          title="Close context panel (Ctrl+\)"
+          onclick={onClose}
+          style="background: transparent; border: none; color: #71717a; font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; line-height: 1;"
+        >
+          ×
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if !selectedPage}

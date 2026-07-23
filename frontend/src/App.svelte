@@ -733,7 +733,8 @@
         const scratchCard = data.cards?.[0];
         if (scratchCard) {
           const remoteContent = scratchCard.content || "";
-          const textareaActive = document.activeElement && document.activeElement.id === "scratchpad-textarea";
+          const activeId = document.activeElement?.id;
+          const textareaActive = activeId === "scratchpad-textarea" || activeId === "fullscreen-scratchpad-textarea";
           if (scratchpadContent !== remoteContent && !textareaActive) {
             scratchpadContent = remoteContent;
           }
@@ -1104,6 +1105,19 @@
   }
 
   // Immersive Modal Handlers at App Level
+  function cancelMarkdownFullscreen() {
+    showMarkdownFullscreenModal = false;
+    editingCard = null;
+    fullscreenEditContent = "";
+  }
+
+  function cancelCodeFullscreen() {
+    showCodeFullscreenModal = false;
+    editingCard = null;
+    fullscreenCodeContent = "";
+    fullscreenCodeLang = "javascript";
+  }
+
   function openMarkdownFullscreen(c, initialContent) {
     editingCard = c;
     fullscreenEditContent = initialContent;
@@ -1123,6 +1137,7 @@
       .catch((err) => console.error(err));
     showMarkdownFullscreenModal = false;
     editingCard = null;
+    fullscreenEditContent = "";
   }
 
   function openCodeFullscreen(c, initialContent) {
@@ -1153,6 +1168,8 @@
       .catch((err) => console.error(err));
     showCodeFullscreenModal = false;
     editingCard = null;
+    fullscreenCodeContent = "";
+    fullscreenCodeLang = "javascript";
   }
 
   async function openSitesFullscreen(c, initialName, initialDesc, initialHtml) {
@@ -1619,6 +1636,19 @@
             {#if isPaginatedView && pageCards.length > 0}
               {@const card = pageCards[currentBlockIndex]}
               <div class="card-slot">
+                <div class="insert-slot" style="height: 24px; margin-bottom: 8px;">
+                  <button
+                    class="insert-btn"
+                    style="opacity: 1; width: auto; padding: 2px 8px;"
+                    onclick={() => {
+                      blockInsertIndex = currentBlockIndex;
+                      showBlockSelectorModal = true;
+                    }}
+                    title="Insert Block Above (Up)"
+                  >
+                    + Insert Above
+                  </button>
+                </div>
                 <CardBlock
                   {card}
                   isSelected={selectedCardId === card.id}
@@ -1654,6 +1684,19 @@
                   onmoveUp={() => moveCard(currentBlockIndex, -1)}
                   onmoveDown={() => moveCard(currentBlockIndex, 1)}
                 />
+                <div class="insert-slot" style="height: 24px; margin-top: 8px;">
+                  <button
+                    class="insert-btn"
+                    style="opacity: 1; width: auto; padding: 2px 8px;"
+                    onclick={() => {
+                      blockInsertIndex = currentBlockIndex + 1;
+                      showBlockSelectorModal = true;
+                    }}
+                    title="Insert Block Below (Down)"
+                  >
+                    + Insert Below
+                  </button>
+                </div>
               </div>
             {:else if pageCards.length > 0}
               {#each pageCards as card, index (card.id)}
@@ -2479,7 +2522,7 @@
       <div class="header-buttons">
         <button
           class="btn secondary"
-          onclick={() => (showMarkdownFullscreenModal = false)}>Cancel</button
+          onclick={cancelMarkdownFullscreen}>Cancel</button
         >
         <button class="btn primary" onclick={saveMarkdownFullscreen}
           >Save Changes</button
@@ -2667,7 +2710,7 @@
       <div class="header-buttons">
         <button
           class="btn secondary"
-          onclick={() => (showCodeFullscreenModal = false)}>Cancel</button
+          onclick={cancelCodeFullscreen}>Cancel</button
         >
         <button class="btn primary" onclick={saveCodeFullscreen}
           >Save Changes</button
@@ -4715,20 +4758,20 @@
     text-align: left !important; /* Enforces left alignment on container */
   }
 
-  .fullscreen-preview.markdown-rendered {
+  .markdown-rendered {
     text-align: left !important;
   }
 
-  .fullscreen-preview.markdown-rendered :global(p),
-  .fullscreen-preview.markdown-rendered :global(li),
-  .fullscreen-preview.markdown-rendered :global(h1),
-  .fullscreen-preview.markdown-rendered :global(h2),
-  .fullscreen-preview.markdown-rendered :global(h3),
-  .fullscreen-preview.markdown-rendered :global(h4),
-  .fullscreen-preview.markdown-rendered :global(h5),
-  .fullscreen-preview.markdown-rendered :global(h6),
-  .fullscreen-preview.markdown-rendered :global(blockquote),
-  .fullscreen-preview.markdown-rendered :global(span) {
+  .markdown-rendered :global(p),
+  .markdown-rendered :global(li),
+  .markdown-rendered :global(h1),
+  .markdown-rendered :global(h2),
+  .markdown-rendered :global(h3),
+  .markdown-rendered :global(h4),
+  .markdown-rendered :global(h5),
+  .markdown-rendered :global(h6),
+  .markdown-rendered :global(blockquote),
+  .markdown-rendered :global(span) {
     text-align: left !important; /* Ensures raw blocks do not justify alignment */
   }
 
@@ -5489,8 +5532,8 @@
     margin: 0;
   }
 
-  /* Markdown Typography & Layout inside Fullscreen Split Preview */
-  .fullscreen-preview.markdown-rendered {
+  /* Markdown Typography & Layout — shared across Card Preview, Reading View, Scratchpad Preview, and Fullscreen Editor */
+  .markdown-rendered {
     color: #e4e4e7;
     font-size: 13.5px;
     line-height: 1.65;
@@ -5499,16 +5542,16 @@
     overflow-wrap: break-word;
     word-break: break-word;
   }
-  .fullscreen-preview.markdown-rendered :global(p) {
+  .markdown-rendered :global(p) {
     margin: 0 0 12px 0;
     text-align: left !important;
     overflow-wrap: break-word;
     word-break: break-word;
   }
-  .fullscreen-preview.markdown-rendered :global(p:last-child) {
+  .markdown-rendered :global(p:last-child) {
     margin-bottom: 0;
   }
-  .fullscreen-preview.markdown-rendered :global(h1) {
+  .markdown-rendered :global(h1) {
     font-size: 1.35rem;
     margin: 20px 0 10px 0;
     color: #ffffff;
@@ -5518,7 +5561,7 @@
     padding-bottom: 4px;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(h2) {
+  .markdown-rendered :global(h2) {
     font-size: 1.15rem;
     margin: 18px 0 8px 0;
     color: #ffffff;
@@ -5526,7 +5569,7 @@
     letter-spacing: -0.2px;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(h3) {
+  .markdown-rendered :global(h3) {
     font-size: 1rem;
     margin: 14px 0 6px 0;
     color: #818cf8;
@@ -5534,16 +5577,16 @@
     letter-spacing: -0.1px;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(h4), 
-  .fullscreen-preview.markdown-rendered :global(h5), 
-  .fullscreen-preview.markdown-rendered :global(h6) {
+  .markdown-rendered :global(h4), 
+  .markdown-rendered :global(h5), 
+  .markdown-rendered :global(h6) {
     font-size: 0.9rem;
     margin: 12px 0 4px 0;
     color: #cbd5e1;
     font-weight: 600;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(code:not(pre code)) {
+  .markdown-rendered :global(code:not(pre code)) {
     background: rgba(129, 140, 248, 0.08);
     border: 1px solid rgba(129, 140, 248, 0.15);
     padding: 2px 5px;
@@ -5552,7 +5595,7 @@
     font-family: "Fira Code", Consolas, Monaco, monospace;
     color: #f472b6;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-code-block) {
+  .markdown-rendered :global(.markdown-code-block) {
     position: relative;
     background: #09090b;
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -5561,13 +5604,13 @@
     padding: 12px 14px;
     overflow-x: auto;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-code-block pre) {
+  .markdown-rendered :global(.markdown-code-block pre) {
     margin: 0;
     background: transparent;
     border: none;
     padding: 0;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-code-block code) {
+  .markdown-rendered :global(.markdown-code-block code) {
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
@@ -5577,7 +5620,7 @@
     color: #e4e4e7;
     display: block;
   }
-  .fullscreen-preview.markdown-rendered :global(.code-lang-badge) {
+  .markdown-rendered :global(.code-lang-badge) {
     position: absolute;
     top: 6px;
     right: 8px;
@@ -5591,32 +5634,32 @@
     user-select: none;
     pointer-events: none;
   }
-  .fullscreen-preview.markdown-rendered :global(ul), 
-  .fullscreen-preview.markdown-rendered :global(ol) {
+  .markdown-rendered :global(ul), 
+  .markdown-rendered :global(ol) {
     padding-left: 20px;
     margin: 0 0 12px 0;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(li) {
+  .markdown-rendered :global(li) {
     margin-bottom: 4px;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(li::marker) {
+  .markdown-rendered :global(li::marker) {
     color: #818cf8;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-item) {
+  .markdown-rendered :global(.task-list-item) {
     list-style-type: none;
     margin-left: -20px;
     margin-bottom: 4px;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-label) {
+  .markdown-rendered :global(.task-list-label) {
     display: flex;
     align-items: flex-start;
     gap: 8px;
     cursor: default;
     user-select: none;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox) {
+  .markdown-rendered :global(.task-list-checkbox) {
     appearance: none;
     -webkit-appearance: none;
     width: 14px;
@@ -5632,21 +5675,21 @@
     justify-content: center;
     flex-shrink: 0;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked) {
+  .markdown-rendered :global(.task-list-checkbox:checked) {
     background-color: #818cf8;
     border-color: #818cf8;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked::before) {
+  .markdown-rendered :global(.task-list-checkbox:checked::before) {
     content: "✓";
     color: white;
     font-size: 10px;
     font-weight: bold;
   }
-  .fullscreen-preview.markdown-rendered :global(.task-list-checkbox:checked + .task-list-text) {
+  .markdown-rendered :global(.task-list-checkbox:checked + .task-list-text) {
     color: #71717a;
     text-decoration: line-through;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-blockquote) {
+  .markdown-rendered :global(.markdown-blockquote) {
     border-left: 4px solid #818cf8;
     background: rgba(129, 140, 248, 0.03);
     padding: 8px 16px;
@@ -5656,62 +5699,62 @@
     font-style: italic;
     text-align: left !important;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-blockquote p) {
+  .markdown-rendered :global(.markdown-blockquote p) {
     margin: 0;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table-wrapper) {
+  .markdown-rendered :global(.markdown-table-wrapper) {
     overflow-x: auto;
     margin: 14px 0;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
     background: #09090b;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table) {
+  .markdown-rendered :global(.markdown-table) {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
     text-align: left;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table th) {
+  .markdown-rendered :global(.markdown-table th) {
     background: rgba(255, 255, 255, 0.02);
     font-weight: 700;
     color: #ffffff;
     padding: 10px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table td) {
+  .markdown-rendered :global(.markdown-table td) {
     padding: 10px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     color: #cbd5e1;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table tbody tr:last-child td) {
+  .markdown-rendered :global(.markdown-table tbody tr:last-child td) {
     border-bottom: none;
   }
-  .fullscreen-preview.markdown-rendered :global(.markdown-table tbody tr:nth-child(even)) {
+  .markdown-rendered :global(.markdown-table tbody tr:nth-child(even)) {
     background: rgba(255, 255, 255, 0.005);
   }
-  .fullscreen-preview.markdown-rendered :global(hr) {
+  .markdown-rendered :global(hr) {
     border: none;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     margin: 18px 0;
   }
-  .fullscreen-preview.markdown-rendered :global(a) {
+  .markdown-rendered :global(a) {
     color: #818cf8;
     text-decoration: none;
     border-bottom: 1px dotted transparent;
     transition: all 0.15s ease;
   }
-  .fullscreen-preview.markdown-rendered :global(a:hover) {
+  .markdown-rendered :global(a:hover) {
     color: #a5b4fc;
     border-bottom-color: #a5b4fc;
   }
-  .fullscreen-preview.markdown-rendered :global(img) {
+  .markdown-rendered :global(img) {
     max-width: 100%;
     border-radius: 6px;
     margin: 10px 0;
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
-  .fullscreen-preview.markdown-rendered :global(kbd) {
+  .markdown-rendered :global(kbd) {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;

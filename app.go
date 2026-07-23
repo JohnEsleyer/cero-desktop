@@ -326,14 +326,31 @@ func (a *App) GetDiscoveredDevices() []DiscoveredDevice {
 
 // --- WebSocket Client Service ---
 
+// tcpDialCheck attempts a raw TCP connection to verify the host is reachable
+// before attempting the WebSocket handshake. Returns nil if reachable.
+func tcpDialCheck(ip string, port int, timeout time.Duration) error {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip, fmt.Sprintf("%d", port)), timeout)
+	if err != nil {
+		return err
+	}
+	conn.Close()
+	return nil
+}
+
 func (a *App) ConnectToDevice(ip string, port int, pin string) error {
 	a.Disconnect()
 
 	a.setConnectionStatus("connecting")
+
+	if err := tcpDialCheck(ip, port, 3*time.Second); err != nil {
+		a.setConnectionStatus("disconnected")
+		return fmt.Errorf("cannot reach %s:%d — the device may be on a different network, client isolation may be enabled on the router, or the server app is not running.\n  TCP dial error: %w", ip, port, err)
+	}
+
 	wsURL := fmt.Sprintf("ws://%s:%d/ws?pin=%s", ip, port, pin)
 
 	dialer := websocket.Dialer{
-		HandshakeTimeout: 5 * time.Second,
+		HandshakeTimeout: 10 * time.Second,
 	}
 
 	conn, _, err := dialer.Dial(wsURL, nil)
@@ -375,9 +392,15 @@ func (a *App) scheduleReconnect() {
 		fmt.Printf("Auto-reconnecting to %s:%d...\n", ip, port)
 		a.setConnectionStatus("reconnecting")
 
+		if err := tcpDialCheck(ip, port, 3*time.Second); err != nil {
+			fmt.Printf("Reconnect TCP check failed (device unreachable): %v, retrying in 5s...\n", err)
+			a.scheduleReconnectRetry()
+			return
+		}
+
 		wsURL := fmt.Sprintf("ws://%s:%d/ws?pin=%s", ip, port, pin)
 		dialer := websocket.Dialer{
-			HandshakeTimeout: 5 * time.Second,
+			HandshakeTimeout: 10 * time.Second,
 		}
 
 		conn, _, err := dialer.Dial(wsURL, nil)
@@ -412,9 +435,15 @@ func (a *App) scheduleReconnectRetry() {
 		fmt.Printf("Auto-reconnecting to %s:%d...\n", ip, port)
 		a.setConnectionStatus("reconnecting")
 
+		if err := tcpDialCheck(ip, port, 3*time.Second); err != nil {
+			fmt.Printf("Reconnect TCP check failed (device unreachable): %v, retrying in 5s...\n", err)
+			a.scheduleReconnectRetry()
+			return
+		}
+
 		wsURL := fmt.Sprintf("ws://%s:%d/ws?pin=%s", ip, port, pin)
 		dialer := websocket.Dialer{
-			HandshakeTimeout: 5 * time.Second,
+			HandshakeTimeout: 10 * time.Second,
 		}
 
 		conn, _, err := dialer.Dial(wsURL, nil)
