@@ -103,26 +103,24 @@
   let currentBlockIndex = $state(0);
   let blockNumberInput = $state("1");
   let pendingBlockIndex = $state(null);
+  let autoJumpToLastCard = $state(false);
+  let shouldJumpToLastCardOnLoad = $state(false);
 
   $effect(() => {
     if (pageCards && pageCards.length > 0) {
+      if (shouldJumpToLastCardOnLoad) {
+        shouldJumpToLastCardOnLoad = false;
+        currentBlockIndex = pageCards.length - 1;
+      } else if (pendingBlockIndex !== null) {
+        if (pendingBlockIndex >= 0 && pendingBlockIndex < pageCards.length) {
+          currentBlockIndex = pendingBlockIndex;
+          pendingBlockIndex = null;
+        }
+      }
       if (currentBlockIndex >= pageCards.length) {
         currentBlockIndex = pageCards.length - 1;
       }
       blockNumberInput = (currentBlockIndex + 1).toString();
-    } else {
-      currentBlockIndex = 0;
-      blockNumberInput = "1";
-    }
-  });
-
-  $effect(() => {
-    if (pageCards && pendingBlockIndex !== null) {
-      if (pendingBlockIndex >= 0 && pendingBlockIndex < pageCards.length) {
-        currentBlockIndex = pendingBlockIndex;
-        blockNumberInput = (currentBlockIndex + 1).toString();
-        pendingBlockIndex = null;
-      }
     }
   });
 
@@ -684,6 +682,11 @@
       console.error("Failed to load recently opened pages:", e);
     }
 
+    const savedAutoJump = localStorage.getItem("cero_auto_jump_to_last_card");
+    if (savedAutoJump !== null) {
+      autoJumpToLastCard = savedAutoJump === "true";
+    }
+
     try {
       connectionStatus = await GetConnectionStatus();
       discoveredDevices = await GetDiscoveredDevices();
@@ -739,7 +742,7 @@
         if (scratchCard) {
           const remoteContent = scratchCard.content || "";
           const activeId = document.activeElement?.id;
-          const textareaActive = activeId === "scratchpad-textarea" || activeId === "fullscreen-scratchpad-textarea";
+          const textareaActive = activeId === "scratchpad-textarea" || activeId === "fullscreen-scratchpad-textarea" || activeId === "reading-scratchpad-textarea";
           if (scratchpadContent !== remoteContent && !textareaActive) {
             scratchpadContent = remoteContent;
           }
@@ -941,6 +944,18 @@
       isPaginatedView = savedViewMode === "block";
     } else {
       isPaginatedView = false;
+    }
+
+    if (isPaginatedView) {
+      if (autoJumpToLastCard) {
+        shouldJumpToLastCardOnLoad = true;
+      } else {
+        currentBlockIndex = 0;
+        blockNumberInput = "1";
+      }
+    } else {
+      currentBlockIndex = 0;
+      blockNumberInput = "1";
     }
 
     if (!(page.parent_id || page.parentId) && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
@@ -1809,31 +1824,57 @@
           <!-- Persistent workspace-bottom-bar sits right here inside the workspace parent, below the card-column -->
           <div class="workspace-bottom-bar">
             <!-- Unified Mode Control (Left) -->
-            <button
-              class="mode-toggle-btn"
-              class:block-active={isPaginatedView}
-              onclick={() => {
-                isPaginatedView = !isPaginatedView;
-                if (selectedPage) {
-                  localStorage.setItem(`cero_view_mode_${selectedPage.id}`, isPaginatedView ? "block" : "scroll");
-                }
-                if (isPaginatedView) {
-                  currentBlockIndex = 0;
-                  blockNumberInput = "1";
-                }
-              }}
-              title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
-            >
+            <div style="display: flex; gap: 8px;">
+              <button
+                class="mode-toggle-btn"
+                class:block-active={isPaginatedView}
+                onclick={() => {
+                  isPaginatedView = !isPaginatedView;
+                  if (selectedPage) {
+                    localStorage.setItem(`cero_view_mode_${selectedPage.id}`, isPaginatedView ? "block" : "scroll");
+                  }
+                  if (isPaginatedView) {
+                    if (autoJumpToLastCard) {
+                      currentBlockIndex = pageCards.length > 0 ? pageCards.length - 1 : 0;
+                    } else {
+                      currentBlockIndex = 0;
+                    }
+                    blockNumberInput = (currentBlockIndex + 1).toString();
+                  }
+                }}
+                title={isPaginatedView ? "Switch to Scroll Mode" : "Switch to Block Mode"}
+              >
+                {#if isPaginatedView}
+                  <span class="btn-icon" style="display: inline-flex; align-items: center;">
+                    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+                  </span> <span class="lbl-text">Block View</span>
+                {:else}
+                  <span class="btn-icon" style="display: inline-flex; align-items: center;">
+                    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                  </span> <span class="lbl-text">Scroll View</span>
+                {/if}
+              </button>
+
               {#if isPaginatedView}
-                <span class="btn-icon" style="display: inline-flex; align-items: center;">
-                  <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
-                </span> <span class="lbl-text">Block View</span>
-              {:else}
-                <span class="btn-icon" style="display: inline-flex; align-items: center;">
-                  <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18"/><path d="M3 15h18"/></svg>
-                </span> <span class="lbl-text">Scroll View</span>
+                <button
+                  class="mode-toggle-btn"
+                  class:block-active={autoJumpToLastCard}
+                  onclick={() => {
+                    autoJumpToLastCard = !autoJumpToLastCard;
+                    localStorage.setItem("cero_auto_jump_to_last_card", autoJumpToLastCard.toString());
+                    if (autoJumpToLastCard && pageCards.length > 0) {
+                      currentBlockIndex = pageCards.length - 1;
+                      blockNumberInput = (currentBlockIndex + 1).toString();
+                    }
+                  }}
+                  title="Automatically jump to the last card block when opening a page"
+                >
+                  <span class="btn-icon" style="display: inline-flex; align-items: center;">
+                    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                  </span> <span class="lbl-text">Auto-Last Card</span>
+                </button>
               {/if}
-            </button>
+            </div>
 
             <!-- Super Compact Pagination (Right) with Jump buttons -->
             {#if isPaginatedView && pageCards.length > 0}
@@ -5821,7 +5862,7 @@
   .comments-modal-body .comments-empty {
     color: #52525b;
     font-size: 13px;
-    text-align: center;
+    text-align: left;
     padding: 20px 0;
   }
 
