@@ -1,70 +1,66 @@
 <script>
-  import PageIcon from "./PageIcon.svelte";
+  let {
+    activeCard = null,
+    onAddContextNote,
+    onOpenContextNote,
+    onDeleteContextNote,
+    onClose
+  } = $props();
 
-  let { sidePages = [], selectedPage = null, onSelectPage, onCreateSidePage, onDeletePage, onClose } = $props();
+  function parseMetadata(commentField) {
+    if (!commentField) return { color: "default", comments: [], contextNotes: [] };
+    try {
+      const data = JSON.parse(commentField);
+      return {
+        color: data.color || "default",
+        comments: Array.isArray(data.comments) ? data.comments : [],
+        contextNotes: Array.isArray(data.contextNotes) ? data.contextNotes : []
+      };
+    } catch (_) {
+      return { color: "default", comments: [], contextNotes: [] };
+    }
+  }
+
+  let contextNotes = $derived(activeCard ? parseMetadata(activeCard.comment).contextNotes : []);
 </script>
 
 <div class="right-sidebar">
   <div class="sidebar-header">
-    <span class="header-title">Context</span>
+    <span class="header-title">Card Context Notes</span>
     <div style="display: flex; align-items: center; gap: 4px;">
-      {#if selectedPage}
-        <button
-          class="add-btn"
-          title="Add context page"
-          onclick={onCreateSidePage}>+</button
-        >
+      {#if activeCard}
+        <button class="add-btn" title="Add context note" onclick={onAddContextNote}>+</button>
       {/if}
       {#if onClose}
-        <button
-          class="close-btn"
-          title="Close context panel (Ctrl+\)"
-          onclick={onClose}
-          style="background: transparent; border: none; color: #71717a; font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; line-height: 1;"
-        >
-          ×
-        </button>
+        <button class="close-btn" title="Close context panel" onclick={onClose}>×</button>
       {/if}
     </div>
   </div>
 
-  {#if !selectedPage}
+  {#if !activeCard}
     <div class="empty-state">
-      <span class="empty-icon" style="display: inline-flex; align-items: center; color: #52525b;">
-        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/></svg>
-      </span>
-      <p>Select a page to view context pages</p>
+      <span class="empty-icon">📝</span>
+      <p>Select or view a block to manage context notes</p>
     </div>
-  {:else if sidePages.length === 0}
+  {:else if contextNotes.length === 0}
     <div class="empty-state">
-      <span class="empty-icon" style="display: inline-flex; align-items: center; color: #52525b;">
-        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </span>
-      <p>No context pages yet</p>
-      <span class="empty-hint"
-        >Side pages provide supplementary info about the current page.</span
-      >
-      <button class="add-btn-label" onclick={onCreateSidePage}
-        >+ Add Context Page</button
-      >
+      <span class="empty-icon">📂</span>
+      <p>No context notes for this block</p>
+      <span class="empty-hint">Add Markdown or HTML context notes to attach supplementary details.</span>
+      <button class="add-btn-label" onclick={onAddContextNote}>+ Add Context Note</button>
     </div>
   {:else}
     <div class="pages-list">
-      {#each sidePages as sp}
-        <div class="page-card" class:selected={false}>
-          <button class="page-btn" onclick={() => onSelectPage(sp)}>
-            <span class="page-emoji"><PageIcon emoji={sp.emoji} size={14} /></span>
+      {#each contextNotes as note, i (note.id || i)}
+        <div class="page-card">
+          <button class="page-btn" onclick={() => onOpenContextNote(note, i)}>
+            <span class="page-emoji">{note.type === "html" ? "🌐" : "📝"}</span>
             <div class="page-info">
-              <span class="page-title">{sp.title || "Untitled"}</span>
+              <span class="page-title">{note.title || "Context Note"}</span>
+              <span style="font-size: 8.5px; font-weight: 800; color: {note.type === 'html' ? '#2dd4bf' : '#818cf8'};">{note.type.toUpperCase()}</span>
             </div>
           </button>
-          <button
-            class="delete-btn"
-            title="Remove context page"
-            onclick={(e) => { e.stopPropagation(); onDeletePage(sp.id); }}
-          >
-            ×
-          </button>
+          <button class="delete-btn" title="Delete context note" onclick={(e) => { e.stopPropagation(); onDeleteContextNote(i); }}>×</button>
         </div>
       {/each}
     </div>
@@ -95,7 +91,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #71717a;
+    color: #818cf8;
   }
 
   .add-btn {
@@ -116,6 +112,20 @@
     border-color: rgba(129, 140, 248, 0.3);
     color: #818cf8;
     background: rgba(129, 140, 248, 0.04);
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: #71717a;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
   }
 
   .empty-state {
@@ -178,12 +188,13 @@
     display: flex;
     align-items: center;
     border-radius: 6px;
-    border: 1px solid transparent;
+    border: 1px solid rgba(255,255,255,0.03);
+    background: rgba(255,255,255,0.01);
     transition: all 0.12s ease;
   }
   .page-card:hover {
-    background: rgba(255, 255, 255, 0.01);
-    border-color: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(129, 140, 248, 0.2);
   }
 
   .page-btn {
@@ -195,7 +206,7 @@
     border: none;
     text-align: left;
     color: #cbd5e1;
-    padding: 6px 8px;
+    padding: 8px 10px;
     cursor: pointer;
     border-radius: 6px;
     min-width: 0;
@@ -209,15 +220,19 @@
   .page-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .page-title {
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: #ffffff;
   }
 
   .delete-btn {

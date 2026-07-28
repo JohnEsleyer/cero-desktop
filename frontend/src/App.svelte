@@ -428,6 +428,118 @@
       .catch(err => console.error(err));
   }
 
+  // Add Context Note Dialog & Editor States
+  let showAddContextNoteModal = $state(false);
+  let newContextNoteTitle = $state("");
+  let newContextNoteType = $state("markdown");
+
+  let showContextNoteFullscreenModal = $state(false);
+  let editingContextNote = $state(null);
+  let editingContextNoteIndex = $state(null);
+  let contextNoteTab = $state("write"); // "write" | "preview" or "preview" | "edit"
+  let contextNoteTitle = $state("");
+  let contextNoteContent = $state("");
+
+  // Helper to parse card metadata safely
+  function getCardMetadata(card) {
+    if (!card || !card.comment) return { color: "default", comments: [], contextNotes: [] };
+    try {
+      const data = JSON.parse(card.comment);
+      return {
+        color: data.color || "default",
+        comments: Array.isArray(data.comments) ? data.comments : [],
+        contextNotes: Array.isArray(data.contextNotes) ? data.contextNotes : []
+      };
+    } catch (_) {
+      return { color: "default", comments: [], contextNotes: [] };
+    }
+  }
+
+  // Currently active card for Context Notes (reading card or selected card)
+  let activeCardForContext = $derived(readingCard || (selectedCardId ? pageCards.find(c => c.id === selectedCardId) : pageCards[0]) || null);
+
+  function handleOpenAddContextNote() {
+    if (!activeCardForContext) return;
+    newContextNoteTitle = "";
+    newContextNoteType = "markdown";
+    showAddContextNoteModal = true;
+  }
+
+  function handleCreateContextNote() {
+    if (!activeCardForContext) return;
+    const meta = getCardMetadata(activeCardForContext);
+    const newNote = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      type: newContextNoteType,
+      title: newContextNoteTitle.trim() || (newContextNoteType === "html" ? "HTML Context Note" : "Markdown Context Note"),
+      content: newContextNoteType === "html"
+        ? "<h3>Context Details</h3>\n<p>Write custom HTML snippet here...</p>"
+        : "# Context Note\n\nWrite markdown details here...",
+      createdAt: new Date().toISOString()
+    };
+    meta.contextNotes.push(newNote);
+    const payload = JSON.stringify(meta);
+
+    UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
+      .then(() => {
+        activeCardForContext.comment = payload;
+        const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
+        if (idx !== -1) pageCards[idx].comment = payload;
+        showAddContextNoteModal = false;
+        openContextNoteFullscreen(newNote, meta.contextNotes.length - 1);
+      })
+      .catch(err => console.error(err));
+  }
+
+  function handleDeleteContextNote(index) {
+    if (!activeCardForContext) return;
+    const meta = getCardMetadata(activeCardForContext);
+    if (index < 0 || index >= meta.contextNotes.length) return;
+    meta.contextNotes.splice(index, 1);
+    const payload = JSON.stringify(meta);
+
+    UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
+      .then(() => {
+        activeCardForContext.comment = payload;
+        const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
+        if (idx !== -1) pageCards[idx].comment = payload;
+      })
+      .catch(err => console.error(err));
+  }
+
+  function openContextNoteFullscreen(note, index) {
+    editingContextNote = note;
+    editingContextNoteIndex = index;
+    contextNoteTitle = note.title || "";
+    contextNoteContent = note.content || "";
+    contextNoteTab = note.type === "html" ? "preview" : "write";
+    showContextNoteFullscreenModal = true;
+  }
+
+  function saveContextNoteFullscreen() {
+    if (!activeCardForContext || editingContextNoteIndex === null) return;
+    const meta = getCardMetadata(activeCardForContext);
+    if (editingContextNoteIndex >= 0 && editingContextNoteIndex < meta.contextNotes.length) {
+      meta.contextNotes[editingContextNoteIndex] = {
+        ...meta.contextNotes[editingContextNoteIndex],
+        title: contextNoteTitle,
+        content: contextNoteContent
+      };
+      const payload = JSON.stringify(meta);
+      UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
+        .then(() => {
+          activeCardForContext.comment = payload;
+          const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
+          if (idx !== -1) pageCards[idx].comment = payload;
+        })
+        .catch(err => console.error(err));
+    }
+    showContextNoteFullscreenModal = false;
+    editingContextNote = null;
+    editingContextNoteIndex = null;
+  }
+
+
   function openSitesPreview(name, html) {
     previewSitesName = name;
     previewSitesHtml = html;
@@ -2160,11 +2272,10 @@
       style="width: {rightSidebarWidth}px; min-width: {rightSidebarWidth}px;"
     >
       <RightSidebar
-        {sidePages}
-        {selectedPage}
-        onSelectPage={selectPage}
-        onCreateSidePage={createSidePage}
-        onDeletePage={deletePage}
+        activeCard={activeCardForContext}
+        onAddContextNote={handleOpenAddContextNote}
+        onOpenContextNote={openContextNoteFullscreen}
+        onDeleteContextNote={handleDeleteContextNote}
         onClose={() => (showRightSidebar = false)}
       />
     </aside>
@@ -3673,6 +3784,94 @@
           </button>
         {/if}
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Add Context Note Dialog -->
+{#if showAddContextNoteModal}
+  <div class="modal-backdrop" onclick={(e) => { if (e.target === e.currentTarget) showAddContextNoteModal = false; }}>
+    <div class="modal-container alert-confirm-modal" style="width: 360px;">
+      <div class="modal-header">
+        <h3>Add Context Note</h3>
+        <button class="close-btn" onclick={() => (showAddContextNoteModal = false)}>&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; text-align: left;">
+        <label style="font-size: 10px; font-weight: 700; color: #818cf8; text-transform: uppercase;">Note Title</label>
+        <input type="text" bind:value={newContextNoteTitle} placeholder="e.g. Reference Material..." style="width:100%; margin: 6px 0 16px 0; background: #121215; border: 1px solid rgba(255,255,255,0.08); padding: 8px 10px; border-radius: 6px; color: white; font-size: 12px; outline: none;" />
+
+        <label style="font-size: 10px; font-weight: 700; color: #818cf8; text-transform: uppercase;">Format Type</label>
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button class="btn {newContextNoteType === 'markdown' ? 'primary' : 'secondary'}" style="flex:1;" onclick={() => (newContextNoteType = "markdown")}>Markdown</button>
+          <button class="btn {newContextNoteType === 'html' ? 'primary' : 'secondary'}" style="flex:1;" onclick={() => (newContextNoteType = "html")}>HTML</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn secondary" onclick={() => (showAddContextNoteModal = false)}>Cancel</button>
+        <button class="btn primary" onclick={handleCreateContextNote}>Create</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Context Note Fullscreen Editor & Previewer Modal -->
+{#if showContextNoteFullscreenModal && editingContextNote}
+  <div class="fullscreen-editor-overlay" style="display: flex; flex-direction: column; background: #09090b; height: 100vh; width: 100vw;">
+    <div class="fullscreen-header">
+      <div class="header-info">
+        <span class="header-title">{editingContextNote.type === "html" ? "HTML" : "Markdown"} Context Note</span>
+      </div>
+      <div style="display: flex; gap: 4px; background: #121215; padding: 2px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+        {#if editingContextNote.type === "html"}
+          <button class="btn-sm" style="{contextNoteTab === 'preview' ? 'background: rgba(129,140,248,0.15); color: #818cf8;' : ''}" onclick={() => (contextNoteTab = "preview")}>Preview</button>
+          <button class="btn-sm" style="{contextNoteTab === 'edit' ? 'background: rgba(129,140,248,0.15); color: #818cf8;' : ''}" onclick={() => (contextNoteTab = "edit")}>Edit Code</button>
+        {:else}
+          <button class="btn-sm" style="{contextNoteTab === 'write' ? 'background: rgba(129,140,248,0.15); color: #818cf8;' : ''}" onclick={() => (contextNoteTab = "write")}>Write</button>
+          <button class="btn-sm" style="{contextNoteTab === 'preview' ? 'background: rgba(129,140,248,0.15); color: #818cf8;' : ''}" onclick={() => (contextNoteTab = "preview")}>Preview</button>
+        {/if}
+      </div>
+      <div class="header-buttons" style="display: flex; gap: 8px;">
+        <button class="btn-sm" onclick={toggleScratchpad}>📝 Scratchpad</button>
+        <button class="btn-sm" onclick={toggleTally}>🔢 Tallies</button>
+        <button class="btn primary" onclick={saveContextNoteFullscreen}>Save & Close</button>
+      </div>
+    </div>
+
+    <div class="fullscreen-workspace" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; width: 100%;">
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px; background: #09090b;">
+        <input type="text" bind:value={contextNoteTitle} placeholder="Context Note Title..." style="background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 8px 0; color: white; font-size: 16px; font-weight: bold; margin-bottom: 16px; outline: none;" />
+
+        {#if editingContextNote.type === "html"}
+          {#if contextNoteTab === "preview"}
+            <iframe title="HTML Context Preview" srcdoc={contextNoteContent} style="flex:1; width:100%; border:none; background: transparent;" sandbox="allow-scripts"></iframe>
+          {:else}
+            <textarea bind:value={contextNoteContent} placeholder="Type HTML tags here..." style="flex:1; width:100%; background: #121215; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #e2e8f0; font-family: monospace; font-size: 13px; padding: 16px; resize: none; outline: none; line-height: 1.5;"></textarea>
+          {/if}
+        {:else}
+          {#if contextNoteTab === "write"}
+            <textarea bind:value={contextNoteContent} placeholder="Write markdown content here..." style="flex:1; width:100%; background: transparent; border: none; color: #e2e8f0; font-size: 14px; padding: 8px 0; resize: none; outline: none; line-height: 1.6;"></textarea>
+          {:else}
+            <div class="markdown-rendered" style="flex:1; overflow-y:auto; padding: 12px 0;">
+              {#snippet codeSnippet({ lang, text })}
+                <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+              {/snippet}
+              <SvelteMarkdown source={contextNoteContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
+            </div>
+          {/if}
+        {/if}
+      </div>
+
+      <!-- Bottom Dock for Scratchpad / Tallies in Context Note Fullscreen -->
+      {#if showScratchpad}
+        <div class="scratchpad-pane bottom-dock" style="height: {scratchpadHeight}px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255,255,255,0.05); overflow: hidden; width: 100%;">
+          {@render scratchpadContentTemplate()}
+        </div>
+      {/if}
+      {#if showTally}
+        <div class="scratchpad-pane bottom-dock" style="height: {tallyHeight}px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255,255,255,0.05); overflow: hidden; width: 100%;">
+          {@render tallyContentTemplate()}
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
