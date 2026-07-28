@@ -542,6 +542,31 @@ func (a *App) readWebSocketLoop(conn *websocket.Conn) {
 			conn.Close()
 			return
 
+		// Backup Remote Server Events
+		case "backup_code_required":
+			runtime.EventsEmit(a.ctx, "backup-code-required", nil)
+		case "backup_data":
+			var dataPayload map[string]interface{}
+			if err := json.Unmarshal(envelope.Data, &dataPayload); err == nil && len(dataPayload) > 0 {
+				runtime.EventsEmit(a.ctx, "backup-data", dataPayload)
+			} else {
+				var rawData map[string]interface{}
+				if err := json.Unmarshal(message, &rawData); err == nil {
+					runtime.EventsEmit(a.ctx, "backup-data", rawData)
+				}
+			}
+		case "backup_rejected":
+			var reasonPayload map[string]interface{}
+			if err := json.Unmarshal(envelope.Data, &reasonPayload); err == nil && len(reasonPayload) > 0 {
+				runtime.EventsEmit(a.ctx, "backup-rejected", reasonPayload)
+			} else {
+				var rawMap map[string]interface{}
+				if err := json.Unmarshal(message, &rawMap); err == nil {
+					runtime.EventsEmit(a.ctx, "backup-rejected", rawMap)
+				}
+			}
+
+
 		// Workspace
 		case "workspace_status":
 			var wsInfo struct {
@@ -1084,3 +1109,53 @@ func (a *App) StopHTMLServer() error {
 	}
 	return nil
 }
+
+// RequestRemoteBackup sends a backup request to the host server
+func (a *App) RequestRemoteBackup() error {
+	return a.sendToServer(map[string]interface{}{
+		"type": "request_backup",
+	})
+}
+
+// SubmitBackupCode sends the confirmation code for backup download
+func (a *App) SubmitBackupCode(code string) error {
+	return a.sendToServer(map[string]interface{}{
+		"type": "confirm_backup",
+		"code": code,
+	})
+}
+
+// SaveDownloadedBackup decodes base64 backup archive and saves it to user's Downloads or Documents
+func (a *App) SaveDownloadedBackup(filename string, base64Data string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode base64 backup: %w", err)
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = "."
+	}
+
+	downloadsDir := filepath.Join(homeDir, "Downloads")
+	if _, err := os.Stat(downloadsDir); os.IsNotExist(err) {
+		downloadsDir = homeDir
+	}
+
+	outPath := filepath.Join(downloadsDir, filename)
+	if err := os.WriteFile(outPath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to write backup file: %w", err)
+	}
+
+	return outPath, nil
+}
+
+// SendWSMessage sends a raw JSON string message to the host server
+func (a *App) SendWSMessage(msgStr string) error {
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(msgStr), &payload); err != nil {
+		return err
+	}
+	return a.sendToServer(payload)
+}
+

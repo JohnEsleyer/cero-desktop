@@ -78,12 +78,24 @@ export function ReorderCards(arg1, arg2) {
   return window['go']['main']['App']['ReorderCards'](arg1, arg2);
 }
 
+export function RequestRemoteBackup() {
+  return window['go']['main']['App']['RequestRemoteBackup']();
+}
+
 export function RestorePage(arg1) {
   return window['go']['main']['App']['RestorePage'](arg1);
 }
 
+export function SaveDownloadedBackup(arg1, arg2) {
+  return window['go']['main']['App']['SaveDownloadedBackup'](arg1, arg2);
+}
+
 export function SaveImage(arg1, arg2) {
   return window['go']['main']['App']['SaveImage'](arg1, arg2);
+}
+
+export function SendWSMessage(arg1) {
+  return window['go']['main']['App']['SendWSMessage'](arg1);
 }
 
 export function StartHTMLServer(arg1) {
@@ -100,6 +112,10 @@ export function StopHTMLServer() {
 
 export function StopUdpDiscovery() {
   return window['go']['main']['App']['StopUdpDiscovery']();
+}
+
+export function SubmitBackupCode(arg1) {
+  return window['go']['main']['App']['SubmitBackupCode'](arg1);
 }
 
 export function SwitchWorkspace(arg1) {

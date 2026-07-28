@@ -40,9 +40,15 @@ export function MovePage(arg1:string,arg2:string):Promise<void>;
 
 export function ReorderCards(arg1:string,arg2:Array<string>):Promise<void>;
 
+export function RequestRemoteBackup():Promise<void>;
+
 export function RestorePage(arg1:string):Promise<void>;
 
+export function SaveDownloadedBackup(arg1:string,arg2:string):Promise<string>;
+
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
+
+export function SendWSMessage(arg1:string):Promise<void>;
 
 export function StartHTMLServer(arg1:string):Promise<string>;
 
@@ -51,6 +57,8 @@ export function StartUdpDiscovery():Promise<void>;
 export function StopHTMLServer():Promise<void>;
 
 export function StopUdpDiscovery():Promise<void>;
+
+export function SubmitBackupCode(arg1:string):Promise<void>;
 
 export function SwitchWorkspace(arg1:string):Promise<void>;
 

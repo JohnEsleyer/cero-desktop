@@ -15,6 +15,11 @@
     GetDiscoveredDevices,
     ConnectToDevice,
     Disconnect,
+    RequestRemoteBackup,
+    SubmitBackupCode,
+    SaveDownloadedBackup,
+    SendWSMessage,
+
     AddPage as _AddPage,
     UpdatePage as _UpdatePage,
     DeletePage as _DeletePage,
@@ -39,6 +44,59 @@
   let manualPort = $state(9090);
   let manualPin = $state("");
   let connectionError = $state("");
+
+  // Remote Server Backup Download States
+  let showRemoteBackupModal = $state(false);
+  let remoteBackupStep = $state("requesting"); // "requesting" | "code_required" | "downloading" | "success" | "error"
+  let remoteBackupCodeInput = $state("");
+  let remoteBackupError = $state("");
+  let remoteBackupSavedPath = $state("");
+
+  async function openRemoteBackupModal() {
+    showRemoteBackupModal = true;
+    remoteBackupStep = "requesting";
+    remoteBackupCodeInput = "";
+    remoteBackupError = "";
+    remoteBackupSavedPath = "";
+
+    try {
+      if (typeof RequestRemoteBackup === "function") {
+        await RequestRemoteBackup();
+      } else if (typeof SendWSMessage === "function") {
+        await SendWSMessage(JSON.stringify({ type: "request_backup" }));
+      }
+    } catch (err) {
+      remoteBackupStep = "error";
+      remoteBackupError = "Failed to request backup from server: " + err;
+    }
+  }
+
+  async function submitRemoteBackupCode() {
+    if (!remoteBackupCodeInput.trim()) return;
+    remoteBackupStep = "downloading";
+    remoteBackupError = "";
+
+    try {
+      if (typeof SubmitBackupCode === "function") {
+        await SubmitBackupCode(remoteBackupCodeInput.trim());
+      } else if (typeof SendWSMessage === "function") {
+        await SendWSMessage(JSON.stringify({ type: "confirm_backup", code: remoteBackupCodeInput.trim() }));
+      }
+    } catch (err) {
+      remoteBackupStep = "error";
+      remoteBackupError = "Failed to submit confirmation code: " + err;
+    }
+  }
+
+  function saveBase64File(filename, base64Data) {
+    const link = document.createElement("a");
+    link.href = "data:application/zip;base64," + base64Data;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
 
   let activeWorkspace = $state("");
 
@@ -712,6 +770,40 @@
     EventsOn("discovered-devices", (d) => {
       discoveredDevices = d;
     });
+
+    EventsOn("backup-code-required", () => {
+      remoteBackupStep = "code_required";
+      remoteBackupError = "";
+    });
+
+    EventsOn("backup-data", async (data) => {
+      try {
+        const filename = data.filename || "Cero_Backup.zip";
+        const base64Data = data.data || "";
+        if (base64Data) {
+          if (typeof SaveDownloadedBackup === "function") {
+            const savedPath = await SaveDownloadedBackup(filename, base64Data);
+            remoteBackupSavedPath = savedPath;
+          } else {
+            saveBase64File(filename, base64Data);
+            remoteBackupSavedPath = filename;
+          }
+          remoteBackupStep = "success";
+        } else {
+          remoteBackupStep = "error";
+          remoteBackupError = "Received empty backup data from host.";
+        }
+      } catch (err) {
+        remoteBackupStep = "error";
+        remoteBackupError = "Failed to save backup: " + err;
+      }
+    });
+
+    EventsOn("backup-rejected", (reason) => {
+      remoteBackupStep = "error";
+      remoteBackupError = typeof reason === "string" ? reason : (reason?.reason || "Backup request rejected by host device.");
+    });
+
     EventsOn("db-update", (pages) => {
       allPages = pages;
       if (selectedPage) {
@@ -1381,6 +1473,14 @@
           <button class="btn-sm full" onclick={handleDisconnect}
             >Disconnect</button
           >
+          <button
+            class="btn-sm primary full"
+            style="margin-top: 6px;"
+            onclick={openRemoteBackupModal}
+          >
+            📥 Download Server Backup
+          </button>
+
         {:else if discoveredDevices.length === 0}
           <div class="no-dev">Scanning WiFi...</div>
         {:else}
@@ -3495,7 +3595,90 @@
   </div>
 {/if}
 
+<!-- Remote Backup Download Modal -->
+{#if showRemoteBackupModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div
+    class="modal-backdrop"
+    onclick={(e) => { if (e.target === e.currentTarget) { showRemoteBackupModal = false; } }}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="modal-container alert-confirm-modal" style="width: 420px; max-width: 90%;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">📥</span>
+          <h3>Download Server Backup</h3>
+        </div>
+        <button class="close-btn" onclick={() => (showRemoteBackupModal = false)}>&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; text-align: left;">
+        {#if remoteBackupStep === "requesting"}
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0;">
+            <span class="sync-spinner" style="width: 18px; height: 18px;"></span>
+            <span style="font-size: 12px; color: #a1a1aa;">Requesting backup confirmation from host...</span>
+          </div>
+        {:else if remoteBackupStep === "code_required"}
+          <p style="font-size: 12px; color: #a1a1aa; margin: 0 0 14px 0; line-height: 1.5;">
+            A 4-digit confirmation code was generated on the mobile device screen. Enter it below to authorize download:
+          </p>
+          <div style="display: flex; justify-content: center; margin-bottom: 16px;">
+            <input
+              type="text"
+              class="pin-display-input"
+              bind:value={remoteBackupCodeInput}
+              placeholder="••••"
+              maxlength="4"
+              pattern="[0-9]*"
+              inputmode="numeric"
+              onkeydown={(e) => { if (e.key === "Enter") submitRemoteBackupCode(); }}
+              autofocus
+            />
+          </div>
+        {:else if remoteBackupStep === "downloading"}
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0;">
+            <span class="sync-spinner" style="width: 18px; height: 18px;"></span>
+            <span style="font-size: 12px; color: #818cf8; font-weight: 600;">Verifying code & downloading backup archive...</span>
+          </div>
+        {:else if remoteBackupStep === "success"}
+          <div style="display: flex; flex-direction: column; gap: 10px; padding: 8px 0;">
+            <div style="display: flex; align-items: center; gap: 8px; color: #4ade80; font-weight: 700; font-size: 13px;">
+              <span>✓</span> Backup downloaded successfully!
+            </div>
+            {#if remoteBackupSavedPath}
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #cbd5e1; font-family: monospace; word-break: break-all;">
+                {remoteBackupSavedPath}
+              </div>
+            {/if}
+          </div>
+        {:else if remoteBackupStep === "error"}
+          <div class="connection-error-box" style="margin: 8px 0;">
+            <span class="err-icon">⚠️</span>
+            <span class="err-msg">{remoteBackupError || "An error occurred while requesting backup."}</span>
+          </div>
+        {/if}
+      </div>
+
+      <div class="modal-footer">
+        {#if remoteBackupStep === "code_required"}
+          <button class="btn secondary" onclick={() => (showRemoteBackupModal = false)}>Cancel</button>
+          <button class="btn primary" onclick={submitRemoteBackupCode} disabled={remoteBackupCodeInput.length < 4}>
+            Submit Code
+          </button>
+        {:else}
+          <button class="btn primary" onclick={() => (showRemoteBackupModal = false)}>
+            {remoteBackupStep === "success" ? "Done" : "Close"}
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
+
   /* Globally hide scrollbars for all scrollable containers while maintaining scroll functionality */
   :global(::-webkit-scrollbar) {
     display: none !important;
