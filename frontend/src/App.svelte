@@ -440,6 +440,9 @@
   let contextNoteTitle = $state("");
   let contextNoteContent = $state("");
 
+  let showReadingContextSidebar = $state(false);
+  let showSitesContextSidebar = $state(false);
+
   // Helper to parse card metadata safely
   function getCardMetadata(card) {
     if (!card || !card.comment) return { color: "default", comments: [], contextNotes: [] };
@@ -3009,7 +3012,7 @@
   </div>
 {/if}
 
-<!-- Fullscreen Reading Modal with Dedicated Bottom Panel -->
+<!-- Fullscreen Reading Modal with Dedicated Context Notes Panel -->
 {#if showReadingFullscreenModal && readingCard}
   <div class="fullscreen-editor-overlay" style="display: flex; flex-direction: column; background: #09090b; height: 100vh; width: 100vw;">
     <div class="fullscreen-header">
@@ -3038,7 +3041,7 @@
         </button>
         <button
           class="btn-sm"
-          style="background: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? '#818cf8' : '#cbd5e1'}; font-weight: bold; margin-left: 4px;"
+          style="background: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showReadingBottomPanel && readingBottomPanelType === 'tallies' ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
           onclick={() => {
             if (showReadingBottomPanel && readingBottomPanelType === "tallies") {
               showReadingBottomPanel = false;
@@ -3051,180 +3054,95 @@
         >
           🔢 Tallies
         </button>
+        <button
+          class="btn-sm"
+          style="background: {showReadingContextSidebar ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showReadingContextSidebar ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showReadingContextSidebar ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
+          onclick={() => (showReadingContextSidebar = !showReadingContextSidebar)}
+        >
+          📋 Context Notes
+        </button>
         <button class="btn secondary" onclick={() => { showReadingFullscreenModal = false; }}>Close Workspace</button>
       </div>
     </div>
 
-    <!-- Layout Container -->
-    <div class="fullscreen-workspace" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; width: 100%;">
-
-      <!-- Main Reader Pane (Always visible) -->
-      <div class="fullscreen-workspace single-pane" style="flex: 1; overflow-y: auto; padding: 32px; background: #09090b; display: flex; flex-direction: column;">
-        <div class="markdown-rendered" style="max-width: 800px; width: 100%; margin: 0 auto; text-align: left; flex: 1; overflow-wrap: break-word; word-break: break-word;">
-          {#snippet codeSnippet({ lang, text })}
-            <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-          {/snippet}
-          {#if readingCard.type === "code"}
-            <pre class="markdown-code-block" style="background: #09090b; border: 1px solid rgba(255, 255, 255, 0.08);"><div class="code-lang-badge">{(readingCodeLang || '').toUpperCase()}</div><code>{@html highlightCode(readingCodeContent, readingCodeLang)}</code></pre>
-          {:else}
-            <SvelteMarkdown source={readingCard.content || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
-          {/if}
+    <!-- Main Reading Layout Container -->
+    <div class="fullscreen-workspace" style="display: flex; flex-direction: row; flex: 1; overflow: hidden; position: relative; width: 100%;">
+      
+      <!-- Central Reader Column -->
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+        <div class="fullscreen-workspace single-pane" style="flex: 1; overflow-y: auto; padding: 32px; background: #09090b; display: flex; flex-direction: column;">
+          <div class="markdown-rendered" style="max-width: 800px; width: 100%; margin: 0 auto; text-align: left; flex: 1; overflow-wrap: break-word; word-break: break-word;">
+            {#snippet codeSnippet({ lang, text })}
+              <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
+            {/snippet}
+            {#if readingCard.type === "code"}
+              <pre class="markdown-code-block" style="background: #09090b; border: 1px solid rgba(255, 255, 255, 0.08);"><div class="code-lang-badge">{(readingCodeLang || '').toUpperCase()}</div><code>{@html highlightCode(readingCodeContent, readingCodeLang)}</code></pre>
+            {:else}
+              <SvelteMarkdown source={readingCard.content || ""} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
+            {/if}
+          </div>
         </div>
+
+        <!-- Resizable Dedicated Bottom Dock for Scratchpad / Tallies -->
+        {#if showReadingBottomPanel}
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <div
+            onmousedown={(e) => onDragStart("reading_bottom_panel", e)}
+            class:active={dragging === "reading_bottom_panel"}
+            style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; z-index: 200; width: 100%;"
+          >
+            <div style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
+          </div>
+
+          <div
+            style="height: {readingBottomPanelHeight}px; min-height: 120px; max-height: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
+          >
+            {#if readingBottomPanelType === "scratchpad"}
+              <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8;">Reading Scratchpad</span>
+                <button class="close-btn" style="font-size: 14px; padding: 2px 6px;" onclick={() => (showReadingBottomPanel = false)}>&times;</button>
+              </div>
+              <textarea
+                id="reading-scratchpad-textarea"
+                style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-size: 12px; line-height: 1.6; padding: 14px;"
+                bind:value={scratchpadContent}
+                oninput={saveScratchpadDebounced}
+                placeholder="Take notes here while reading..."
+              ></textarea>
+            {:else if readingBottomPanelType === "tallies"}
+              <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8;">Reading Tallies</span>
+                <button class="close-btn" style="font-size: 14px; padding: 2px 6px;" onclick={() => (showReadingBottomPanel = false)}>&times;</button>
+              </div>
+              <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                {#each tallyCards as card (card.id)}
+                  {@const data = (() => { try { return JSON.parse(card.content); } catch (_) { return { name: card.comment || "Tally", count: parseInt(card.content) || 0 }; } })()}
+                  <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px 12px;">
+                    <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7;">{data.name}</span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <button class="btn-sm" style="color: #f87171;" disabled={data.count <= 0} onclick={() => updateTallyCount(card, data.name, data.count - 1)}>-</button>
+                      <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">{data.count}</span>
+                      <button class="btn-sm" style="color: #4ade80;" onclick={() => updateTallyCount(card, data.name, data.count + 1)}>+</button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
 
-      <!-- Resizable Dedicated Bottom Dock -->
-      {#if showReadingBottomPanel}
-        <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <div
-          onmousedown={(e) => onDragStart("reading_bottom_panel", e)}
-          class:active={dragging === "reading_bottom_panel"}
-          style="height: 4px; cursor: row-resize; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; z-index: 200; width: 100%;"
-        >
-          <div style="width: 32px; height: 1px; background: rgba(255, 255, 255, 0.15);"></div>
-        </div>
-
-        <div
-          style="height: {readingBottomPanelHeight}px; min-height: 120px; max-height: 600px; display: flex; flex-direction: column; background: #0c0c0e; border-top: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; flex-shrink: 0; width: 100%;"
-        >
-          {#if readingBottomPanelType === "scratchpad"}
-            <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
-                <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                Reading Scratchpad
-              </span>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <button
-                  class="btn-sm"
-                  style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'write' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
-                  onclick={() => (scratchpadTab = "write")}
-                >
-                  Write
-                </button>
-                <button
-                  class="btn-sm"
-                  style="padding: 2px 6px; font-size: 9px; {scratchpadTab === 'preview' ? 'background: rgba(129, 140, 248, 0.1); color: #818cf8; border-color: rgba(129,140,248,0.2);' : ''}"
-                  onclick={() => (scratchpadTab = "preview")}
-                >
-                  Preview
-                </button>
-                <button
-                  class="close-btn"
-                  style="font-size: 14px; padding: 2px 6px; margin-left: 4px;"
-                  onclick={() => (showReadingBottomPanel = false)}
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-
-            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
-              {#if scratchpadTab === "write"}
-                <textarea
-                  id="reading-scratchpad-textarea"
-                  style="flex: 1; background: transparent; border: none; resize: none; outline: none; color: #e4e4e7; font-family: inherit; font-size: 12px; line-height: 1.6; padding: 14px; box-sizing: border-box; text-align: left;"
-                  bind:value={scratchpadContent}
-                  oninput={saveScratchpadDebounced}
-                  placeholder="Take scratchpad notes here while reading..."
-                ></textarea>
-              {:else}
-                <div class="markdown-rendered" style="flex: 1; overflow-y: auto; padding: 14px; background: #09090b; text-align: left; height: 100%; overflow-wrap: break-word; word-break: break-word;">
-                  {#if scratchpadContent.trim()}
-                    {#snippet codeSnippet({ lang, text })}
-                      <pre class="markdown-code-block"><div class="code-lang-badge">{(lang || '').toUpperCase() || 'CODE'}</div><code>{@html highlightCode(text, lang || '')}</code></pre>
-                    {/snippet}
-                    <SvelteMarkdown source={scratchpadContent} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} code={codeSnippet} />
-                  {:else}
-                    <span class="empty-hint" style="font-style: italic; font-size: 11px; opacity: 0.5;">No content to preview. Type something in the Write tab!</span>
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          {:else if readingBottomPanelType === "tallies"}
-            <div class="scratchpad-header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); background: #121215; flex-shrink: 0;">
-              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #818cf8; display: flex; align-items: center; gap: 4px;">
-                <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>
-                Reading Tallies
-              </span>
-              <button
-                class="close-btn"
-                style="font-size: 14px; padding: 2px 6px;"
-                onclick={() => (showReadingBottomPanel = false)}
-              >
-                &times;
-              </button>
-            </div>
-
-            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
-              <div style="display: flex; padding: 10px; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: #141416;">
-                <input
-                  type="text"
-                  placeholder="New Tally Name..."
-                  bind:value={newTallyName}
-                  onkeydown={(e) => { if (e.key === "Enter") addTally(); }}
-                  style="flex: 1; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 10px; color: white; font-size: 12px; outline: none;"
-                />
-                <button
-                  class="btn primary"
-                  style="padding: 6px 12px; font-size: 12px;"
-                  onclick={addTally}
-                >
-                  Add
-                </button>
-              </div>
-
-              <div style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
-                {#if tallyCards.length === 0}
-                  <div style="padding: 24px; text-align: center; color: #52525b; font-size: 12px; font-style: italic;">
-                    No tallies yet. Add one above!
-                  </div>
-                {:else}
-                  {#each tallyCards as card (card.id)}
-                    {@const data = (() => {
-                      try {
-                        return JSON.parse(card.content);
-                      } catch (_) {
-                        return { name: card.comment || "Tally", count: parseInt(card.content) || 0 };
-                      }
-                    })()}
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: #18181b; border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px 12px; gap: 12px;">
-                      <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
-                        {data.name}
-                      </span>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <button
-                          class="btn-sm"
-                          style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
-                          disabled={data.count <= 0}
-                          onclick={() => updateTallyCount(card, data.name, data.count - 1)}
-                        >
-                          -
-                        </button>
-                        <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
-                          {data.count}
-                        </span>
-                        <button
-                          class="btn-sm"
-                          style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
-                          onclick={() => updateTallyCount(card, data.name, data.count + 1)}
-                        >
-                          +
-                        </button>
-                        <button
-                          class="close-btn"
-                          style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
-                          onclick={() => deleteTally(card.id)}
-                          title="Delete Tally"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            </div>
-          {/if}
-        </div>
+      <!-- Context Notes Right Sidebar for Reading Card -->
+      {#if showReadingContextSidebar}
+        <aside class="sidebar right-sidebar" style="width: 280px; min-width: 280px; border-left: 1px solid rgba(255, 255, 255, 0.05);">
+          <RightSidebar
+            activeCard={readingCard}
+            onAddContextNote={handleOpenAddContextNote}
+            onOpenContextNote={openContextNoteFullscreen}
+            onDeleteContextNote={handleDeleteContextNote}
+            onClose={() => (showReadingContextSidebar = false)}
+          />
+        </aside>
       {/if}
     </div>
   </div>
@@ -3382,7 +3300,7 @@
   </div>
 {/if}
 
-<!-- Immersive Sites Sandbox Preview Modal (Consistent with Flutter separate preview) -->
+<!-- Immersive Sites Sandbox Preview Modal -->
 {#if showSitesPreviewModal}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -3394,24 +3312,45 @@
   >
     <div
       class="modal-container"
-      style="width: 800px; max-width: 95%; height: 600px; max-height: 90vh; display: flex; flex-direction: column;"
+      style="width: 1000px; max-width: 95%; height: 680px; max-height: 90vh; display: flex; flex-direction: column;"
     >
       <div class="modal-header">
         <div style="display: flex; flex-direction: column; gap: 2px;">
           <h3 style="margin:0;">🎬 Live Sandbox Preview - {previewSitesName}</h3>
-          <span style="font-size: 11px; color: #64748b;"
-            >Interacting in a secure sandbox webview container</span
-          >
+          <span style="font-size: 11px; color: #64748b;">Interacting in a secure sandbox webview container</span>
         </div>
-        <button class="close-btn" onclick={() => (showSitesPreviewModal = false)}>&times;</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button
+            class="btn-sm"
+            style="background: {showSitesContextSidebar ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showSitesContextSidebar ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showSitesContextSidebar ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
+            onclick={() => (showSitesContextSidebar = !showSitesContextSidebar)}
+          >
+            📋 Context Notes
+          </button>
+          <button class="close-btn" onclick={() => (showSitesPreviewModal = false)}>&times;</button>
+        </div>
       </div>
-      <div class="modal-body" style="flex:1; overflow:hidden; padding: 12px; background: #09090b;">
-        <iframe
-          title="Sandbox Preview Webview"
-          srcdoc={previewSitesHtml || "<html><body><p style='color: grey; font-family: sans-serif; text-align: center; margin-top: 100px;'>Empty HTML Content</p></body></html>"}
-          style="width: 100%; height: 100%; border: none; background: transparent;"
-          sandbox="allow-scripts"
-        ></iframe>
+      <div class="modal-body" style="flex:1; display: flex; overflow:hidden; padding: 0; background: #09090b;">
+        <div style="flex: 1; height: 100%; padding: 12px;">
+          <iframe
+            title="Sandbox Preview Webview"
+            srcdoc={previewSitesHtml || "<html><body><p style='color: grey; font-family: sans-serif; text-align: center; margin-top: 100px;'>Empty HTML Content</p></body></html>"}
+            style="width: 100%; height: 100%; border: none; background: transparent;"
+            sandbox="allow-scripts"
+          ></iframe>
+        </div>
+
+        {#if showSitesContextSidebar}
+          <aside class="sidebar right-sidebar" style="width: 280px; min-width: 280px; border-left: 1px solid rgba(255, 255, 255, 0.05); height: 100%;">
+            <RightSidebar
+              activeCard={activeCardForContext}
+              onAddContextNote={handleOpenAddContextNote}
+              onOpenContextNote={openContextNoteFullscreen}
+              onDeleteContextNote={handleDeleteContextNote}
+              onClose={() => (showSitesContextSidebar = false)}
+            />
+          </aside>
+        {/if}
       </div>
     </div>
   </div>
