@@ -79,24 +79,29 @@
 
   function parseMetadata(commentField) {
     if (!commentField) {
-      return { color: "default", comments: [] };
+      return { color: "default", comments: [], contextNotes: [] };
     }
     try {
       const data = JSON.parse(commentField);
       return {
         color: data.color || "default",
-        comments: Array.isArray(data.comments) ? data.comments : []
+        comments: Array.isArray(data.comments) ? data.comments : [],
+        contextNotes: Array.isArray(data.contextNotes) ? data.contextNotes : []
       };
     } catch (_) {
       if (colorPresets[commentField]) {
-        return { color: commentField, comments: [] };
+        return { color: commentField, comments: [], contextNotes: [] };
       }
-      return { color: "default", comments: [commentField] };
+      return { color: "default", comments: [commentField], contextNotes: [] };
     }
   }
 
-  function serializeMetadata(color, comments) {
-    return JSON.stringify({ color, comments });
+  function serializeMetadata(color, comments, contextNotes = []) {
+    return JSON.stringify({
+      color: color || "default",
+      comments: comments || [],
+      contextNotes: contextNotes || []
+    });
   }
 
   let meta = $derived(parseMetadata(card.comment));
@@ -234,7 +239,7 @@
 
   function handleColorChange(e) {
     const newColor = e.target.value;
-    const payload = serializeMetadata(newColor, meta.comments);
+    const payload = serializeMetadata(newColor, meta.comments, meta.contextNotes);
     UpdateCard(card.id, card.page_id || card.pageId, card.content || "", payload)
       .then(() => {
         card.comment = payload;

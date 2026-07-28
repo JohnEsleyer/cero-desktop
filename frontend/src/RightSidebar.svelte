@@ -22,11 +22,19 @@
   }
 
   let contextNotes = $derived(activeCard ? parseMetadata(activeCard.comment).contextNotes : []);
+  let activeCardLabel = $derived(activeCard ? (activeCard.type || 'BLOCK').toUpperCase() : '');
 </script>
 
 <div class="right-sidebar">
   <div class="sidebar-header">
-    <span class="header-title">Card Context Notes</span>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <span class="header-title">Card Context Notes</span>
+      {#if activeCard}
+        <span style="font-size: 9px; color: #71717a; font-weight: 600;">
+          Target: {activeCardLabel}
+        </span>
+      {/if}
+    </div>
     <div style="display: flex; align-items: center; gap: 4px;">
       {#if activeCard}
         <button class="add-btn" title="Add context note" onclick={onAddContextNote}>+</button>

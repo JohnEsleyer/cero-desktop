@@ -373,21 +373,25 @@
   };
 
   function parseMetadata(commentField) {
-    if (!commentField) return { color: "default", comments: [] };
+    if (!commentField) return { color: "default", comments: [], contextNotes: [] };
     try {
       const data = JSON.parse(commentField);
       return {
         color: data.color || "default",
-        comments: Array.isArray(data.comments) ? data.comments : []
+        comments: Array.isArray(data.comments) ? data.comments : [],
+        contextNotes: Array.isArray(data.contextNotes) ? data.contextNotes : []
       };
     } catch (_) {
-      if (colorPresets[commentField]) return { color: commentField, comments: [] };
-      return { color: "default", comments: [commentField] };
+      return { color: "default", comments: [], contextNotes: [] };
     }
   }
 
-  function serializeMetadata(color, comments) {
-    return JSON.stringify({ color, comments });
+  function serializeMetadata(color, comments, contextNotes = []) {
+    return JSON.stringify({
+      color: color || "default",
+      comments: comments || [],
+      contextNotes: contextNotes || []
+    });
   }
 
   function openCommentsModal(card) {
@@ -400,12 +404,18 @@
     if (!commentCard || !commentInput.trim()) return;
     const meta = parseMetadata(commentCard.comment);
     meta.comments.push(commentInput.trim());
-    const payload = serializeMetadata(meta.color, meta.comments);
+    const payload = serializeMetadata(meta.color, meta.comments, meta.contextNotes);
     UpdateCard(commentCard.id, commentCard.page_id || commentCard.pageId, commentCard.content || "", payload)
       .then(() => {
         const idx = pageCards.findIndex(c => c.id === commentCard.id);
-        if (idx !== -1) pageCards[idx].comment = payload;
+        if (idx !== -1) {
+          pageCards[idx] = { ...pageCards[idx], comment: payload };
+          pageCards = [...pageCards];
+        }
         commentCard.comment = payload;
+        if (readingCard && readingCard.id === commentCard.id) {
+          readingCard = { ...readingCard, comment: payload };
+        }
         commentInput = "";
       })
       .catch(err => console.error(err));
@@ -415,15 +425,18 @@
     if (!commentCard) return;
     const meta = parseMetadata(commentCard.comment);
     meta.comments.splice(index, 1);
-    const payload = serializeMetadata(meta.color, meta.comments);
+    const payload = serializeMetadata(meta.color, meta.comments, meta.contextNotes);
     UpdateCard(commentCard.id, commentCard.page_id || commentCard.pageId, commentCard.content || "", payload)
       .then(() => {
         const idx = pageCards.findIndex(c => c.id === commentCard.id);
         if (idx !== -1) {
-          pageCards[idx].comment = payload;
+          pageCards[idx] = { ...pageCards[idx], comment: payload };
           pageCards = [...pageCards];
         }
         commentCard.comment = payload;
+        if (readingCard && readingCard.id === commentCard.id) {
+          readingCard = { ...readingCard, comment: payload };
+        }
       })
       .catch(err => console.error(err));
   }
@@ -436,6 +449,7 @@
   let showContextNoteFullscreenModal = $state(false);
   let editingContextNote = $state(null);
   let editingContextNoteIndex = $state(null);
+  let editingContextCardId = $state(null);
   let contextNoteTab = $state("write"); // "write" | "preview" or "preview" | "edit"
   let contextNoteTitle = $state("");
   let contextNoteContent = $state("");
@@ -443,26 +457,14 @@
   let showReadingContextSidebar = $state(false);
   let showSitesContextSidebar = $state(false);
 
-  // Helper to parse card metadata safely
-  function getCardMetadata(card) {
-    if (!card || !card.comment) return { color: "default", comments: [], contextNotes: [] };
-    try {
-      const data = JSON.parse(card.comment);
-      return {
-        color: data.color || "default",
-        comments: Array.isArray(data.comments) ? data.comments : [],
-        contextNotes: Array.isArray(data.contextNotes) ? data.contextNotes : []
-      };
-    } catch (_) {
-      return { color: "default", comments: [], contextNotes: [] };
-    }
-  }
-
   // Currently active card for Context Notes (reading card or selected card)
   let activeCardForContext = $derived(readingCard || (selectedCardId ? pageCards.find(c => c.id === selectedCardId) : pageCards[0]) || null);
 
   function handleOpenAddContextNote() {
-    if (!activeCardForContext) return;
+    if (!activeCardForContext) {
+      showAlert("No Active Block", "Please click or select a card block first to attach a context note.");
+      return;
+    }
     newContextNoteTitle = "";
     newContextNoteType = "markdown";
     showAddContextNoteModal = true;
@@ -470,7 +472,13 @@
 
   function handleCreateContextNote() {
     if (!activeCardForContext) return;
-    const meta = getCardMetadata(activeCardForContext);
+
+    const targetCard = activeCardForContext;
+    const targetCardId = targetCard.id;
+    const targetPageId = targetCard.page_id || targetCard.pageId;
+    const targetContent = targetCard.content || "";
+
+    const meta = parseMetadata(targetCard.comment);
     const newNote = {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       type: newContextNoteType,
@@ -480,37 +488,65 @@
         : "# Context Note\n\nWrite markdown details here...",
       createdAt: new Date().toISOString()
     };
-    meta.contextNotes.push(newNote);
-    const payload = JSON.stringify(meta);
 
-    UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
-      .then(() => {
-        activeCardForContext.comment = payload;
-        const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
-        if (idx !== -1) pageCards[idx].comment = payload;
-        showAddContextNoteModal = false;
-        openContextNoteFullscreen(newNote, meta.contextNotes.length - 1);
-      })
-      .catch(err => console.error(err));
+    meta.contextNotes.push(newNote);
+    const payload = serializeMetadata(meta.color, meta.comments, meta.contextNotes);
+
+    // 1. Optimistically update local state immediately
+    targetCard.comment = payload;
+    const idx = pageCards.findIndex(c => c.id === targetCardId);
+    if (idx !== -1) {
+      pageCards[idx] = { ...pageCards[idx], comment: payload };
+      pageCards = [...pageCards];
+    }
+    if (readingCard && readingCard.id === targetCardId) {
+      readingCard = { ...readingCard, comment: payload };
+    }
+
+    showAddContextNoteModal = false;
+    openContextNoteFullscreen(targetCardId, newNote, meta.contextNotes.length - 1);
+
+    // 2. Persist to SQLite / Mobile Server
+    UpdateCard(targetCardId, targetPageId, targetContent, payload)
+      .catch((err) => {
+        console.error("Failed to create context note on server:", err);
+        showAlert("Sync Warning", "Could not persist note to server: " + err);
+      });
   }
 
   function handleDeleteContextNote(index) {
     if (!activeCardForContext) return;
-    const meta = getCardMetadata(activeCardForContext);
+
+    const targetCard = activeCardForContext;
+    const targetCardId = targetCard.id;
+    const targetPageId = targetCard.page_id || targetCard.pageId;
+    const targetContent = targetCard.content || "";
+
+    const meta = parseMetadata(targetCard.comment);
     if (index < 0 || index >= meta.contextNotes.length) return;
     meta.contextNotes.splice(index, 1);
-    const payload = JSON.stringify(meta);
+    const payload = serializeMetadata(meta.color, meta.comments, meta.contextNotes);
 
-    UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
-      .then(() => {
-        activeCardForContext.comment = payload;
-        const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
-        if (idx !== -1) pageCards[idx].comment = payload;
-      })
-      .catch(err => console.error(err));
+    // 1. Optimistically update local state
+    targetCard.comment = payload;
+    const idx = pageCards.findIndex(c => c.id === targetCardId);
+    if (idx !== -1) {
+      pageCards[idx] = { ...pageCards[idx], comment: payload };
+      pageCards = [...pageCards];
+    }
+    if (readingCard && readingCard.id === targetCardId) {
+      readingCard = { ...readingCard, comment: payload };
+    }
+
+    // 2. Persist to server
+    UpdateCard(targetCardId, targetPageId, targetContent, payload)
+      .catch((err) => {
+        console.error("Failed to delete context note on server:", err);
+      });
   }
 
-  function openContextNoteFullscreen(note, index) {
+  function openContextNoteFullscreen(cardId, note, index) {
+    editingContextCardId = cardId || (activeCardForContext ? activeCardForContext.id : null);
     editingContextNote = note;
     editingContextNoteIndex = index;
     contextNoteTitle = note.title || "";
@@ -520,26 +556,55 @@
   }
 
   function saveContextNoteFullscreen() {
-    if (!activeCardForContext || editingContextNoteIndex === null) return;
-    const meta = getCardMetadata(activeCardForContext);
+    if (!editingContextCardId || editingContextNoteIndex === null) {
+      showContextNoteFullscreenModal = false;
+      return;
+    }
+
+    // Locate the target card by explicit ID
+    const targetCard = pageCards.find(c => c.id === editingContextCardId) || (readingCard && readingCard.id === editingContextCardId ? readingCard : null);
+    
+    if (!targetCard) {
+      showContextNoteFullscreenModal = false;
+      return;
+    }
+
+    const meta = parseMetadata(targetCard.comment);
     if (editingContextNoteIndex >= 0 && editingContextNoteIndex < meta.contextNotes.length) {
       meta.contextNotes[editingContextNoteIndex] = {
         ...meta.contextNotes[editingContextNoteIndex],
         title: contextNoteTitle,
         content: contextNoteContent
       };
-      const payload = JSON.stringify(meta);
-      UpdateCard(activeCardForContext.id, activeCardForContext.page_id || activeCardForContext.pageId, activeCardForContext.content || "", payload)
-        .then(() => {
-          activeCardForContext.comment = payload;
-          const idx = pageCards.findIndex(c => c.id === activeCardForContext.id);
-          if (idx !== -1) pageCards[idx].comment = payload;
-        })
-        .catch(err => console.error(err));
+      const payload = serializeMetadata(meta.color, meta.comments, meta.contextNotes);
+
+      const targetCardId = targetCard.id;
+      const targetPageId = targetCard.page_id || targetCard.pageId;
+      const targetContent = targetCard.content || "";
+
+      // 1. Optimistically update local state immediately
+      targetCard.comment = payload;
+      const idx = pageCards.findIndex(c => c.id === targetCardId);
+      if (idx !== -1) {
+        pageCards[idx] = { ...pageCards[idx], comment: payload };
+        pageCards = [...pageCards];
+      }
+      if (readingCard && readingCard.id === targetCardId) {
+        readingCard = { ...readingCard, comment: payload };
+      }
+
+      // 2. Persist to server
+      UpdateCard(targetCardId, targetPageId, targetContent, payload)
+        .catch((err) => {
+          console.error("Failed to save context note:", err);
+          showAlert("Sync Warning", "Could not save note updates to server: " + err);
+        });
     }
+
     showContextNoteFullscreenModal = false;
     editingContextNote = null;
     editingContextNoteIndex = null;
+    editingContextCardId = null;
   }
 
 
@@ -1578,6 +1643,16 @@
     <div class="sidebar-section">
       <div class="section-label">Link Devices</div>
       <div class="devices-box">
+        {#if connectionStatus !== "connected"}
+          <button 
+            class="btn-sm secondary full" 
+            style="margin-bottom: 8px; font-size: 10px;"
+            onclick={() => GetDiscoveredDevices().then(d => discoveredDevices = d)}
+          >
+            🔄 Rescan WiFi Devices
+          </button>
+        {/if}
+
         {#if connectionStatus === "connected"}
           <div class="connected-info">
             <span class="conn-label">Connected to</span>
@@ -2277,7 +2352,7 @@
       <RightSidebar
         activeCard={activeCardForContext}
         onAddContextNote={handleOpenAddContextNote}
-        onOpenContextNote={openContextNoteFullscreen}
+        onOpenContextNote={(note, i) => openContextNoteFullscreen(activeCardForContext ? activeCardForContext.id : null, note, i)}
         onDeleteContextNote={handleDeleteContextNote}
         onClose={() => (showRightSidebar = false)}
       />
@@ -3138,7 +3213,7 @@
           <RightSidebar
             activeCard={readingCard}
             onAddContextNote={handleOpenAddContextNote}
-            onOpenContextNote={openContextNoteFullscreen}
+            onOpenContextNote={(note, i) => openContextNoteFullscreen(readingCard ? readingCard.id : null, note, i)}
             onDeleteContextNote={handleDeleteContextNote}
             onClose={() => (showReadingContextSidebar = false)}
           />
@@ -3345,7 +3420,7 @@
             <RightSidebar
               activeCard={activeCardForContext}
               onAddContextNote={handleOpenAddContextNote}
-              onOpenContextNote={openContextNoteFullscreen}
+              onOpenContextNote={(note, i) => openContextNoteFullscreen(activeCardForContext ? activeCardForContext.id : null, note, i)}
               onDeleteContextNote={handleDeleteContextNote}
               onClose={() => (showSitesContextSidebar = false)}
             />
@@ -3772,6 +3847,7 @@
       <div class="header-buttons" style="display: flex; gap: 8px;">
         <button class="btn-sm" onclick={toggleScratchpad}>📝 Scratchpad</button>
         <button class="btn-sm" onclick={toggleTally}>🔢 Tallies</button>
+        <button class="btn secondary" onclick={() => { showContextNoteFullscreenModal = false; editingContextNote = null; editingContextNoteIndex = null; editingContextCardId = null; }}>Cancel</button>
         <button class="btn primary" onclick={saveContextNoteFullscreen}>Save & Close</button>
       </div>
     </div>
@@ -3847,7 +3923,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 99999999 !important;
+    z-index: 200000000 !important;
     cursor: default;
   }
 
