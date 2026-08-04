@@ -3715,9 +3715,11 @@
             {bm.title || 'Untitled Bookmark'}
           </div>
 
-          {#if bm.contentType === 'html' || (bm.targetType === 'context_note' && bm.contentType === 'html')}
+          {#if bm.contentType === 'html' || bm.contentType === 'sites' || (bm.targetType === 'context_note' && bm.contentType === 'html')}
+            {@const htmlData = bm.contentType === 'sites' ? (() => { try { return JSON.parse(bm.content || '{}').html || bm.content; } catch(_) { return bm.content; } })() : (bm.content || '')}
             <iframe
-              srcdoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{background:#191919;color:#CBD5E1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px;margin:0;line-height:1.6;font-size:15px;}h1,h2,h3{color:#fff;}a{color:#818cf8;}code,pre{background:#222226;color:#E2E8F0;padding:2px 6px;border-radius:4px;font-family:monospace;}pre{padding:12px;overflow-x:auto;}</style></head><body>${bm.content || ''}</body></html>`}
+              title="Bookmark Webview Preview"
+              srcdoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{background:#191919;color:#CBD5E1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px;margin:0;line-height:1.6;font-size:15px;}h1,h2,h3{color:#fff;}a{color:#818cf8;}code,pre{background:#222226;color:#E2E8F0;padding:2px 6px;border-radius:4px;font-family:monospace;}pre{padding:12px;overflow-x:auto;}</style></head><body>${htmlData}</body></html>`}
               style="width: 100%; min-height: 400px; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; background: #191919;"
               sandbox="allow-scripts"
             ></iframe>
