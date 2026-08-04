@@ -69,6 +69,7 @@
   let sitesName = $state("My HTML Site");
   let sitesDesc = $state("Renders customized HTML template preview");
   let sitesHtml = $state("<h1>Sample Site</h1>\n<p>Edit HTML and watch it render live.</p>");
+  let sitePreviewMode = $state("code");
 
   let isSitesLive = $derived(activeLiveCardId === card.id);
   let sitesLocalUrl = $derived(activeLiveCardId === card.id ? activeSitesLocalUrl : "");
@@ -535,16 +536,57 @@
       </div>
 
     {:else if card.type === "sites"}
-      <div class="sites-card">
-        <div class="sites-card-inner">
-          <div class="sites-card-details">
-            <span class="sites-card-name" style="color: {activeColor.text};">{sitesName}</span>
-            <span class="sites-card-desc">{sitesDesc}</span>
+      {@const showVisual = sitePreviewMode === "visual"}
+      <div class="sites-card" style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- Outer Column -->
+        <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+          
+          <!-- Inner Column (Title & Description) -->
+          <div style="display: flex; flex-direction: column; gap: 3px; width: 100%;">
+            <span class="sites-card-name" style="color: {activeColor.text}; font-size: 14px; font-weight: 700; line-height: 1.4; word-break: break-word;">{sitesName}</span>
+            <span class="sites-card-desc" style="font-size: 11.5px; opacity: 0.7; line-height: 1.35; word-break: break-word;">{sitesDesc}</span>
           </div>
-          <div class="sites-card-actions">
-            <button class="img-action-btn" style="color: #10b981;" onclick={(e) => { e.stopPropagation(); openLivePreviewModal(); }}>▶ Preview</button>
-            <button class="img-action-btn" style="color: #818cf8;" onclick={(e) => { e.stopPropagation(); openSitesModal(); }}>⚙ Config</button>
+
+          <!-- Bottom Row (CodeOrVisual, FullScreen, Configure) -->
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;">
+            <!-- Code Or Visual Toggle -->
+            <div style="display: flex; background: #121215; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 2px;">
+              <button
+                class="btn-sm"
+                style="padding: 3px 10px; font-size: 10.5px; { !showVisual ? 'background: rgba(129, 140, 248, 0.15); color: #818cf8; border-color: rgba(129,140,248,0.3);' : 'background: transparent; color: #71717a; border: none;' }"
+                onclick={(e) => { e.stopPropagation(); sitePreviewMode = "code"; }}
+              >
+                Code
+              </button>
+              <button
+                class="btn-sm"
+                style="padding: 3px 10px; font-size: 10.5px; { showVisual ? 'background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16,185,129,0.3);' : 'background: transparent; color: #71717a; border: none;' }"
+                onclick={(e) => { e.stopPropagation(); sitePreviewMode = "visual"; }}
+              >
+                Visual
+              </button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button class="img-action-btn" style="color: #10b981; background: #121215; border: 1px solid #2c2c2c; padding: 4px 10px; font-size: 11px; border-radius: 6px;" onclick={(e) => { e.stopPropagation(); openLivePreviewModal(); }}>⛶ Fullscreen</button>
+              <button class="img-action-btn" style="color: #818cf8; background: #121215; border: 1px solid #2c2c2c; padding: 4px 10px; font-size: 11px; border-radius: 6px;" onclick={(e) => { e.stopPropagation(); openSitesModal(); }}>⚙ Configure</button>
+            </div>
           </div>
+        </div>
+
+        <div class="sites-html-viewport" style="width: 100%; min-height: 250px; height: 280px; border-radius: 6px; overflow: hidden; background: #121215; border: 1px solid rgba(255, 255, 255, 0.05);">
+          {#if showVisual}
+            <iframe
+              title={sitesName}
+              srcdoc={sitesHtml || "<html><body><p style='color: grey; text-align: center; margin-top: 50px;'>Empty HTML Content</p></body></html>"}
+              style="width: 100%; height: 100%; border: none; background: transparent;"
+              sandbox="allow-scripts"
+            ></iframe>
+          {:else}
+            <div style="width: 100%; height: 100%; overflow: auto; padding: 12px; font-family: monospace; font-size: 12px; color: #e4e4e7; white-space: pre-wrap; text-align: left; line-height: 1.5;">
+              {@html highlightCode(sitesHtml || "<!-- Write your HTML code here... -->", "html")}
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -574,32 +616,38 @@
 
   .card-horizontal-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     width: 100%;
-    gap: 12px;
+    gap: 16px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    margin-bottom: 4px;
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
   }
 
   .card-order-badge-new {
-    background: rgba(129, 140, 248, 0.1);
+    background: rgba(129, 140, 248, 0.12);
     color: #818cf8;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    padding: 1px 5px;
+    padding: 2px 6px;
     border-radius: 4px;
+    flex-shrink: 0;
   }
 
   .card-type-label {
-    font-size: 8px;
+    font-size: 9.5px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
   }
 
   .card-inline-toolbar {
@@ -761,33 +809,17 @@
     opacity: 0.5;
   }
 
-  .sites-card-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .sites-card-details {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-
   .sites-card-name {
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    word-break: break-word;
   }
 
   .sites-card-desc {
-    font-size: 10px;
-    opacity: 0.6;
-  }
-
-  .sites-card-actions {
-    display: flex;
-    gap: 6px;
+    font-size: 11px;
+    opacity: 0.7;
+    line-height: 1.3;
   }
 
   /* Redesigned Markdown Card rendering system matching the full screen mode */

@@ -866,71 +866,74 @@
   }
 
   // Daily Bookmarks State & Logic
-  let dailyBookmarks = $state(loadDailyBookmarks());
+  let dailyBookmarks = $state([]);
   let showDailyBookmarksModal = $state(false);
   let activeBookmarkIndex = $state(0);
 
-  function loadDailyBookmarks() {
+  function loadDailyBookmarksFromCards(cards) {
     try {
-      const raw = localStorage.getItem("cero_daily_bookmarks");
-      if (!raw) return [];
-      const list = JSON.parse(raw);
+      const bmCard = cards.find(c => c.id === "global-daily-bookmarks-card" || c.page_id === "global-daily-bookmarks" || c.pageId === "global-daily-bookmarks");
+      if (!bmCard || !bmCard.content) return [];
+      const list = JSON.parse(bmCard.content);
       const now = Date.now();
-      const valid = list.filter((item) => {
-        const created = new Date(item.createdAt).getTime();
-        return now - created < 86400000;
-      });
-      if (valid.length !== list.length) {
-        localStorage.setItem("cero_daily_bookmarks", JSON.stringify(valid));
-      }
+      const valid = list.filter((b) => (now - new Date(b.createdAt).getTime()) < 24 * 60 * 60 * 1000);
       return valid;
     } catch (_) {
       return [];
     }
   }
 
-  function saveDailyBookmarks(list) {
+  async function saveDailyBookmarksToServer(list) {
     try {
-      localStorage.setItem("cero_daily_bookmarks", JSON.stringify(list));
-    } catch (_) {}
+      await ensureDailyBookmarksPageExists();
+      const jsonStr = JSON.stringify(list);
+      await UpdateCard("global-daily-bookmarks-card", "global-daily-bookmarks", jsonStr, "");
+    } catch (e) {
+      console.error("Failed to sync daily bookmarks:", e);
+    }
   }
 
-  function toggleDailyBookmark(bookmarkData) {
-    const existingIndex = dailyBookmarks.findIndex(
-      (b) => b.targetId === bookmarkData.targetId || b.id === bookmarkData.id
-    );
-    let updated;
-    if (existingIndex >= 0) {
-      updated = dailyBookmarks.filter((_, idx) => idx !== existingIndex);
+  async function ensureDailyBookmarksPageExists() {
+    try {
+      const exists = allPages.some(p => p.id === "global-daily-bookmarks");
+      if (!exists) {
+        await AddPage("", "daily_bookmarks", "Daily Bookmarks", "🔖");
+      }
+      const cards = await GetCards("global-daily-bookmarks");
+      if (!cards || cards.length === 0) {
+        await AddCard("global-daily-bookmarks", "markdown", "[]", "0");
+      }
+    } catch (e) {
+      console.error("Failed to ensure daily bookmarks page:", e);
+    }
+  }
+
+  function isDailyBookmarked(targetId) {
+    return dailyBookmarks.some((b) => b.targetId === targetId);
+  }
+
+  function toggleDailyBookmark(bmData) {
+    const { targetId, targetType, title, content, contentType } = bmData;
+    let list = [...dailyBookmarks];
+    const idx = list.findIndex((b) => b.targetId === targetId);
+    if (idx !== -1) {
+      list.splice(idx, 1);
     } else {
-      const newItem = {
-        id: bookmarkData.targetId || bookmarkData.id,
-        targetId: bookmarkData.targetId || bookmarkData.id,
-        targetType: bookmarkData.targetType || "card",
-        title: bookmarkData.title || "Bookmark",
-        content: bookmarkData.content || "",
-        contentType: bookmarkData.contentType || "markdown",
+      list.push({
+        id: Date.now().toString(),
+        targetId,
+        targetType: targetType || "card",
+        title: title || "Bookmark",
+        content: content || "",
+        contentType: contentType || "markdown",
         createdAt: new Date().toISOString(),
-      };
-      updated = [...dailyBookmarks, newItem];
+      });
     }
-    dailyBookmarks = updated;
-    saveDailyBookmarks(updated);
-  }
-
-  function removeDailyBookmark(targetId) {
-    const updated = dailyBookmarks.filter(
-      (b) => b.targetId !== targetId && b.id !== targetId
-    );
-    dailyBookmarks = updated;
-    saveDailyBookmarks(updated);
-    if (activeBookmarkIndex >= updated.length) {
-      activeBookmarkIndex = Math.max(0, updated.length - 1);
-    }
+    dailyBookmarks = list;
+    saveDailyBookmarksToServer(list);
   }
 
   function openDailyBookmarksModal() {
-    dailyBookmarks = loadDailyBookmarks();
     if (dailyBookmarks.length > 0) {
       activeBookmarkIndex = dailyBookmarks.length - 1;
     } else {
@@ -939,9 +942,20 @@
     showDailyBookmarksModal = true;
   }
 
+  function removeDailyBookmark(targetId) {
+    const updated = dailyBookmarks.filter(
+      (b) => b.targetId !== targetId && b.id !== targetId
+    );
+    dailyBookmarks = updated;
+    saveDailyBookmarksToServer(updated);
+    if (activeBookmarkIndex >= updated.length) {
+      activeBookmarkIndex = Math.max(0, updated.length - 1);
+    }
+  }
+
   let rootPages = $derived((() => {
     const rawRoot = allPages.filter(
-      (p) => !(p.parent_id || p.parentId) && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally",
+      (p) => !(p.parent_id || p.parentId) && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally" && p.relation_type !== "daily_bookmarks",
     );
     return rawRoot.sort((a, b) => {
       const idxA = recentlyOpenedRootPageIds.indexOf(a.id);
@@ -1007,6 +1021,8 @@
       // Initial load from SQLite
       FetchCards("global-scratchpad");
       FetchCards("global-tally");
+      FetchCards("global-daily-bookmarks");
+      ensureDailyBookmarksPageExists();
     } catch (e) {
       console.error("Init failed:", e);
     }
@@ -1075,6 +1091,7 @@
       // Fetch scratchpad and tally when database updates
       FetchCards("global-scratchpad");
       FetchCards("global-tally");
+      FetchCards("global-daily-bookmarks");
     });
     EventsOn("workspace-status", (data) => {
       activeWorkspace = data.activeWorkspace;
@@ -1095,6 +1112,8 @@
         }
       } else if (pid === "global-tally") {
         tallyCards = data.cards || [];
+      } else if (pid === "global-daily-bookmarks") {
+        dailyBookmarks = loadDailyBookmarksFromCards(data.cards || []);
       } else if (selectedPage && pid === selectedPage.id) {
         const oldCards = pageCards;
         pageCards = data.cards || [];
@@ -1304,7 +1323,7 @@
       blockNumberInput = "1";
     }
 
-    if (!(page.parent_id || page.parentId) && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally") {
+    if (!(page.parent_id || page.parentId) && page.relation_type !== "sidepage" && page.relation_type !== "scratchpad" && page.relation_type !== "tally" && page.relation_type !== "daily_bookmarks") {
       const updated = [page.id, ...recentlyOpenedRootPageIds.filter((id) => id !== page.id)];
       recentlyOpenedRootPageIds = updated;
       try {
