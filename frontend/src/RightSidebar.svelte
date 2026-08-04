@@ -4,7 +4,9 @@
     onAddContextNote,
     onOpenContextNote,
     onDeleteContextNote,
-    onClose
+    onClose,
+    dailyBookmarks = [],
+    ontoggleDailyBookmark
   } = $props();
 
   function parseMetadata(commentField) {
@@ -67,6 +69,24 @@
               <span class="page-title">{note.title || "Context Note"}</span>
               <span style="font-size: 8.5px; font-weight: 800; color: {note.type === 'html' ? '#2dd4bf' : '#818cf8'};">{note.type.toUpperCase()}</span>
             </div>
+          </button>
+          <button
+            class="delete-btn"
+            title="Bookmark context note"
+            style="color: {dailyBookmarks.some((b) => b.targetId === note.id || b.id === note.id) ? '#818cf8' : '#71717a'}; margin-right: 4px;"
+            onclick={(e) => {
+              e.stopPropagation();
+              ontoggleDailyBookmark && ontoggleDailyBookmark({
+                id: note.id,
+                targetId: note.id,
+                targetType: 'context_note',
+                title: note.title || 'Context Note',
+                content: note.content || '',
+                contentType: note.type || 'markdown'
+              });
+            }}
+          >
+            {dailyBookmarks.some((b) => b.targetId === note.id || b.id === note.id) ? "🔖" : "🏷️"}
           </button>
           <button class="delete-btn" title="Delete context note" onclick={(e) => { e.stopPropagation(); onDeleteContextNote(i); }}>×</button>
         </div>

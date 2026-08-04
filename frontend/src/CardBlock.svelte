@@ -31,7 +31,13 @@
     onReadFullscreen,
     onmoveUp,
     onmoveDown,
+    dailyBookmarks = [],
+    ontoggleDailyBookmark,
   } = $props();
+
+  let isBookmarked = $derived(
+    dailyBookmarks.some((b) => b.targetId === card.id || b.id === card.id)
+  );
 
   const { showAlert, showConfirm } = getContext("dialogs");
 
@@ -399,6 +405,24 @@
         <button class="inline-tool-btn" style="color: {activeColor.textMuted}" onclick={(e) => { e.stopPropagation(); onmoveDown && onmoveDown() }}>↓</button>
       {/if}
 
+      <button
+        class="inline-tool-btn"
+        title="Bookmark block"
+        style="color: {isBookmarked ? '#818cf8' : activeColor.textMuted}; font-size: 11px; font-weight: bold; margin-left: 4px;"
+        onclick={(e) => {
+          e.stopPropagation();
+          ontoggleDailyBookmark && ontoggleDailyBookmark({
+            id: card.id,
+            targetId: card.id,
+            targetType: 'card',
+            title: card.type === 'markdown' && card.content ? card.content.trim().split('\n')[0] : `Block #${index + 1} (${card.type})`,
+            content: card.content || '',
+            contentType: card.type
+          });
+        }}
+      >
+        {isBookmarked ? "🔖" : "🏷️"}
+      </button>
       <button
         class="inline-tool-btn"
         title="Move Block to another page"

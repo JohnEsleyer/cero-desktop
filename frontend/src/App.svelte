@@ -865,6 +865,80 @@
     }, 400);
   }
 
+  // Daily Bookmarks State & Logic
+  let dailyBookmarks = $state(loadDailyBookmarks());
+  let showDailyBookmarksModal = $state(false);
+  let activeBookmarkIndex = $state(0);
+
+  function loadDailyBookmarks() {
+    try {
+      const raw = localStorage.getItem("cero_daily_bookmarks");
+      if (!raw) return [];
+      const list = JSON.parse(raw);
+      const now = Date.now();
+      const valid = list.filter((item) => {
+        const created = new Date(item.createdAt).getTime();
+        return now - created < 86400000;
+      });
+      if (valid.length !== list.length) {
+        localStorage.setItem("cero_daily_bookmarks", JSON.stringify(valid));
+      }
+      return valid;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveDailyBookmarks(list) {
+    try {
+      localStorage.setItem("cero_daily_bookmarks", JSON.stringify(list));
+    } catch (_) {}
+  }
+
+  function toggleDailyBookmark(bookmarkData) {
+    const existingIndex = dailyBookmarks.findIndex(
+      (b) => b.targetId === bookmarkData.targetId || b.id === bookmarkData.id
+    );
+    let updated;
+    if (existingIndex >= 0) {
+      updated = dailyBookmarks.filter((_, idx) => idx !== existingIndex);
+    } else {
+      const newItem = {
+        id: bookmarkData.targetId || bookmarkData.id,
+        targetId: bookmarkData.targetId || bookmarkData.id,
+        targetType: bookmarkData.targetType || "card",
+        title: bookmarkData.title || "Bookmark",
+        content: bookmarkData.content || "",
+        contentType: bookmarkData.contentType || "markdown",
+        createdAt: new Date().toISOString(),
+      };
+      updated = [...dailyBookmarks, newItem];
+    }
+    dailyBookmarks = updated;
+    saveDailyBookmarks(updated);
+  }
+
+  function removeDailyBookmark(targetId) {
+    const updated = dailyBookmarks.filter(
+      (b) => b.targetId !== targetId && b.id !== targetId
+    );
+    dailyBookmarks = updated;
+    saveDailyBookmarks(updated);
+    if (activeBookmarkIndex >= updated.length) {
+      activeBookmarkIndex = Math.max(0, updated.length - 1);
+    }
+  }
+
+  function openDailyBookmarksModal() {
+    dailyBookmarks = loadDailyBookmarks();
+    if (dailyBookmarks.length > 0) {
+      activeBookmarkIndex = dailyBookmarks.length - 1;
+    } else {
+      activeBookmarkIndex = 0;
+    }
+    showDailyBookmarksModal = true;
+  }
+
   let rootPages = $derived((() => {
     const rawRoot = allPages.filter(
       (p) => !(p.parent_id || p.parentId) && p.relation_type !== "sidepage" && p.relation_type !== "scratchpad" && p.relation_type !== "tally",
@@ -1430,6 +1504,10 @@
           pageCards[idx].content = fullscreenEditContent;
           pageCards = [...pageCards];
         }
+        if (readingCard && readingCard.id === editingCard.id) {
+          readingCard.content = fullscreenEditContent;
+          readingCard = { ...readingCard };
+        }
       })
       .catch((err) => console.error(err));
     showMarkdownFullscreenModal = false;
@@ -1460,6 +1538,10 @@
         if (idx !== -1) {
           pageCards[idx].content = combined;
           pageCards = [...pageCards];
+        }
+        if (readingCard && readingCard.id === editingCard.id) {
+          readingCard.content = combined;
+          readingCard = { ...readingCard };
         }
       })
       .catch((err) => console.error(err));
@@ -1498,6 +1580,10 @@
         if (idx !== -1) {
           pageCards[idx].content = combined;
           pageCards = [...pageCards];
+        }
+        if (readingCard && readingCard.id === editingCard.id) {
+          readingCard.content = combined;
+          readingCard = { ...readingCard };
         }
       })
       .catch((err) => console.error(err));
@@ -1888,6 +1974,17 @@
         <div class="header-actions">
           <button
             class="btn-sm"
+            style="background: rgba(255, 255, 255, 0.02); border-color: rgba(255, 255, 255, 0.05); color: #cbd5e1; font-weight: bold; margin-right: 4px;"
+            onclick={openDailyBookmarksModal}
+            title="Daily Bookmarks"
+          >
+            🔖 Bookmarks
+            {#if dailyBookmarks.length > 0}
+              <span style="margin-left: 4px; background: #818cf8; color: white; border-radius: 10px; padding: 1px 6px; font-size: 9px;">{dailyBookmarks.length}</span>
+            {/if}
+          </button>
+          <button
+            class="btn-sm"
             style="background: {showScratchpad ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showScratchpad ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showScratchpad ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
             onclick={toggleScratchpad}
           >
@@ -1998,6 +2095,8 @@
                   }}
                   onmoveUp={() => moveCard(currentBlockIndex, -1)}
                   onmoveDown={() => moveCard(currentBlockIndex, 1)}
+                  {dailyBookmarks}
+                  ontoggleDailyBookmark={toggleDailyBookmark}
                 />
                 <div class="insert-slot" style="height: 24px; margin-top: 8px;">
                   <button
@@ -2057,6 +2156,8 @@
                     }}
                     onmoveUp={() => moveCard(index, -1)}
                     onmoveDown={() => moveCard(index, 1)}
+                    {dailyBookmarks}
+                    ontoggleDailyBookmark={toggleDailyBookmark}
                   />
                 </div>
                 <div
@@ -2355,6 +2456,8 @@
         onOpenContextNote={(note, i) => openContextNoteFullscreen(activeCardForContext ? activeCardForContext.id : null, note, i)}
         onDeleteContextNote={handleDeleteContextNote}
         onClose={() => (showRightSidebar = false)}
+        {dailyBookmarks}
+        ontoggleDailyBookmark={toggleDailyBookmark}
       />
     </aside>
   {/if}
@@ -2484,34 +2587,43 @@
             <span style="font-size: 12.5px; font-weight: 700; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left;">
               {data.name}
             </span>
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <button
-                class="btn-sm"
-                style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
-                disabled={data.count <= 0}
-                onclick={() => updateTallyCount(card, data.name, data.count - 1)}
-              >
-                -
-              </button>
-              <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
-                {data.count}
-              </span>
-              <button
-                class="btn-sm"
-                style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
-                onclick={() => updateTallyCount(card, data.name, data.count + 1)}
-              >
-                +
-              </button>
-              <button
-                class="close-btn"
-                style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
-                onclick={() => deleteTally(card.id)}
-                title="Delete Tally"
-              >
-                &times;
-              </button>
-            </div>
+<div style="display: flex; align-items: center; gap: 4px;">
+                <button
+                  class="btn-sm"
+                  style="padding: 2px 8px; font-size: 13px; color: #f87171; border-color: rgba(239, 68, 68, 0.15);"
+                  disabled={data.count <= 0}
+                  onclick={() => updateTallyCount(card, data.name, data.count - 1)}
+                >
+                  -
+                </button>
+                <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">
+                  {data.count}
+                </span>
+                <button
+                  class="btn-sm"
+                  style="padding: 2px 8px; font-size: 13px; color: #4ade80; border-color: rgba(74, 222, 128, 0.15);"
+                  onclick={() => updateTallyCount(card, data.name, data.count + 1)}
+                >
+                  +
+                </button>
+                <button
+                  class="btn-sm"
+                  style="padding: 2px 6px; font-size: 11px; color: #fb923c; border-color: rgba(251, 146, 60, 0.15);"
+                  disabled={data.count <= 0}
+                  onclick={() => updateTallyCount(card, data.name, 0)}
+                  title="Reset Tally to 0"
+                >
+                  ↺
+                </button>
+                <button
+                  class="close-btn"
+                  style="font-size: 14px; padding: 2px 6px; margin-left: 8px; color: #71717a;"
+                  onclick={() => deleteTally(card.id)}
+                  title="Delete Tally"
+                >
+                  &times;
+                </button>
+              </div>
           </div>
         {/each}
       {/if}
@@ -2862,6 +2974,22 @@
 
       <div class="header-buttons">
         <button
+          class="btn-sm"
+          style="background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); color: #4ade80; font-weight: bold;"
+          onclick={() => {
+            const content = fullscreenEditContent;
+            if (readingCard && editingCard && readingCard.id === editingCard.id) {
+              readingCard.content = content;
+              readingCard = { ...readingCard };
+            }
+            saveMarkdownFullscreen();
+            showReadingFullscreenModal = true;
+          }}
+          title="Switch to Reading Mode"
+        >
+          📖 Read Mode
+        </button>
+        <button
           class="btn secondary"
           onclick={cancelMarkdownFullscreen}>Cancel</button
         >
@@ -3050,6 +3178,22 @@
 
       <div class="header-buttons">
         <button
+          class="btn-sm"
+          style="background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); color: #4ade80; font-weight: bold;"
+          onclick={() => {
+            const combined = `${fullscreenCodeLang}\n${fullscreenCodeContent}`;
+            if (readingCard && editingCard && readingCard.id === editingCard.id) {
+              readingCard.content = combined;
+              readingCard = { ...readingCard };
+            }
+            saveCodeFullscreen();
+            showReadingFullscreenModal = true;
+          }}
+          title="Switch to Reading Mode"
+        >
+          📖 Read Mode
+        </button>
+        <button
           class="btn secondary"
           onclick={cancelCodeFullscreen}>Cancel</button
         >
@@ -3100,6 +3244,53 @@
         {/if}
       </div>
       <div class="header-buttons" style="display: flex; gap: 8px;">
+        <button
+          class="btn-sm"
+          style="background: {dailyBookmarks.some((b) => b.targetId === readingCard?.id || b.id === readingCard?.id) ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.02)'}; border-color: {dailyBookmarks.some((b) => b.targetId === readingCard?.id || b.id === readingCard?.id) ? '#818cf8' : 'rgba(255,255,255,0.05)'}; color: {dailyBookmarks.some((b) => b.targetId === readingCard?.id || b.id === readingCard?.id) ? '#818cf8' : '#cbd5e1'};"
+          onclick={() => {
+            if (!readingCard) return;
+            const title = readingCard.type === 'markdown' && readingCard.content
+              ? readingCard.content.trim().split('\n')[0]
+              : `Block (${readingCard.type})`;
+            toggleDailyBookmark({
+              id: readingCard.id,
+              targetId: readingCard.id,
+              targetType: 'card',
+              title,
+              content: readingCard.content || '',
+              contentType: readingCard.type
+            });
+          }}
+          title="Daily Bookmark"
+        >
+          {dailyBookmarks.some((b) => b.targetId === readingCard?.id || b.id === readingCard?.id) ? "🔖" : "🏷️"} Bookmark
+        </button>
+        <button
+          class="btn primary"
+          onclick={() => {
+            // Close reading view first to prevent it from covering the editor
+            showReadingFullscreenModal = false;
+            if (readingCard.type === "markdown") {
+              openMarkdownFullscreen(readingCard, readingCard.content);
+            } else if (readingCard.type === "code") {
+              openCodeFullscreen(readingCard, readingCard.content);
+            } else if (readingCard.type === "sites") {
+              // Parse sites content
+              let name = "", desc = "", html = "";
+              try {
+                const parsed = JSON.parse(readingCard.content || "{}");
+                name = parsed.name || "";
+                desc = parsed.description || "";
+                html = parsed.html || "";
+              } catch (_) {
+                html = readingCard.content || "";
+              }
+              openSitesFullscreen(readingCard, name, desc, html);
+            }
+          }}
+        >
+          ✏️ Edit Note
+        </button>
         <button
           class="btn-sm"
           style="background: {showReadingBottomPanel && readingBottomPanelType === 'scratchpad' ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border-color: {showReadingBottomPanel && readingBottomPanelType === 'scratchpad' ? '#818cf8' : 'rgba(255, 255, 255, 0.05)'}; color: {showReadingBottomPanel && readingBottomPanelType === 'scratchpad' ? '#818cf8' : '#cbd5e1'}; font-weight: bold;"
@@ -3198,6 +3389,15 @@
                       <button class="btn-sm" style="color: #f87171;" disabled={data.count <= 0} onclick={() => updateTallyCount(card, data.name, data.count - 1)}>-</button>
                       <span style="font-size: 13px; font-weight: 700; color: white; min-width: 24px; text-align: center;">{data.count}</span>
                       <button class="btn-sm" style="color: #4ade80;" onclick={() => updateTallyCount(card, data.name, data.count + 1)}>+</button>
+                      <button
+                        class="btn-sm"
+                        style="padding: 2px 6px; font-size: 11px; color: #fb923c; border-color: rgba(251, 146, 60, 0.15);"
+                        disabled={data.count <= 0}
+                        onclick={() => updateTallyCount(card, data.name, 0)}
+                        title="Reset Tally to 0"
+                      >
+                        ↺
+                      </button>
                     </div>
                   </div>
                 {/each}
@@ -3216,6 +3416,8 @@
             onOpenContextNote={(note, i) => openContextNoteFullscreen(readingCard ? readingCard.id : null, note, i)}
             onDeleteContextNote={handleDeleteContextNote}
             onClose={() => (showReadingContextSidebar = false)}
+            {dailyBookmarks}
+            ontoggleDailyBookmark={toggleDailyBookmark}
           />
         </aside>
       {/if}
@@ -3423,10 +3625,117 @@
               onOpenContextNote={(note, i) => openContextNoteFullscreen(activeCardForContext ? activeCardForContext.id : null, note, i)}
               onDeleteContextNote={handleDeleteContextNote}
               onClose={() => (showSitesContextSidebar = false)}
+              {dailyBookmarks}
+              ontoggleDailyBookmark={toggleDailyBookmark}
             />
           </aside>
         {/if}
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Daily Bookmarks Modal -->
+{#if showDailyBookmarksModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <div
+    class="modal-backdrop"
+    onclick={(e) => { if (e.target === e.currentTarget) showDailyBookmarksModal = false; }}
+    role="button"
+    tabindex="-1"
+    style="z-index: 1100;"
+  >
+    <div style="width: 100%; max-width: 860px; background: #141414; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.07); background: #1a1a1f;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 20px;">🔖</span>
+          <div>
+            <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.6px; color: #818cf8; text-transform: uppercase;">Daily Bookmarks</div>
+            {#if dailyBookmarks.length > 0}
+              <div style="font-size: 10px; color: #71717a; margin-top: 1px;">Bookmark {activeBookmarkIndex + 1} of {dailyBookmarks.length} · Resets in 24h</div>
+            {/if}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          {#if dailyBookmarks.length > 0}
+            <button
+              style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #f87171; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;"
+              onclick={() => removeDailyBookmark(dailyBookmarks[activeBookmarkIndex].targetId || dailyBookmarks[activeBookmarkIndex].id)}
+            >
+              🗑 Remove
+            </button>
+          {/if}
+          <button
+            style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #71717a; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;"
+            onclick={() => (showDailyBookmarksModal = false)}
+          >
+            ✕ Close
+          </button>
+        </div>
+      </div>
+
+      {#if dailyBookmarks.length === 0}
+        <!-- Empty State -->
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; gap: 12px;">
+          <div style="font-size: 48px;">🔖</div>
+          <div style="font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.7);">No active daily bookmarks</div>
+          <div style="font-size: 12px; color: #71717a; text-align: center; max-width: 280px; line-height: 1.6;">
+            Bookmark cards or context notes to read them here.<br/>Bookmarks reset automatically after 24 hours.
+          </div>
+        </div>
+      {:else}
+        <!-- Content Area -->
+        {@const bm = dailyBookmarks[activeBookmarkIndex]}
+        <div style="flex: 1; overflow-y: auto; padding: 24px 32px;">
+          <div style="font-size: 10px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+            {bm.contentType?.toUpperCase() || 'MARKDOWN'} · {bm.targetType === 'context_note' ? 'Context Note' : 'Card'}
+          </div>
+          <div style="font-size: 17px; font-weight: 700; color: #e2e8f0; margin-bottom: 20px; line-height: 1.4;">
+            {bm.title || 'Untitled Bookmark'}
+          </div>
+
+          {#if bm.contentType === 'html' || (bm.targetType === 'context_note' && bm.contentType === 'html')}
+            <iframe
+              srcdoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{background:#191919;color:#CBD5E1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px;margin:0;line-height:1.6;font-size:15px;}h1,h2,h3{color:#fff;}a{color:#818cf8;}code,pre{background:#222226;color:#E2E8F0;padding:2px 6px;border-radius:4px;font-family:monospace;}pre{padding:12px;overflow-x:auto;}</style></head><body>${bm.content || ''}</body></html>`}
+              style="width: 100%; min-height: 400px; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; background: #191919;"
+              sandbox="allow-scripts"
+            ></iframe>
+          {:else if bm.contentType === 'code'}
+            <pre style="background: #1d1e22; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 20px; font-size: 13px; line-height: 1.6; color: #e2e8f0; overflow-x: auto; font-family: monospace;">{bm.content || ''}</pre>
+          {:else}
+            <div class="markdown-rendered" style="font-size: 16px; line-height: 1.8; color: #e2e8f0;">
+              {#if bm.content}
+                <SvelteMarkdown source={bm.content} extensions={[markedKatex({ singleDollarInline: true })]} renderers={{ inlineKatex: KatexRenderer, blockKatex: KatexRenderer }} />
+              {:else}
+                <span style="color: #52525b; font-style: italic;">No content available.</span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Navigation Footer -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.06); background: #1a1a1f;">
+          <button
+            style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: {activeBookmarkIndex > 0 ? '#cbd5e1' : '#3f3f46'}; border-radius: 8px; padding: 8px 18px; font-size: 12px; font-weight: 700; cursor: {activeBookmarkIndex > 0 ? 'pointer' : 'not-allowed'}; display: flex; align-items: center; gap: 6px;"
+            onclick={() => { if (activeBookmarkIndex > 0) activeBookmarkIndex--; }}
+            disabled={activeBookmarkIndex <= 0}
+          >
+            ← Previous
+          </button>
+          <span style="font-size: 12px; color: #71717a; font-weight: 600;">
+            Bookmark {activeBookmarkIndex + 1} / {dailyBookmarks.length}
+          </span>
+          <button
+            style="background: {activeBookmarkIndex < dailyBookmarks.length - 1 ? '#818cf8' : 'rgba(255,255,255,0.04)'}; border: 1px solid {activeBookmarkIndex < dailyBookmarks.length - 1 ? '#818cf8' : 'rgba(255,255,255,0.08)'}; color: white; border-radius: 8px; padding: 8px 18px; font-size: 12px; font-weight: 700; cursor: {activeBookmarkIndex < dailyBookmarks.length - 1 ? 'pointer' : 'not-allowed'}; display: flex; align-items: center; gap: 6px;"
+            onclick={() => { if (activeBookmarkIndex < dailyBookmarks.length - 1) activeBookmarkIndex++; }}
+            disabled={activeBookmarkIndex >= dailyBookmarks.length - 1}
+          >
+            Next →
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
